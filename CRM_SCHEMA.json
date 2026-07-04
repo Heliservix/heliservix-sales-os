@@ -1,0 +1,56 @@
+{
+  "empresas": [
+    "empresa",
+    "pais",
+    "puerto",
+    "numero_buques",
+    "capacidad_estim_tn",
+    "prioridad",
+    "estado",
+    "notas"
+  ],
+  "contactos": [
+    "empresa",
+    "nombre",
+    "cargo",
+    "email",
+    "telefono",
+    "whatsapp",
+    "idioma",
+    "linkedin",
+    "estado"
+  ],
+  "oportunidades": [
+    "empresa",
+    "barco",
+    "valor_estimado",
+    "etapa",
+    "probabilidad",
+    "proxima_accion",
+    "responsable"
+  ],
+  "contratos": [
+    "empresa",
+    "barco",
+    "inicio",
+    "fin",
+    "valor",
+    "horas_incluidas",
+    "estado"
+  ],
+  "correos": [
+    "empresa",
+    "contacto",
+    "fecha",
+    "asunto",
+    "estado",
+    "respuesta"
+  ],
+  "inteligencia": [
+    "fecha",
+    "empresa",
+    "tipo_noticia",
+    "impacto",
+    "accion_recomendada"
+  ]
+}
