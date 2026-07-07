@@ -10,7 +10,7 @@ Module: Fleet & Maintenance
 
 Audience: Executive, operations, maintenance, commercial, finance, and product engineering teams
 
-Implementation status: Specification plus visual MVP. No backend, database, authentication, or production persistence is implemented yet.
+Implementation status: HSV OS 0.2 frontend operational MVP. Local CRUD and recalculation workflows use browser `localStorage`; backend, database, authentication, and production persistence are deferred.
 
 ## Executive Summary
 
@@ -37,7 +37,38 @@ The current component-control workbook, `Heliservix_Control_Componentes_FINAL_PR
 - Do not replace official aviation maintenance records in the first release.
 - Do not provide regulatory sign-off or certified airworthiness authorization.
 - Do not implement accounting, payroll, or inventory purchasing as full systems.
-- Do not implement application code in this epic creation step.
+- Do not treat HSV OS 0.2 localStorage records as authoritative production records.
+- Do not add backend, database, authentication, Supabase, or external services in HSV OS 0.2.
+
+## HSV OS 0.2 Frontend MVP Scope
+
+HSV OS 0.2 moves Fleet & Maintenance from a visual demo into an operational frontend MVP. It is still local-only and demo-data governed.
+
+Implemented frontend capabilities:
+
+- Helicopter create, edit, detail, and archive actions.
+- Vessel create, edit, detail, archive, and helicopter assignment actions.
+- Component create, edit, detail, archive, and helicopter assignment actions.
+- Flight-hour logging with automatic flight-hour calculation from Hobbs start and end.
+- Local helicopter hourmeter update after saved flight log.
+- Local deduction of flight hours from assigned hour-controlled components.
+- Remaining-hour, remaining-percentage, and component-status recalculation.
+- Local maintenance alert creation when thresholds are reached.
+- Maintenance Crew Portal role simulation for Admin View and Maintenance Chief View.
+- Maintenance log entry creation.
+- Component removal and installation workflow with replacement-history update.
+- Vessel Inventory MVP with item creation/editing, bodega assignment, stock movement, low-stock detection, and maintenance-event linkage.
+- Purchasing MVP with request creation/editing, status tracking, operational entity links, and attachment placeholders.
+
+Deferred capabilities:
+
+- Server-side persistence.
+- Database schema implementation.
+- Authentication and real role enforcement.
+- Production audit-log storage.
+- Document upload storage.
+- Supabase or other backend integration.
+- Certified maintenance-record replacement.
 
 ## Demo Data Policy
 

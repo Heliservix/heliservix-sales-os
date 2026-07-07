@@ -6,7 +6,20 @@ Product: HeliServiX OS
 
 Module: Maintenance Crew Portal
 
-Status: Architecture and product specification. Do not implement application code from this document until the workflow and permission model are approved.
+Status: HSV OS 0.2 frontend role-simulation MVP. No real authentication, backend permissions, document storage, or production audit persistence is implemented yet.
+
+## HSV OS 0.2 Frontend MVP Scope
+
+- Role simulation toggle for Admin View and Maintenance Chief View.
+- Maintenance-chief-focused workspace.
+- Flight-hour registration through the shared Fleet localStorage workflow.
+- Maintenance log entry creation.
+- Component removal and installation form.
+- Evidence placeholder fields for photos, invoices, logbook pages, work orders, 8130 forms, certificates, and inspection documents.
+- Alert review.
+- Assigned helicopter status review.
+
+Backend authentication, permission enforcement, durable evidence storage, and immutable audit logs are deferred to a later version.
 
 ## Purpose
 

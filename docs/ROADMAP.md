@@ -45,6 +45,8 @@ Exit criteria:
 
 Goal: make the platform multi-helicopter from day one and connect commercial promises to aircraft readiness, component life, maintenance forecast, and reserve planning.
 
+HSV OS 0.2 status: frontend operational MVP implemented with localStorage persistence only. The release supports local CRUD for helicopters, vessels, components, flight logs, Maintenance Crew Portal simulation, vessel inventory, purchasing, component recalculation, alert generation, and demo-data indicators. Backend, database, authentication, real audit persistence, and external services remain deferred.
+
 Deliverables:
 
 - Helicopter registry.

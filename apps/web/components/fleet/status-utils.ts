@@ -4,6 +4,7 @@ export function componentTone(status: ComponentStatus) {
   if (status === "OK") return "green";
   if (status === "Monitor") return "amber";
   if (status === "Critical") return "red";
+  if (status === "Removed") return "neutral";
   return "red";
 }
 

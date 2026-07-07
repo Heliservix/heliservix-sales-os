@@ -6,7 +6,19 @@ Product: HeliServiX OS
 
 Module: Vessel Inventory
 
-Status: Architecture and product specification. No application code should be built from this document until the location hierarchy, item categories, and transfer approvals are accepted.
+Status: HSV OS 0.2 frontend localStorage MVP. No backend inventory ledger, authentication, barcode scanning, or production audit persistence is implemented yet.
+
+## HSV OS 0.2 Frontend MVP Scope
+
+- Create and edit inventory items.
+- Assign inventory to vessel and bodega/storage location.
+- Track item type, name, part number, serial number, lot/batch, quantity, unit of measure, minimum stock, condition, expiration date, related helicopter, and notes.
+- Record stock movements: Received, Transferred, Used, Installed, Consumed, and Adjusted.
+- Update local quantity after stock movement.
+- Detect low stock and expiration status in the frontend.
+- Link movements to maintenance event placeholders.
+
+Durable ledger storage, warehouse permissions, transfer approvals, barcode scanning, and backend traceability are deferred.
 
 ## Purpose
 

@@ -1,12 +1,15 @@
 import {
   AlertTriangle,
   Anchor,
+  Boxes,
   ClipboardCheck,
   ClipboardList,
   Gauge,
   LayoutDashboard,
   Plane,
+  ShoppingCart,
   TrendingUp,
+  UserRoundCog,
   Wrench
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -24,6 +27,9 @@ export const primaryNavigation: NavigationItem[] = [
   { label: "Vessels", href: "/vessels", icon: Anchor, status: "ready" },
   { label: "Components", href: "/components", icon: Wrench, status: "ready" },
   { label: "Flight Log", href: "/flight-log", icon: ClipboardList, status: "ready" },
+  { label: "Maintenance Crew", href: "/crew-portal", icon: UserRoundCog, status: "ready" },
+  { label: "Vessel Inventory", href: "/inventory", icon: Boxes, status: "ready" },
+  { label: "Purchasing", href: "/purchasing", icon: ShoppingCart, status: "ready" },
   { label: "Alerts", href: "/alerts", icon: AlertTriangle, status: "ready" },
   { label: "Forecast", href: "/forecast", icon: TrendingUp, status: "ready" }
 ];

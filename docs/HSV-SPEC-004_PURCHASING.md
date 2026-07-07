@@ -6,7 +6,16 @@ Product: HeliServiX OS
 
 Module: Purchasing
 
-Status: Architecture and product specification. This module is operational purchasing only. It is not accounting, tax compliance, accounts payable, or bank reconciliation.
+Status: HSV OS 0.2 frontend localStorage MVP. This module is operational purchasing only. It is not accounting, tax compliance, accounts payable, or bank reconciliation.
+
+## HSV OS 0.2 Frontend MVP Scope
+
+- Create and edit purchase requests.
+- Track supplier, item name, part number, quantity, unit cost, currency, related helicopter, related vessel, related campaign, related maintenance event, status, attachment placeholder, and notes.
+- Display purchasing workflow status.
+- Preserve records in browser localStorage.
+
+Backend purchasing approvals, supplier document storage, inventory receipt automation, accounting, tax reporting, accounts payable, and Panama compliance workflows are deferred.
 
 ## Product Decision
 
