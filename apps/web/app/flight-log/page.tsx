@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { flightLogs, helicopters, vessels } from "@/lib/fleet-data";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 
 export default function FlightLogPage() {
   return (
@@ -24,7 +24,10 @@ export default function FlightLogPage() {
                 <h2 className="text-lg font-semibold text-ink">New Flight Log</h2>
                 <p className="mt-1 text-sm text-ink-subtle">Structured fields prepared for backend calculation.</p>
               </div>
-              <StatusPill tone="teal">Draft</StatusPill>
+              <a className="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href="/flight-log/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Open create screen
+              </a>
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -38,7 +41,7 @@ export default function FlightLogPage() {
               </label>
               <label className="grid gap-2 text-sm font-medium text-ink">
                 Vessel / Campaign
-                <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue="Atunero Pacific Star">
+                <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue="Demo Vessel A">
                   {vessels.map((vessel) => (
                     <option key={vessel.id}>{vessel.name}</option>
                   ))}
@@ -99,6 +102,9 @@ export default function FlightLogPage() {
                       <p className="font-semibold text-ink">{log.flightHours.toFixed(1)} hrs</p>
                       <p className="mt-1 text-xs text-ink-subtle">{log.hobbsStart.toFixed(1)} to {log.hobbsEnd.toFixed(1)}</p>
                       <p className="mt-1 text-xs text-ink-subtle">{log.flightDate}</p>
+                      <a className="mt-2 inline-block text-xs font-semibold text-aviation-teal hover:text-ink" href={`/flight-log/${log.id}/edit`}>
+                        Edit log
+                      </a>
                     </div>
                   </div>
                 </article>

@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { componentCategories, components } from "@/lib/fleet-data";
-import { Wrench } from "lucide-react";
+import { Plus, Wrench } from "lucide-react";
+import Link from "next/link";
 
 export default function ComponentsPage() {
   const statusCounts = ["OK", "Monitor", "Critical", "Expired"].map((status) => ({
@@ -48,11 +49,14 @@ export default function ComponentsPage() {
 
           <Panel>
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-ink">Components Table</h2>
-                <p className="mt-1 text-sm text-ink-subtle">Workbook-inspired data model prepared for import mapping.</p>
-              </div>
-              <StatusPill tone="teal">Excel-ready fields</StatusPill>
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Components Table</h2>
+              <p className="mt-1 text-sm text-ink-subtle">Workbook-inspired data model prepared for import mapping.</p>
+            </div>
+              <Link className="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href="/components/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add component
+              </Link>
             </div>
             <ComponentsTable components={components} />
           </Panel>

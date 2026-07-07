@@ -94,8 +94,8 @@ export const operationalTimeline: Array<{
   tone: MetricTone;
 }> = [
   {
-    title: "Ecuador fleet renewal signal reviewed",
-    description: "Manta and Guayaquil accounts moved into priority monitoring.",
+    title: "Demo fleet renewal signal reviewed",
+    description: "Demo regional accounts moved into priority monitoring.",
     time: "08:40",
     icon: ShieldCheck,
     tone: "teal"

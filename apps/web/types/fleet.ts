@@ -16,6 +16,8 @@ export type AlertStatus = "Open" | "Acknowledged" | "In Progress" | "Resolved";
 
 export type ForecastConfidence = "High" | "Medium" | "Low";
 
+export type VesselStatus = "Demo" | "Prospect" | "Active" | "Inactive" | "Archived";
+
 export type Helicopter = {
   registration: string;
   model: string;
@@ -37,10 +39,13 @@ export type Vessel = {
   id: string;
   name: string;
   owner: string;
+  homePort: string;
   capacityTons: number;
   campaign: string;
   country: string;
-  contract: string;
+  assignedHelicopter?: string;
+  status: VesselStatus;
+  notes: string;
 };
 
 export type ComponentCategory = {

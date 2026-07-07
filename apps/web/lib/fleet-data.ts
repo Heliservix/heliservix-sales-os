@@ -25,12 +25,12 @@ export const helicopters: Helicopter[] = [
     serialNumber: "1234",
     manufactureYear: "2002",
     currentHourmeter: 1820.4,
-    status: "Assigned",
+    status: "Available",
     ownerCompany: "HeliServiX",
-    assignedVessel: "Atunero Pacific Star",
-    operationArea: "Panama / Eastern Pacific",
-    base: "Panama City",
-    notes: "Reference aircraft imported from component-control workbook.",
+    assignedVessel: "Demo Vessel A",
+    operationArea: "Demo operation area",
+    base: "Demo base",
+    notes: "Demo record. HP1804 component examples reference the uploaded workbook structure, but operational assignment data is not authoritative.",
     readiness: 86,
     nextDueComponent: "MR BLADE C016-7",
     nextDueHours: 1916.5
@@ -38,15 +38,15 @@ export const helicopters: Helicopter[] = [
   {
     registration: "HP1782",
     model: "Robinson R44",
-    serialNumber: "1182",
-    manufactureYear: "2001",
+    serialNumber: "Demo serial",
+    manufactureYear: "Demo year",
     currentHourmeter: 1644.7,
     status: "Available",
     ownerCompany: "HeliServiX",
     assignedVessel: "Unassigned",
-    operationArea: "Ecuador / Manta",
-    base: "Manta",
-    notes: "Candidate aircraft for Ecuador fleet campaign.",
+    operationArea: "Demo operation area",
+    base: "Demo base",
+    notes: "Demo-only record. Do not treat HP1782 details or assignments as real HeliServiX data until imported or entered by HeliServiX.",
     readiness: 92,
     nextDueComponent: "Tail rotor gearbox",
     nextDueHours: 420.2
@@ -54,15 +54,15 @@ export const helicopters: Helicopter[] = [
   {
     registration: "HP1783",
     model: "Robinson R44",
-    serialNumber: "1183",
-    manufactureYear: "2001",
+    serialNumber: "Demo serial",
+    manufactureYear: "Demo year",
     currentHourmeter: 1711.2,
     status: "Maintenance",
     ownerCompany: "HeliServiX",
     assignedVessel: "Unassigned",
-    operationArea: "Panama",
-    base: "Panama City",
-    notes: "Calendar inspection planning in progress.",
+    operationArea: "Demo operation area",
+    base: "Demo base",
+    notes: "Demo-only record. Do not treat HP1783 details or assignments as real HeliServiX data until imported or entered by HeliServiX.",
     readiness: 68,
     nextDueComponent: "Hydraulic servo",
     nextDueHours: 88.4
@@ -70,15 +70,15 @@ export const helicopters: Helicopter[] = [
   {
     registration: "HP1768",
     model: "Robinson R44",
-    serialNumber: "1168",
-    manufactureYear: "2000",
+    serialNumber: "Demo serial",
+    manufactureYear: "Demo year",
     currentHourmeter: 1988.9,
     status: "Grounded",
     ownerCompany: "HeliServiX",
     assignedVessel: "Unassigned",
-    operationArea: "Colombia / Pacific",
-    base: "Buenaventura",
-    notes: "Grounded pending component replacement and document review.",
+    operationArea: "Demo operation area",
+    base: "Demo base",
+    notes: "Demo-only record. Do not treat HP1768 details or assignments as real HeliServiX data until imported or entered by HeliServiX.",
     readiness: 41,
     nextDueComponent: "Engine overhaul",
     nextDueHours: 0
@@ -86,15 +86,15 @@ export const helicopters: Helicopter[] = [
   {
     registration: "HP1769",
     model: "Robinson R44",
-    serialNumber: "1169",
-    manufactureYear: "2000",
+    serialNumber: "Demo serial",
+    manufactureYear: "Demo year",
     currentHourmeter: 1539.5,
     status: "Available",
     ownerCompany: "HeliServiX",
-    assignedVessel: "Mar Azul",
-    operationArea: "Ecuador / Guayaquil",
-    base: "Guayaquil",
-    notes: "Strong candidate for near-term Guayaquil contract coverage.",
+    assignedVessel: "Unassigned",
+    operationArea: "Demo operation area",
+    base: "Demo base",
+    notes: "Demo-only record. Do not treat HP1769 details or assignments as real HeliServiX data until imported or entered by HeliServiX.",
     readiness: 89,
     nextDueComponent: "MRGB sump",
     nextDueHours: 356.1
@@ -103,33 +103,47 @@ export const helicopters: Helicopter[] = [
 
 export const vessels: Vessel[] = [
   {
-    id: "vessel-pacific-star",
-    name: "Atunero Pacific Star",
-    owner: "Pacific Tuna Holdings",
+    id: "demo-vessel-a",
+    name: "Demo Vessel A",
+    owner: "Demo Owner Company",
+    country: "Demo Country",
+    homePort: "Demo Home Port",
     capacityTons: 1250,
-    campaign: "Eastern Pacific Q3",
-    country: "Panama",
-    contract: "Draft annual support"
+    campaign: "Demo Campaign A",
+    assignedHelicopter: "HP1804",
+    status: "Demo",
+    notes: "Neutral demo vessel for interface testing. Replace with real HeliServiX vessel data before operational use."
   },
   {
-    id: "vessel-mar-azul",
-    name: "Mar Azul",
-    owner: "Manta Ocean Group",
+    id: "demo-vessel-b",
+    name: "Demo Vessel B",
+    owner: "Demo Owner Company",
+    country: "Demo Country",
+    homePort: "Demo Home Port",
     capacityTons: 980,
-    campaign: "Guayaquil readiness",
-    country: "Ecuador",
-    contract: "Seasonal proposal"
+    campaign: "Demo Campaign B",
+    assignedHelicopter: "Unassigned",
+    status: "Demo",
+    notes: "Neutral demo vessel for list, detail, and edit form validation."
   },
   {
-    id: "vessel-costa-dorada",
-    name: "Costa Dorada",
-    owner: "Andes Pesca",
+    id: "demo-vessel-c",
+    name: "Demo Vessel C",
+    owner: "Demo Owner Company",
+    country: "Demo Country",
+    homePort: "Demo Home Port",
     capacityTons: 1100,
-    campaign: "Manta prospecting",
-    country: "Ecuador",
-    contract: "Opportunity review"
+    campaign: "Demo Campaign C",
+    assignedHelicopter: "Unassigned",
+    status: "Demo",
+    notes: "Neutral demo vessel for future helicopter-to-vessel assignment workflow."
   }
 ];
+
+export const demoDataPolicy =
+  "Demo records are for interface testing only. Real fleet, vessel, and component data must be imported or entered by HeliServiX.";
+
+export const protectedDemoRegistrations = ["HP1782", "HP1783", "HP1768", "HP1769", "HP1770"];
 
 export const componentCategories: ComponentCategory[] = [
   { id: "cat-engine", name: "Engine", description: "Powerplant and overhaul-controlled items." },
@@ -197,7 +211,7 @@ export const components: HelicopterComponent[] = [
     remainingCalendarDays: 1500,
     remainingPercentage: 19.1,
     status: "Monitor",
-    notes: "Plan replacement package before high-utilization Ecuador assignment.",
+    notes: "Demo component record. Replace with verified HeliServiX data before planning replacement activity.",
     documents: 1
   },
   {
@@ -257,7 +271,7 @@ export const components: HelicopterComponent[] = [
     remainingCalendarDays: 1688,
     remainingPercentage: 16.2,
     status: "Monitor",
-    notes: "Monitor during Guayaquil campaign planning.",
+    notes: "Demo component record. Replace with verified HeliServiX data before planning campaign activity.",
     documents: 1
   }
 ];
@@ -266,29 +280,29 @@ export const flightLogs: FlightLog[] = [
   {
     id: "fl-001",
     helicopterRegistration: "HP1804",
-    vesselName: "Atunero Pacific Star",
-    campaign: "Eastern Pacific Q3",
+    vesselName: "Demo Vessel A",
+    campaign: "Demo Campaign A",
     flightDate: "2026-07-04",
     pilot: "Adolfo Spinali",
     mechanic: "Carlos Rivas",
     hobbsStart: 1816.2,
     hobbsEnd: 1820.4,
     flightHours: 4.2,
-    notes: "Search pattern validation and vessel approach coordination.",
+    notes: "Demo flight log for interface testing. Replace with approved HeliServiX records.",
     approvalStatus: "Approved"
   },
   {
     id: "fl-002",
     helicopterRegistration: "HP1769",
-    vesselName: "Mar Azul",
-    campaign: "Guayaquil readiness",
+    vesselName: "Demo Vessel B",
+    campaign: "Demo Campaign B",
     flightDate: "2026-07-02",
-    pilot: "Miguel Ortega",
-    mechanic: "Luis Moreno",
+    pilot: "Demo Pilot",
+    mechanic: "Demo Mechanic",
     hobbsStart: 1537,
     hobbsEnd: 1539.5,
     flightHours: 2.5,
-    notes: "Owner demonstration sortie.",
+    notes: "Demo flight log for form and list validation.",
     approvalStatus: "Submitted"
   }
 ];
@@ -307,7 +321,7 @@ export const maintenanceAlerts: MaintenanceAlert[] = [
     dueDate: "2026-05-31",
     assignedTo: "Maintenance Lead",
     status: "Open",
-    description: "Engine overhaul is expired. Aircraft must remain grounded until replacement or overhaul event is approved."
+    description: "Demo alert only. Replace with verified HeliServiX maintenance data before operational use."
   },
   {
     id: "alert-002",
@@ -322,7 +336,7 @@ export const maintenanceAlerts: MaintenanceAlert[] = [
     dueDate: "2027-05-09",
     assignedTo: "Operations Manager",
     status: "Acknowledged",
-    description: "Hydraulic servo is below 10% remaining by hours and blocks campaign assignment."
+    description: "Demo alert only. Replace with verified HeliServiX maintenance data before operational use."
   },
   {
     id: "alert-003",
@@ -337,7 +351,7 @@ export const maintenanceAlerts: MaintenanceAlert[] = [
     dueDate: "2030-08-14",
     assignedTo: "Maintenance Coordinator",
     status: "In Progress",
-    description: "Component is between 10% and 25% remaining. Procurement timing should be reviewed."
+    description: "Demo alert only. Replace with verified HeliServiX maintenance data before operational use."
   },
   {
     id: "alert-004",
@@ -425,7 +439,7 @@ export const fleetMetrics: DashboardMetric[] = [
   {
     label: "Active Helicopters",
     value: "5",
-    detail: "Across Panama, Ecuador, and Colombia operations",
+    detail: "Demo fleet count prepared for Latin American operating scenarios",
     tone: "teal",
     icon: Plane
   },
@@ -468,8 +482,8 @@ export const fleetActivity = [
     tone: "teal" as const
   },
   {
-    title: "HP1769 assigned to Mar Azul",
-    description: "Guayaquil readiness campaign linked to vessel and seasonal proposal.",
+    title: "Demo vessel assignment visible",
+    description: "Helicopter-to-vessel assignment UI uses neutral demo labels until real HeliServiX data is entered.",
     time: "10:20",
     icon: Plane,
     tone: "green" as const
@@ -489,6 +503,14 @@ export function getHelicopter(registration: string) {
 
 export function getComponent(id: string) {
   return components.find((component) => component.id === id);
+}
+
+export function getVessel(id: string) {
+  return vessels.find((vessel) => vessel.id === id);
+}
+
+export function getFlightLog(id: string) {
+  return flightLogs.find((flightLog) => flightLog.id === id);
 }
 
 export function componentsForHelicopter(registration: string) {

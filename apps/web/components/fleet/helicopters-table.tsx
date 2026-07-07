@@ -20,6 +20,7 @@ export function HelicoptersTable({ helicopters }: HelicoptersTableProps) {
             <th className="px-4 py-3 font-semibold">Assigned Vessel</th>
             <th className="px-4 py-3 font-semibold">Area</th>
             <th className="px-4 py-3 font-semibold">Next Due</th>
+            <th className="px-4 py-3 font-semibold">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">
@@ -39,6 +40,11 @@ export function HelicoptersTable({ helicopters }: HelicoptersTableProps) {
               <td className="px-4 py-3 text-ink-muted">{helicopter.assignedVessel ?? "Unassigned"}</td>
               <td className="px-4 py-3 text-ink-muted">{helicopter.operationArea}</td>
               <td className="px-4 py-3 text-ink-muted">{helicopter.nextDueComponent}</td>
+              <td className="px-4 py-3">
+                <a className="font-semibold text-aviation-teal hover:text-ink" href={`/helicopters/${helicopter.registration}/edit`}>
+                  Edit
+                </a>
+              </td>
             </tr>
           ))}
         </tbody>

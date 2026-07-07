@@ -32,10 +32,16 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
         <PageHeader
           eyebrow="Helicopter Detail"
           title={`${helicopter.registration} / ${helicopter.model}`}
-          description={`${helicopter.ownerCompany} aircraft assigned to ${helicopter.assignedVessel ?? "no vessel"} in ${helicopter.operationArea}.`}
+          description={`${helicopter.ownerCompany} aircraft assignment shown with demo data only. Real vessel assignments must be imported or entered by HeliServiX.`}
           icon={Plane}
           status={`${helicopter.currentHourmeter.toFixed(1)} current hours`}
         />
+
+        <div className="mb-6 flex justify-end">
+          <a className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink shadow-control transition hover:bg-canvas-muted dark:bg-canvas-muted" href={`/helicopters/${helicopter.registration}/edit`}>
+            Edit helicopter
+          </a>
+        </div>
 
         <section className="grid gap-4 md:grid-cols-4">
           <Panel>

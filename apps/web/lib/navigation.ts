@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Anchor,
   ClipboardCheck,
   ClipboardList,
   Gauge,
@@ -20,6 +21,7 @@ export type NavigationItem = {
 export const primaryNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, status: "ready" },
   { label: "Helicopters", href: "/helicopters", icon: Plane, status: "ready" },
+  { label: "Vessels", href: "/vessels", icon: Anchor, status: "ready" },
   { label: "Components", href: "/components", icon: Wrench, status: "ready" },
   { label: "Flight Log", href: "/flight-log", icon: ClipboardList, status: "ready" },
   { label: "Alerts", href: "/alerts", icon: AlertTriangle, status: "ready" },

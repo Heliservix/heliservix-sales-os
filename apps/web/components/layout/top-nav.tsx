@@ -35,7 +35,7 @@ export function TopNav() {
           <div className="hidden h-10 min-w-0 flex-1 max-w-xl items-center gap-3 rounded-md border border-line bg-white px-3 shadow-control dark:bg-canvas-muted md:flex">
             <Search className="h-4 w-4 text-ink-subtle" aria-hidden="true" />
             <span className="truncate text-sm text-ink-subtle">
-              Search helicopters, components, vessels, campaigns, or alerts
+              Search demo helicopters, vessels, components, campaigns, or alerts
             </span>
             <span className="ml-auto inline-flex items-center gap-1 rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink-subtle">
               <Command className="h-3 w-3" aria-hidden="true" /> K

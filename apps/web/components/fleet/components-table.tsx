@@ -25,6 +25,7 @@ export function ComponentsTable({ components, compact = false }: ComponentsTable
             <th className="px-4 py-3 font-semibold">%</th>
             <th className="px-4 py-3 font-semibold">Status</th>
             {!compact ? <th className="px-4 py-3 font-semibold">Docs</th> : null}
+            {!compact ? <th className="px-4 py-3 font-semibold">Actions</th> : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">
@@ -49,6 +50,13 @@ export function ComponentsTable({ components, compact = false }: ComponentsTable
                 <StatusPill tone={componentTone(component.status)}>{component.status}</StatusPill>
               </td>
               {!compact ? <td className="px-4 py-3 text-ink-muted">{component.documents}</td> : null}
+              {!compact ? (
+                <td className="px-4 py-3">
+                  <a className="font-semibold text-aviation-teal hover:text-ink" href={`/components/${component.id}/edit`}>
+                    Edit
+                  </a>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

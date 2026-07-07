@@ -39,6 +39,116 @@ The current component-control workbook, `Heliservix_Control_Componentes_FINAL_PR
 - Do not implement accounting, payroll, or inventory purchasing as full systems.
 - Do not implement application code in this epic creation step.
 
+## Demo Data Policy
+
+The Fleet & Maintenance MVP may use demo records to validate layout, workflow, routing, and user experience. Demo records must never be presented as operational truth.
+
+Required UI language:
+
+> Demo records are for interface testing only. Real fleet, vessel, and component data must be imported or entered by HeliServiX.
+
+Policy rules:
+
+- All demo records must be visibly marked as demo data in the application shell or page context.
+- Neutral labels such as `Demo Vessel A` are acceptable for interface testing.
+- Invented vessel names, invented owner companies, invented ports, and invented helicopter-to-vessel assignments are not acceptable unless they are clearly labeled as demo data.
+- HP1782, HP1783, HP1768, HP1769, HP1770, and future aircraft must not receive invented real-world assignments, serial numbers, maintenance statuses, or component histories.
+- HP1804 workbook-derived component examples may be used only as reference import examples until verified by HeliServiX.
+- Demo flight logs must not update aircraft hourmeters, component remaining hours, alerts, forecasts, or reserve calculations.
+- Production data must include source, import timestamp or entry timestamp, responsible user, validation status, and audit trail.
+
+## Real Data Onboarding Workflow
+
+Real Fleet & Maintenance data enters the system through governed import or manual entry. The workflow must protect operational confidence before any record is used for assignment, maintenance planning, or commercial commitments.
+
+1. Source identification
+   - Identify whether the record comes from the current component-control workbook, official maintenance records, aircraft documents, vessel owner records, campaign records, or direct HeliServiX entry.
+   - Record the source type, source owner, received date, and responsible reviewer.
+
+2. Staging
+   - Import or enter data into a staging state.
+   - Do not expose staged records as operationally available.
+   - Flag missing values, conflicting hourmeters, incomplete component fields, calendar-limit gaps, and unverified vessel assignments.
+
+3. Review
+   - Maintenance reviews aircraft and component data.
+   - Operations reviews vessel, campaign, country, and assignment context.
+   - Commercial reviews owner/company linkage when the vessel affects opportunity or contract readiness.
+
+4. Approval
+   - Approved records move from staging to active demo-replacement records.
+   - Approval must capture approver, timestamp, source evidence, and affected entities.
+
+5. Activation
+   - Active records may be used in dashboards, assignment workflows, alerts, forecasts, and reporting.
+   - Any later correction must preserve previous values in audit history.
+
+## Vessel Management Workflow
+
+Vessel records are first-class Fleet & Maintenance entities because helicopter availability depends on vessel assignments, campaign geography, owner context, and operating commitments.
+
+Required vessel fields:
+
+- Vessel name.
+- Owner company.
+- Country.
+- Home port.
+- Capacity tons.
+- Current campaign.
+- Assigned helicopter.
+- Status.
+- Notes.
+
+Workflow:
+
+1. Create vessel
+   - User enters vessel identity, owner company, country, home port, capacity, campaign, status, and notes.
+   - System marks new records as draft or pending verification until reviewed.
+
+2. Validate vessel
+   - Operations validates vessel name, owner, country, and home port.
+   - Commercial validates owner-company relationship and campaign relevance.
+   - Capacity tons should be numeric and sourced from a reliable vessel or owner record.
+
+3. Maintain vessel
+   - Users can edit campaign, status, notes, and assignment readiness.
+   - Identity changes such as vessel name or owner require audit history.
+
+4. Archive vessel
+   - Inactive or obsolete vessels remain searchable for historical campaigns but cannot receive active helicopter assignments.
+
+## Helicopter-To-Vessel Assignment Workflow
+
+Assignments must be deliberate because they affect fleet readiness, maintenance exposure, and commercial commitments.
+
+Assignment pre-checks:
+
+- Helicopter record is active and verified.
+- Current hourmeter has been reviewed.
+- No grounding alerts exist.
+- Critical alerts have a documented operational decision.
+- Required documents are present.
+- Vessel record is verified.
+- Campaign dates, country, and operating area are known.
+- Contract or opportunity linkage is recorded when applicable.
+
+Workflow:
+
+1. Select vessel and campaign.
+2. Select candidate helicopter.
+3. Review helicopter status, current hourmeter, open alerts, next limiting component, forecast exposure, and reserve requirement.
+4. Review vessel owner, country, home port, capacity, campaign, and contract context.
+5. Confirm assignment start date and expected utilization.
+6. Save assignment as planned, active, completed, or cancelled.
+7. Record all assignment changes in audit history.
+
+Rules:
+
+- A grounded helicopter cannot be assigned to an active vessel campaign.
+- A helicopter with expired components cannot be assigned until the maintenance condition is resolved.
+- Demo records cannot be used for operational assignment decisions.
+- HP1782, HP1783, HP1768, HP1769, and HP1770 assignments must remain blank or demo-labeled until real HeliServiX data is provided.
+
 ## Reference Workbook Model
 
 Reference workbook: `Heliservix_Control_Componentes_FINAL_PRO.xlsx`
@@ -1198,8 +1308,13 @@ v0.1 should include:
 - Fleet dashboard.
 - Helicopters list.
 - Helicopter detail.
+- Vessel list.
+- Vessel detail.
+- Vessel create and edit screens.
 - Components table.
 - Component detail.
+- Helicopter, component, and flight-log create/edit UI actions.
+- Visible demo-data policy across Fleet & Maintenance screens.
 - Flight log workflow.
 - Maintenance alerts screen.
 - Excel import preview.
@@ -1258,6 +1373,8 @@ The epic is ready for implementation when:
 The MVP is accepted when:
 
 - Users can create multiple helicopter records.
+- Users can create and edit vessel records.
+- Users can link verified helicopters to verified vessels through an assignment workflow.
 - Users can import HP1804 component data from the workbook.
 - Users can view components by helicopter.
 - The system calculates OK, Monitor, Critical, and Expired statuses.
@@ -1266,6 +1383,8 @@ The MVP is accepted when:
 - Alerts are generated for Monitor, Critical, Expired, missing data, and calendar warnings.
 - Import preview shows missing data and status mismatches before commit.
 - No helicopter-specific logic assumes HP1804 as the only aircraft.
+- Demo data is visibly identified and cannot be mistaken for authoritative HeliServiX operating data.
+- HP1782, HP1783, HP1768, HP1769, and HP1770 do not contain invented real-world vessel assignments.
 - All critical mutations are audit logged.
 
 ## Open Questions

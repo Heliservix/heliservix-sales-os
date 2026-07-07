@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { components, helicopters } from "@/lib/fleet-data";
-import { Plane } from "lucide-react";
+import { Plane, Plus } from "lucide-react";
+import Link from "next/link";
 
 export default function HelicoptersPage() {
   const grounded = helicopters.filter((helicopter) => helicopter.status === "Grounded").length;
@@ -26,7 +27,7 @@ export default function HelicoptersPage() {
           <Panel>
             <StatusPill tone="teal">Registry</StatusPill>
             <p className="mt-4 text-3xl font-semibold text-ink">{helicopters.length}</p>
-            <p className="mt-2 text-sm text-ink-subtle">HP1804, HP1782, HP1783, HP1768, HP1769, and future aircraft.</p>
+            <p className="mt-2 text-sm text-ink-subtle">HP1782, HP1783, HP1768, HP1769, and HP1770 require verified HeliServiX data before use.</p>
           </Panel>
           <Panel>
             <StatusPill tone="green">Assigned</StatusPill>
@@ -52,7 +53,10 @@ export default function HelicoptersPage() {
               <h2 className="text-lg font-semibold text-ink">Fleet Registry</h2>
               <p className="mt-1 text-sm text-ink-subtle">Current production-shaped fields for MVP aircraft records.</p>
             </div>
-            <StatusPill tone="teal">Mock source</StatusPill>
+            <Link className="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href="/helicopters/new">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add helicopter
+            </Link>
           </div>
           <HelicoptersTable helicopters={helicopters} />
         </Panel>

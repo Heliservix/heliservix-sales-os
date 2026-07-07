@@ -34,6 +34,12 @@ export default async function ComponentDetailPage({ params }: ComponentDetailPag
           status={component.status}
         />
 
+        <div className="mb-6 flex justify-end">
+          <a className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink shadow-control transition hover:bg-canvas-muted dark:bg-canvas-muted" href={`/components/${component.id}/edit`}>
+            Edit component
+          </a>
+        </div>
+
         <section className="grid gap-4 md:grid-cols-4">
           <Panel>
             <StatusPill tone={componentTone(component.status)}>Status</StatusPill>
