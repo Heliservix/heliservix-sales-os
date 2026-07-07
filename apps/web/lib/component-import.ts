@@ -72,6 +72,8 @@ export type ComponentImportPreview = {
   records: ComponentImportRecord[];
   issues: ImportIssue[];
   mappedColumns: Record<string, string>;
+  mappedFields: ComponentImportColumnMapping[];
+  columnOptions: ComponentImportColumnOption[];
 };
 
 export type ComponentImportMode =
@@ -87,7 +89,7 @@ export type ComponentImportOptions = {
 };
 
 type RawRow = unknown[];
-type FieldKey =
+export type ComponentImportFieldKey =
   | "registration"
   | "model"
   | "aircraftSerialNumber"
@@ -107,28 +109,49 @@ type FieldKey =
   | "status"
   | "notes";
 
-const fieldAliases: Record<FieldKey, string[]> = {
-  registration: ["registration", "matricula", "aircraft registration", "helicopter registration", "helicopter", "aeronave"],
+export type ComponentImportColumnOverride = Partial<Record<ComponentImportFieldKey, number | null>>;
+
+export type ComponentImportColumnOption = {
+  index: number;
+  header: string;
+};
+
+export type ComponentImportColumnMapping = {
+  field: ComponentImportFieldKey;
+  label: string;
+  header: string;
+  columnIndex?: number;
+  confidence: number;
+  manuallyMapped: boolean;
+  alternatives: Array<{
+    columnIndex: number;
+    header: string;
+    confidence: number;
+  }>;
+};
+
+const fieldAliases: Record<ComponentImportFieldKey, string[]> = {
+  registration: ["registration", "matricula", "matrícula", "reg", "reg.", "aircraft registration", "helicopter registration", "aircraft", "helicopter", "aeronave", "helicoptero", "helicóptero"],
   model: ["model", "modelo"],
   aircraftSerialNumber: ["aircraft serial number", "serial aeronave", "sn aeronave", "s/n aeronave", "aircraft sn"],
   currentHourmeter: ["current hourmeter", "horometro", "horometro aeronave", "hourmeter", "hobbs"],
   componentName: ["component name", "component", "componente", "nombre componente"],
   category: ["component category", "category", "categoria", "categoría"],
-  partNumber: ["part number", "part no", "pn", "p/n", "numero parte", "n parte"],
-  serialNumber: ["serial number", "serial no", "sn", "s/n", "numero serie"],
+  partNumber: ["part number", "part no", "part", "pn", "p/n", "numero parte", "n parte", "número de parte"],
+  serialNumber: ["serial number", "serial no", "serial", "sn", "s/n", "numero serie", "número de serie"],
   position: ["position", "posicion", "posición"],
   installationDate: ["installation date", "fecha instalacion", "fecha instalación", "fecha instalado"],
   tsnHours: ["tsn", "tsn hrs", "tsn hours", "tsn (hrs)"],
   tsoHours: ["tso", "tso hrs", "tso hours", "tso (hrs)"],
-  lifeLimitHours: ["life limit hours", "life limit", "limite vida horas", "limite vida hrs", "limite vida (hrs)", "límite vida (hrs)", "limite de vida horas"],
-  remainingHours: ["remaining hours", "remanente hrs", "remanente horas", "remanente (hrs)", "horas remanentes"],
-  calendarLimitDate: ["calendar limit date", "calendar limit", "limite calendario", "límite calendario", "remanente calendario", "remanente calendario (anos)", "remanente calendario (años)"],
+  lifeLimitHours: ["life limit hours", "life limit", "life limit hrs", "limit hours", "limite vida horas", "limite vida hrs", "limite vida (hrs)", "límite vida (hrs)", "limite de vida horas"],
+  remainingHours: ["remaining hours", "hours remaining", "life remaining", "remaining life", "remanente hrs", "remanente horas", "remanente (hrs)", "horas remanentes", "vida remanente"],
+  calendarLimitDate: ["calendar limit date", "calendar limit", "calendar", "expiration", "expiration date", "expiry", "expiry date", "expires", "limite calendario", "límite calendario", "vencimiento", "fecha vencimiento", "expiracion", "expiración", "remanente calendario", "remanente calendario (anos)", "remanente calendario (años)"],
   remainingPercentage: ["remaining percentage", "remaining %", "% remaining", "% remanente", "% remanente horas", "porcentaje remanente"],
   status: ["status", "estado"],
   notes: ["notes", "observations", "observaciones", "notas"]
 };
 
-const fieldLabels: Record<FieldKey, string> = {
+const fieldLabels: Record<ComponentImportFieldKey, string> = {
   registration: "Registration",
   model: "Model",
   aircraftSerialNumber: "Aircraft Serial Number",
@@ -154,10 +177,11 @@ export function buildComponentImportPreview(input: {
   sheets: Array<{ name: string; rows: RawRow[] }>;
   store: FleetStore;
   preselectedRegistration?: string;
+  mappingOverrides?: ComponentImportColumnOverride;
 }): ComponentImportPreview {
   const worksheetPreviews = input.sheets.map((sheet) => {
     const metadata = extractMetadata(sheet.rows);
-    const componentTable = findComponentTable(sheet.rows);
+    const componentTable = findComponentTable(sheet.rows, input.mappingOverrides);
     const records = componentTable
       ? componentTable.rows.map((row, index) =>
         rowToRecord({
@@ -184,8 +208,10 @@ export function buildComponentImportPreview(input: {
   const records = worksheetPreviews.flatMap((preview) => preview.records);
   const mappedColumns = Object.assign(
     {},
-    ...parsedWorksheets.map((preview) => mapColumns(preview.componentTable!.headerRow))
+    ...parsedWorksheets.map((preview) => mapColumns(preview.componentTable!.headerRow, input.mappingOverrides))
   );
+  const mappedFields = mergeMappedFields(parsedWorksheets.flatMap((preview) => preview.componentTable!.mappedFields));
+  const columnOptions = buildColumnOptions(parsedWorksheets[0]?.componentTable?.headerRow ?? []);
 
   const duplicateCounts = new Map<string, number>();
   records.forEach((record) => {
@@ -221,7 +247,9 @@ export function buildComponentImportPreview(input: {
     detectedHelicopters,
     records: recordsWithDuplicateFlags,
     issues,
-    mappedColumns
+    mappedColumns,
+    mappedFields,
+    columnOptions
   };
 }
 
@@ -340,14 +368,17 @@ export function hasBlockingImportIssues(preview?: ComponentImportPreview, select
   return preview.issues.some((item) => item.severity === "error" && (!item.helicopterRegistration || selected.has(item.helicopterRegistration)));
 }
 
-function findComponentTable(rows: RawRow[]) {
+function findComponentTable(rows: RawRow[], overrides?: ComponentImportColumnOverride) {
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
-    const mapping = mapHeaderIndexes(row);
-    if (mapping.componentName !== undefined && (mapping.partNumber !== undefined || mapping.serialNumber !== undefined)) {
+    const autoMapping = mapHeaderIndexes(row);
+    if (autoMapping.componentName !== undefined && (autoMapping.partNumber !== undefined || autoMapping.serialNumber !== undefined)) {
+      const mappedFields = mapHeaderFields(row, overrides);
+      const mapping = mappingIndexesFromFields(mappedFields);
       return {
         headerRow: row,
         mapping,
+        mappedFields,
         rows: rows.slice(index + 1).filter((candidate) => candidate.some((cell) => normalizeCell(cell))),
         startRowNumber: index + 2
       };
@@ -356,25 +387,145 @@ function findComponentTable(rows: RawRow[]) {
   return undefined;
 }
 
-function mapHeaderIndexes(row: RawRow) {
-  const mapping: Partial<Record<FieldKey, number>> = {};
-  row.forEach((cell, index) => {
-    const normalized = normalizeHeader(cell);
-    (Object.keys(fieldAliases) as FieldKey[]).forEach((field) => {
-      if (mapping[field] !== undefined) return;
-      if (fieldAliases[field].some((alias) => normalized === normalizeHeader(alias) || normalized.includes(normalizeHeader(alias)))) {
-        mapping[field] = index;
-      }
-    });
+function mapHeaderIndexes(row: RawRow, overrides?: ComponentImportColumnOverride) {
+  return mappingIndexesFromFields(mapHeaderFields(row, overrides));
+}
+
+function mapColumns(row: RawRow, overrides?: ComponentImportColumnOverride) {
+  const mapping = mapHeaderIndexes(row, overrides);
+  return Object.fromEntries(
+    Object.entries(mapping).map(([field, index]) => [fieldLabels[field as ComponentImportFieldKey], normalizeCell(row[index as number])])
+  );
+}
+
+function mapHeaderFields(row: RawRow, overrides?: ComponentImportColumnOverride): ComponentImportColumnMapping[] {
+  const fields = Object.keys(fieldAliases) as ComponentImportFieldKey[];
+  const candidatesByField = Object.fromEntries(
+    fields.map((field) => [field, buildFieldCandidates(row, field)])
+  ) as Record<ComponentImportFieldKey, ComponentImportColumnMapping["alternatives"]>;
+
+  const manualMappings = new Map<ComponentImportFieldKey, ComponentImportColumnMapping>();
+  fields.forEach((field) => {
+    if (!overrides || !(field in overrides)) return;
+    const columnIndex = overrides[field];
+    manualMappings.set(field, buildColumnMapping(field, row, columnIndex ?? undefined, 100, true, candidatesByField[field]));
+  });
+
+  const acceptedColumns = new Set(
+    [...manualMappings.values()]
+      .map((mapping) => mapping.columnIndex)
+      .filter((index): index is number => index !== undefined)
+  );
+  const autoMatches = fields
+    .filter((field) => !manualMappings.has(field))
+    .map((field) => {
+      const best = candidatesByField[field][0];
+      return best && best.confidence >= 58
+        ? buildColumnMapping(field, row, best.columnIndex, best.confidence, false, candidatesByField[field])
+        : buildColumnMapping(field, row, undefined, 0, false, candidatesByField[field]);
+    })
+    .sort((a, b) => b.confidence - a.confidence);
+
+  const resolvedAuto = new Map<ComponentImportFieldKey, ComponentImportColumnMapping>();
+  autoMatches.forEach((mapping) => {
+    if (mapping.columnIndex === undefined || acceptedColumns.has(mapping.columnIndex)) {
+      resolvedAuto.set(mapping.field, { ...mapping, columnIndex: undefined, header: "", confidence: 0 });
+      return;
+    }
+    acceptedColumns.add(mapping.columnIndex);
+    resolvedAuto.set(mapping.field, mapping);
+  });
+
+  return fields.map((field) => manualMappings.get(field) ?? resolvedAuto.get(field) ?? buildColumnMapping(field, row, undefined, 0, false, candidatesByField[field]));
+}
+
+function mappingIndexesFromFields(mappedFields: ComponentImportColumnMapping[]) {
+  const mapping: Partial<Record<ComponentImportFieldKey, number>> = {};
+  mappedFields.forEach((field) => {
+    if (field.columnIndex !== undefined) mapping[field.field] = field.columnIndex;
   });
   return mapping;
 }
 
-function mapColumns(row: RawRow) {
-  const mapping = mapHeaderIndexes(row);
-  return Object.fromEntries(
-    Object.entries(mapping).map(([field, index]) => [fieldLabels[field as FieldKey], normalizeCell(row[index as number])])
-  );
+function buildColumnMapping(
+  field: ComponentImportFieldKey,
+  row: RawRow,
+  columnIndex: number | undefined,
+  confidence: number,
+  manuallyMapped: boolean,
+  alternatives: ComponentImportColumnMapping["alternatives"]
+): ComponentImportColumnMapping {
+  return {
+    field,
+    label: fieldLabels[field],
+    header: columnIndex === undefined ? "" : normalizeCell(row[columnIndex]),
+    columnIndex,
+    confidence,
+    manuallyMapped,
+    alternatives
+  };
+}
+
+function buildFieldCandidates(row: RawRow, field: ComponentImportFieldKey) {
+  return row
+    .map((cell, index) => ({
+      columnIndex: index,
+      header: normalizeCell(cell),
+      confidence: scoreHeaderForField(cell, field)
+    }))
+    .filter((candidate) => candidate.header && candidate.confidence >= 35)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 6);
+}
+
+function scoreHeaderForField(header: unknown, field: ComponentImportFieldKey) {
+  const normalizedHeader = normalizeHeader(header);
+  if (!normalizedHeader) return 0;
+  const headerTokens = tokenizeHeader(normalizedHeader);
+  let bestScore = 0;
+
+  fieldAliases[field].forEach((alias) => {
+    const normalizedAlias = normalizeHeader(alias);
+    const aliasTokens = tokenizeHeader(normalizedAlias);
+    if (!normalizedAlias) return;
+    if (normalizedHeader === normalizedAlias) {
+      bestScore = Math.max(bestScore, 100);
+      return;
+    }
+    if (isCompactMatch(normalizedHeader, normalizedAlias)) {
+      bestScore = Math.max(bestScore, 96);
+    }
+    if (normalizedHeader.includes(normalizedAlias) && normalizedAlias.length >= 3) {
+      bestScore = Math.max(bestScore, 88);
+    }
+    if (normalizedAlias.includes(normalizedHeader) && normalizedHeader.length >= 3) {
+      bestScore = Math.max(bestScore, 78);
+    }
+    const overlap = tokenOverlapScore(headerTokens, aliasTokens);
+    if (overlap > 0) {
+      bestScore = Math.max(bestScore, Math.round(42 + overlap * 42));
+    }
+    const editSimilarity = stringSimilarity(normalizedHeader, normalizedAlias);
+    if (editSimilarity >= 0.72) {
+      bestScore = Math.max(bestScore, Math.round(editSimilarity * 88));
+    }
+  });
+
+  return Math.min(bestScore, 100);
+}
+
+function mergeMappedFields(mappings: ComponentImportColumnMapping[]) {
+  const fields = Object.keys(fieldAliases) as ComponentImportFieldKey[];
+  return fields.map((field) => {
+    const candidates = mappings.filter((mapping) => mapping.field === field);
+    return candidates.sort((a, b) => b.confidence - a.confidence)[0] ?? buildColumnMapping(field, [], undefined, 0, false, []);
+  });
+}
+
+function buildColumnOptions(row: RawRow): ComponentImportColumnOption[] {
+  return row
+    .map((cell, index) => ({ index, header: normalizeCell(cell) }))
+    .filter((option) => option.header);
 }
 
 function extractMetadata(rows: RawRow[]) {
@@ -412,13 +563,13 @@ function rowToRecord(input: {
   row: RawRow;
   rowNumber: number;
   worksheetName: string;
-  mapping: Partial<Record<FieldKey, number>>;
+  mapping: Partial<Record<ComponentImportFieldKey, number>>;
   metadata: ReturnType<typeof extractMetadata>;
   store: FleetStore;
   preselectedRegistration?: string;
 }): ComponentImportRecord {
-  const raw = (field: FieldKey) => input.mapping[field] === undefined ? "" : input.row[input.mapping[field]];
-  const get = (field: FieldKey) => normalizeCell(raw(field));
+  const raw = (field: ComponentImportFieldKey) => input.mapping[field] === undefined ? "" : input.row[input.mapping[field]];
+  const get = (field: ComponentImportFieldKey) => normalizeCell(raw(field));
   const registration = normalizeRegistration(get("registration") || input.preselectedRegistration || input.metadata.registration);
   const model = get("model") || input.metadata.model;
   const aircraftSerialNumber = get("aircraftSerialNumber") || input.metadata.aircraftSerialNumber;
@@ -547,6 +698,45 @@ function componentMatchKey(component: HelicopterComponent) {
     component.serialNumber,
     component.position
   ].map(normalizeHeader).join("|");
+}
+
+function tokenizeHeader(value: string) {
+  return value.split(" ").filter(Boolean);
+}
+
+function isCompactMatch(left: string, right: string) {
+  return left.replace(/\s/g, "") === right.replace(/\s/g, "");
+}
+
+function tokenOverlapScore(left: string[], right: string[]) {
+  if (!left.length || !right.length) return 0;
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  const intersection = [...leftSet].filter((token) => rightSet.has(token)).length;
+  const union = new Set([...leftSet, ...rightSet]).size;
+  return union ? intersection / union : 0;
+}
+
+function stringSimilarity(left: string, right: string) {
+  const maxLength = Math.max(left.length, right.length);
+  if (!maxLength) return 1;
+  return 1 - levenshteinDistance(left, right) / maxLength;
+}
+
+function levenshteinDistance(left: string, right: string) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let previousDiagonal = previous[0];
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const insert = previous[rightIndex] + 1;
+      const remove = previous[rightIndex - 1] + 1;
+      const replace = previousDiagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1);
+      previousDiagonal = previous[rightIndex];
+      previous[rightIndex] = Math.min(insert, remove, replace);
+    }
+  }
+  return previous[right.length];
 }
 
 function normalizeStatus(value: string): ComponentStatus | undefined {

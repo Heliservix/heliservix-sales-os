@@ -224,7 +224,18 @@ Supported workbook fields:
 
 ### Smart Column Mapping
 
-The importer must detect English and Spanish headers even when labels vary slightly. It should normalize case, accents, punctuation, common abbreviations, and workbook-specific header formats such as `TSN (HRS)`, `TSO (HRS)`, `Límite vida (HRS)`, `Remanente (HRS)`, `% remanente horas`, and `Observaciones`.
+The importer must detect English and Spanish headers even when labels vary slightly. It must not depend on fixed column positions. The mapping engine should normalize case, accents, punctuation, common abbreviations, and workbook-specific header formats such as `TSN (HRS)`, `TSO (HRS)`, `Límite vida (HRS)`, `Remanente (HRS)`, `% remanente horas`, and `Observaciones`.
+
+The mapping engine must use fuzzy matching for similar names and operational abbreviations. Supported examples include:
+
+- `MATRICULA`, `Registration`, `Aircraft`, `Helicopter`, and `REG` mapping to aircraft registration.
+- `TSN` and `TSN Hours` mapping to TSN hours.
+- `TSO` and `TSO Hours` mapping to TSO hours.
+- `Hours Remaining`, `Remaining Hours`, and `Life Remaining` mapping to remaining hours.
+- `Calendar`, `Expiration`, `Expiry`, and `Límite Calendario` mapping to calendar limit date.
+- `Status` and `Estado` mapping to component status.
+
+The wizard must display a confidence score for each mapped field before import. Low-confidence mappings must remain visible to the user and must be correctable through a manual column selector. Manual corrections rebuild the detected helicopter preview, component preview, validation findings, duplicate analysis, and import summary before records can be saved.
 
 Aircraft metadata may be read from a metadata block above the component table. Row-level values override metadata only when a row explicitly provides a value.
 
@@ -253,6 +264,8 @@ Before saving, users must review the wizard output showing:
 - Invalid hour values.
 - Status inconsistencies between workbook status and recalculated HeliServiX OS status.
 - Mapped workbook columns.
+- Mapping confidence scores.
+- Manual mapping corrections, when needed.
 - A sample component row preview.
 
 The wizard must make clear that imported Excel records are real user data and must not be marked as demo data.

@@ -10,6 +10,8 @@ import {
   applyComponentImport,
   hasBlockingImportIssues,
   buildComponentImportPreview,
+  type ComponentImportColumnOverride,
+  type ComponentImportFieldKey,
   type ComponentImportMode,
   type ComponentImportPreview
 } from "@/lib/component-import";
@@ -20,6 +22,11 @@ type AircraftMigrationCenterProps = {
   onApply: (updater: (current: FleetStore) => FleetStore, success: string) => void;
   preselectedRegistration?: string;
   compact?: boolean;
+};
+
+type ParsedWorkbookSheet = {
+  name: string;
+  rows: unknown[][];
 };
 
 const officialWorkbookName = "HSV-IMPORT-COMPONENTS-v1.xlsx";
@@ -58,6 +65,8 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [workbookSheets, setWorkbookSheets] = useState<ParsedWorkbookSheet[]>([]);
+  const [mappingOverrides, setMappingOverrides] = useState<ComponentImportColumnOverride>({});
   const [createHelicopter, setCreateHelicopter] = useState(true);
   const [updateHelicopter, setUpdateHelicopter] = useState(true);
   const [mode, setMode] = useState<ComponentImportMode>("merge-components");
@@ -100,18 +109,9 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           raw: true
         })
       }));
-      const nextPreview = buildComponentImportPreview({
-        fileName: file.name,
-        sheets,
-        store,
-        preselectedRegistration
-      });
-      const detected = nextPreview.detectedHelicopters.map((item) => item.registration);
-      const nextSelected = preselectedRegistration
-        ? detected.filter((registration) => registration === preselectedRegistration)
-        : detected;
-      setPreview(nextPreview);
-      setSelectedRegistrations(nextSelected);
+      setWorkbookSheets(sheets);
+      setMappingOverrides({});
+      rebuildPreview(file.name, sheets, {}, []);
       setStep(2);
       setMessage(tx("Workbook parsed. Review detected helicopters before import."));
     } catch {
@@ -125,6 +125,39 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         ? current.filter((item) => item !== registration)
         : [...current, registration]
     );
+  }
+
+  function rebuildPreview(fileName: string, sheets: ParsedWorkbookSheet[], overrides: ComponentImportColumnOverride, preferredSelection = selectedRegistrations) {
+    const nextPreview = buildComponentImportPreview({
+      fileName,
+      sheets,
+      store,
+      preselectedRegistration,
+      mappingOverrides: overrides
+    });
+    const detected = nextPreview.detectedHelicopters.map((item) => item.registration);
+    const nextSelected = preselectedRegistration
+      ? detected.filter((registration) => registration === preselectedRegistration)
+      : preferredSelection.length
+        ? preferredSelection.filter((registration) => detected.includes(registration))
+        : detected;
+    setPreview(nextPreview);
+    setSelectedRegistrations(nextSelected);
+  }
+
+  function updateMapping(field: ComponentImportFieldKey, value: string) {
+    if (!preview) return;
+    const nextOverrides: ComponentImportColumnOverride = { ...mappingOverrides };
+    if (value === "auto") {
+      delete nextOverrides[field];
+    } else if (value === "ignore") {
+      nextOverrides[field] = null;
+    } else {
+      nextOverrides[field] = Number(value);
+    }
+    setMappingOverrides(nextOverrides);
+    rebuildPreview(preview.fileName, workbookSheets, nextOverrides);
+    setMessage(tx("Column mapping updated. Review detected helicopters and validation before import."));
   }
 
   function applyImport() {
@@ -261,6 +294,8 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             ))}
           </div>
         </section>
+
+        <MappingConfidencePanel preview={currentPreview} onChange={updateMapping} />
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {currentPreview.detectedHelicopters.map((helicopter) => {
@@ -432,6 +467,76 @@ function WizardActions({ canContinue, onNext, onBack }: { canContinue: boolean; 
         </button>
       ) : <span />}
     </div>
+  );
+}
+
+function MappingConfidencePanel({
+  preview,
+  onChange
+}: {
+  preview: ComponentImportPreview;
+  onChange: (field: ComponentImportFieldKey, value: string) => void;
+}) {
+  const { tx } = useI18n();
+  return (
+    <section className="rounded-lg border border-line bg-white p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{tx("Column mapping confidence")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("Review automatic matches and correct any column before import.")}</p>
+        </div>
+        <StatusPill tone={preview.mappedFields.some((field) => field.confidence < 75) ? "amber" : "green"}>
+          {tx("Fuzzy matching active")}
+        </StatusPill>
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-lg border border-line">
+        <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+          <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+            <tr>
+              {["Field", "Detected header", "Confidence", "Correction"].map((header) => (
+                <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line bg-white">
+            {preview.mappedFields.map((field) => (
+              <tr key={field.field}>
+                <td className="px-4 py-3 font-semibold text-ink">{tx(field.label)}</td>
+                <td className="px-4 py-3 text-ink-muted">
+                  {field.header || tx("No column mapped")}
+                  {field.manuallyMapped ? <span className="ml-2 text-xs font-semibold text-aviation-blue">{tx("Manual")}</span> : null}
+                </td>
+                <td className="px-4 py-3">
+                  <StatusPill tone={field.confidence >= 90 ? "green" : field.confidence >= 75 ? "blue" : field.confidence >= 58 ? "amber" : "red"}>
+                    {field.confidence}%
+                  </StatusPill>
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    className="h-10 w-full rounded-md border border-line bg-white px-3 text-sm font-medium text-ink shadow-control outline-none transition focus:border-brand-blue"
+                    value={field.manuallyMapped ? field.columnIndex === undefined ? "ignore" : String(field.columnIndex) : "auto"}
+                    onChange={(event) => onChange(field.field, event.target.value)}
+                  >
+                    <option value="auto">{tx("Auto detect")}</option>
+                    <option value="ignore">{tx("Do not import this field")}</option>
+                    {preview.columnOptions.map((option) => (
+                      <option key={`${field.field}-${option.index}`} value={option.index}>
+                        {option.header}
+                      </option>
+                    ))}
+                  </select>
+                  {field.alternatives.length > 1 ? (
+                    <p className="mt-1 text-xs text-ink-subtle">
+                      {tx("Other likely matches")}: {field.alternatives.slice(1, 3).map((item) => `${item.header} ${item.confidence}%`).join(", ")}
+                    </p>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
