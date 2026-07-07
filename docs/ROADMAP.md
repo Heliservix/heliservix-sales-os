@@ -17,8 +17,11 @@ Allowed work during Feature Freeze:
 - Bug fixes.
 - Tests and verification.
 - Documentation that clarifies approved scope.
+- Focused AI Assistant MVP documentation or implementation only when limited to existing operational MVP workflows.
 
 No new modules, architecture expansions, or workflow redesigns should be started unless explicitly requested by the user.
+
+The AI Assistant is permitted only as a focused operational helper for Excel import analysis, fleet daily brief, maintenance Q&A, and bilingual report drafting. It is not a reopening of sales, legal, accounting, autonomous purchasing, regulatory decision, or predictive failure scope.
 
 ## Delivery Philosophy
 
@@ -93,6 +96,26 @@ Exit criteria:
 - Maintenance users can see hour-based and calendar-based component status without spreadsheet recalculation.
 - Commercial users can see whether a proposed campaign is operationally feasible before committing.
 - Leadership can distinguish high-value opportunities from deliverable opportunities and understand maintenance reserve exposure.
+
+## Operational MVP Stabilization Track: HSV-SPEC-008 Focused AI Assistant MVP
+
+Goal: provide immediate operational value during Feature Freeze without expanding HeliServiX OS beyond the approved MVP modules.
+
+Deliverables:
+
+- Excel import analysis for component workbooks.
+- Fleet daily brief from local operational records.
+- Maintenance Assistant for conservative, source-referenced answers.
+- Bilingual report drafting for fleet status, maintenance, component due, vessel inventory, and management summaries.
+- Prompt governance and audit-trail requirements.
+- Explicit out-of-scope boundaries for sales prospecting, legal drafting, accounting AI, autonomous purchasing, compliance decisions, and predictive failure modeling.
+
+Exit criteria:
+
+- AI answers reference underlying records or disclose missing data.
+- AI-drafted reports are editable, bilingual, and marked as AI-drafted.
+- AI never approves imports, flight logs, maintenance actions, purchasing actions, compliance decisions, or release-to-service decisions.
+- The assistant improves operational review speed without creating new product scope.
 
 ## Phase 2A: Campaign, Digital Twin, Technical Records, and Compliance Architecture
 

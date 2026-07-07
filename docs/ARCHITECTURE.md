@@ -4,7 +4,7 @@
 
 Build HeliServiX OS as a modular SaaS platform that can start as a focused HeliServiX commercial and operational system and grow into a multi-operation operating platform for helicopter companies across Latin America.
 
-The architecture should keep commercial workflows, fleet and maintenance operations, maintenance crew workflows, vessel inventory, operational purchasing, intelligence workflows, automation, and AI assistant capabilities separated enough to evolve independently while sharing one governed data model.
+The architecture should keep commercial workflows, fleet and maintenance operations, maintenance crew workflows, vessel inventory, operational purchasing, intelligence workflows, automation, and AI assistant capabilities separated enough to evolve independently while sharing one governed data model. During the operational MVP feature-freeze period, AI Assistant scope is limited to immediate operational value in existing Fleet, Maintenance, Excel import, Vessel Inventory, Flight Hours, and Component Status workflows.
 
 The next strategic operating model is campaign-centric. Campaigns are the operating spine that connect commercial commitments to helicopter deployments on tuna vessels, including aircraft, crew, contract, flight logs, maintenance, inventory, purchasing, technical records, compliance, and future profitability.
 
@@ -130,7 +130,7 @@ Manages templates, campaign segments, approval queues, send events, replies, sup
 
 ### AI Assistant
 
-Manages assistant sessions, tool calls, retrieved context, generated drafts, citations, human approvals, and safety limits.
+Manages focused operational assistant sessions for Excel import analysis, fleet daily briefs, maintenance questions, and bilingual report drafting. The MVP assistant retrieves only approved local operational records, cites source records, discloses missing data, marks AI-drafted output, and never approves imports, flight logs, maintenance actions, purchasing actions, compliance decisions, or release-to-service decisions.
 
 ### Dashboards and Reports
 
@@ -141,6 +141,7 @@ Manages saved dashboard definitions, metrics, exports, scheduled reports, and ex
 - Commercial records are created manually, imported from reviewed files, or generated through approved workflows.
 - Market intelligence enters as unverified until reviewed or assigned a confidence level.
 - AI can draft, summarize, classify, and recommend but cannot silently become the source of truth.
+- AI Assistant MVP outputs are decision support for existing operational modules only. Sales prospecting, legal drafting, accounting, autonomous purchasing, regulatory decisions, and predictive failure modeling are out of scope.
 - Email sends require approved templates, approved recipients, and suppression checks.
 - Contract updates must preserve history and audit metadata.
 - Operational feasibility signals must be derived from aircraft and maintenance records, not typed casually into opportunity notes.

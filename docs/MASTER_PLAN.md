@@ -122,9 +122,11 @@ Market intelligence includes company news, fleet movement, port activity, vessel
 
 Campaigns must support personalized outreach by country, vessel capacity, fleet role, language, contact seniority, and opportunity stage. Sending must require approval, respect opt-out rules, and write every event back to the CRM timeline.
 
-### AI Assistant
+### HSV-SPEC-008 AI Assistant MVP
 
-AI should assist with research summarization, account briefs, opportunity next actions, draft emails, call preparation, document extraction, and report generation. AI must not directly mutate commercial records, send emails, approve contracts, or produce unsupported factual claims without attribution.
+The AI Assistant MVP is focused on immediate operational value inside the approved MVP scope: Excel import analysis, fleet daily brief, maintenance questions, and bilingual operational report drafting. It must use existing HeliServiX OS records, cite underlying records, disclose missing data, and never replace mechanic, maintenance chief, IA, or authorized approver review.
+
+Sales prospecting AI, contract legal drafting, accounting AI, autonomous purchasing, regulatory compliance decisions, and predictive failure modeling are explicitly out of scope for the MVP.
 
 ### Dashboards and Reports
 
@@ -152,7 +154,7 @@ The recommended model is multi-tenant at the application layer with strong tenan
 - Operations users can track multiple helicopters, component status, flight hours, maintenance alerts, replacement history, overhaul planning, and forecasted downtime.
 - Market intelligence can trigger account updates and opportunity recommendations without becoming unverified rumor.
 - Email campaigns are personalized, approved, compliant, and fully traceable.
-- AI outputs cite internal records or source references and remain human-approved for external communication.
+- AI outputs cite internal records or source references, remain focused on operational MVP workflows, and stay human-reviewed before operational use.
 - Leadership can see pipeline, risk, and operational commitment in one place.
 
 ## Near-Term Foundation Decisions
@@ -167,4 +169,4 @@ The recommended model is multi-tenant at the application layer with strong tenan
 - Treat the current component-control workbook as a migration/reference model: aircraft header becomes helicopter registry data, component rows become installed component records, workbook formulas become governed application rules, and the executive summary becomes a computed dashboard.
 - Build an auditable data model before building user interface screens.
 - Design every workflow around future multi-operation support.
-- Require human approval for outbound messages, contract changes, and AI-assisted commercial recommendations.
+- Require human approval for outbound messages, contract changes, AI-drafted reports, and any AI-assisted operational recommendation.
