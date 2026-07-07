@@ -16,6 +16,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import { demoDataPolicy } from "@/lib/fleet-data";
 import {
   calculateCampaignStatus,
@@ -69,6 +70,7 @@ const text = (form: FormData, key: string) => String(form.get(key) ?? "");
 const active = <T extends { archived?: boolean }>(records: T[]) => records.filter((record) => !record.archived);
 
 export function OperationsOSClient({ view, recordId, mode = "create" }: OperationsOSClientProps) {
+  const { tx } = useI18n();
   const [store, setStore] = useState<FleetStore>(() => {
     if (typeof window === "undefined") return initialFleetStore();
     const raw = window.localStorage.getItem(fleetStorageKey);
@@ -99,7 +101,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
         ...current,
         [collection]: current[collection].map((record) => record.id === id ? { ...record, archived: true } : record)
       }),
-      "Record archived locally."
+      tx("Record archived locally.")
     );
   }
 
@@ -136,7 +138,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           ? { ...helicopter, assignedVessel: record.vesselName, status: record.status === "Active" ? "In Campaign" : helicopter.status }
           : helicopter
       )
-    }), "Campaign saved locally and helicopter assignment preview updated.");
+    }), tx("Campaign saved locally and helicopter assignment preview updated."));
   }
 
   function saveTechnicalRecord(event: React.FormEvent<HTMLFormElement>) {
@@ -162,7 +164,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     updateStore((current) => ({
       ...current,
       technicalRecords: mode === "edit" ? current.technicalRecords.map((item) => item.id === id ? record : item) : [...current.technicalRecords, record]
-    }), "Technical record saved locally.");
+    }), tx("Technical record saved locally."));
   }
 
   function saveComplianceItem(event: React.FormEvent<HTMLFormElement>) {
@@ -191,7 +193,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
       ...current,
       complianceItems: mode === "edit" ? current.complianceItems.map((record) => record.id === id ? item : record) : [...current.complianceItems, item],
       complianceAlerts: alert ? [...current.complianceAlerts.filter((record) => record.complianceItemId !== id), alert] : current.complianceAlerts
-    }), "Compliance item saved locally and alert status recalculated.");
+    }), tx("Compliance item saved locally and alert status recalculated."));
   }
 
   const header = getHeader(view, mode);
@@ -233,7 +235,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           <Metric label="Campaigns" value={String(campaigns.length)} tone="teal" detail="Local campaign records" />
           <Metric label="Active" value={String(activeCampaigns)} tone="green" detail="Computed from status and dates" />
           <Metric label="Linked Hours" value={campaignFlightHours(campaigns[0]?.id).toFixed(1)} tone="blue" detail="First campaign preview" />
-          <Metric label="Data Policy" value="Demo" tone="amber" detail="Unknown records stay non-operational" />
+          <Metric label="Data Policy" value={tx("Demo")} tone="amber" detail="Unknown records stay non-operational" />
         </section>
         <Panel>
           <ListHeader title="Campaigns" href="/campaigns/new" action="Create campaign" />
@@ -271,7 +273,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           <Metric label="Flight Hours" value={flightHours.toFixed(1)} tone="blue" detail="Linked by campaign name/code" />
           <Metric label="Maintenance Events" value={String(maintenanceEvents.length)} tone="amber" detail="Helicopter-linked local logs" />
           <Metric label="Technical Records" value={String(linkedRecords.length)} tone="teal" detail="Record graph preview" />
-          <Metric label="Future Profitability" value="Deferred" tone="neutral" detail="Finance is future scope" />
+          <Metric label="Future Profitability" value={tx("Deferred")} tone="neutral" detail="Finance is future scope" />
         </section>
         <Panel>
           <ListHeader title={`${campaign.code} / ${campaign.name}`} href={`/campaigns/${campaign.id}/edit`} action="Edit campaign" />
@@ -320,12 +322,12 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     return (
       <div className="grid gap-5">
         <section className="grid gap-4 md:grid-cols-3">
-          <Metric label="Digital Twins" value={String(helicopters.length)} tone="teal" detail="One operational profile per helicopter" />
+          <Metric label="Aircraft Operations Center" value={String(helicopters.length)} tone="teal" detail="One operational profile per aircraft" />
           <Metric label="Open Compliance" value={String(complianceItems.filter((item) => !["Complied", "Not applicable"].includes(calculateComplianceStatus(item))).length)} tone="amber" detail="Applies to fleet readiness" />
           <Metric label="Timeline Events" value={String(helicopters.reduce((sum, helicopter) => sum + generateMaintenanceTimeline(store, helicopter.registration).length, 0))} tone="blue" detail="Generated from local state" />
         </section>
         <Panel>
-          <h2 className="mb-4 text-lg font-semibold text-ink">Helicopter Digital Twins</h2>
+          <h2 className="mb-4 text-lg font-semibold text-ink">{tx("Aircraft Operations Center")}</h2>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {helicopters.map((helicopter) => {
               const summary = calculateDigitalTwinSummary(store, helicopter.registration);
@@ -361,7 +363,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
         <Panel>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-ink">{helicopter.registration} Digital Twin</h2>
+              <h2 className="text-lg font-semibold text-ink">{helicopter.registration} {tx("Aircraft Operations Center")}</h2>
               <p className="mt-1 text-sm text-ink-subtle">{helicopter.model} / serial {helicopter.serialNumber}</p>
             </div>
             <SourcePill source={helicopter.source} />
@@ -551,9 +553,9 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
 }
 
 function getHeader(view: OperationsView, mode: string) {
-  const common = { status: "HSV OS 0.3 / localStorage MVP" };
+  const common = { status: "HSV OS 0.4 / localStorage MVP" };
   if (view.includes("campaign")) return { eyebrow: "Campaigns", title: mode === "edit" ? "Edit campaign." : view === "campaign-form" ? "Create campaign." : "Manage helicopter deployments within tuna-vessel campaigns.", description: "Campaigns connect client, vessel, contract, helicopter, crew, maintenance, inventory, purchasing, records, compliance, and future profitability.", icon: CalendarRange, ...common };
-  if (view.includes("digital")) return { eyebrow: "Digital Twin", title: "Helicopter operational truth profile.", description: "Digital twins summarize status, components, alerts, campaign history, records, compliance, forecast, and timeline from local state.", icon: GitBranch, ...common };
+  if (view.includes("digital")) return { eyebrow: "Aircraft Operations Center", title: "Aircraft operational truth profile.", description: "The Aircraft Operations Center summarizes status, components, alerts, campaign history, records, compliance, forecast, and timeline from local state.", icon: GitBranch, ...common };
   if (view.includes("technical")) return { eyebrow: "Technical Records", title: mode === "edit" ? "Edit technical record." : view === "technical-record-form" ? "Create technical record." : "Manage linked aviation evidence.", description: "Records link to helicopters, components, maintenance events, campaigns, purchases, and future compliance proof.", icon: FileText, ...common };
   if (view === "compliance-alerts") return { eyebrow: "Compliance Alerts", title: "Review compliance exposure by aircraft and operation.", description: "Alerts are local decision-support placeholders until backend compliance workflows are implemented.", icon: ShieldCheck, ...common };
   return { eyebrow: "Compliance", title: mode === "edit" ? "Edit compliance item." : view === "compliance-form" ? "Create compliance item." : "Track regulatory and manufacturer requirements.", description: "AAC Panama, DGAC Ecuador, FAA references, Robinson bulletins, manual revisions, and life-limit compliance are modeled as operational readiness inputs.", icon: ShieldCheck, ...common };
@@ -596,35 +598,38 @@ function emptyComplianceItem(): ComplianceItem {
 }
 
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      <StatusPill tone={tone}>{label}</StatusPill>
+      <StatusPill tone={tone}>{tx(label)}</StatusPill>
       <p className="mt-4 text-3xl font-semibold text-ink">{value}</p>
-      <p className="mt-2 text-sm text-ink-subtle">{detail}</p>
+      <p className="mt-2 text-sm text-ink-subtle">{tx(detail)}</p>
     </Panel>
   );
 }
 
 function ListHeader({ title, href, action }: { title: string; href: string; action: string }) {
+  const { tx, t } = useI18n();
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 className="text-lg font-semibold text-ink">{title}</h2>
-        <p className="mt-1 text-sm text-ink-subtle">{demoDataPolicy}</p>
+        <h2 className="text-lg font-semibold text-ink">{tx(title)}</h2>
+        <p className="mt-1 text-sm text-ink-subtle">{t("shell.demoPolicy")}</p>
       </div>
       <Link className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href={href}>
-        {action}
+        {tx(action)}
       </Link>
     </div>
   );
 }
 
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+  const { tx } = useI18n();
   return (
     <div className="overflow-x-auto rounded-lg border border-line">
       <table className="w-full min-w-[980px] border-collapse text-left text-sm">
         <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
-          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{header}</th>)}</tr>
+          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">{children}</tbody>
       </table>
@@ -637,23 +642,25 @@ function Cell({ children, muted = false }: { children: React.ReactNode; muted?: 
 }
 
 function Actions({ edit, onArchive }: { edit: string; onArchive: () => void }) {
+  const { tx } = useI18n();
   return (
     <div className="flex gap-3">
-      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>Edit</Link>
-      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">Archive</button>
+      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>{tx("Edit")}</Link>
+      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">{tx("Archive")}</button>
     </div>
   );
 }
 
 function FormShell({ children, onSubmit }: { children: React.ReactNode; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+  const { tx } = useI18n();
   return (
     <Panel>
       <form onSubmit={onSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">{children}</div>
         <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink-subtle">Frontend-only localStorage save. No backend, auth, database, or external service is connected.</p>
+          <p className="text-sm text-ink-subtle">{tx("Frontend-only localStorage save. No backend, auth, database, or external service is connected.")}</p>
           <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
-            Save locally
+            {tx("Save locally")}
           </button>
         </div>
       </form>
@@ -662,39 +669,43 @@ function FormShell({ children, onSubmit }: { children: React.ReactNode; onSubmit
 }
 
 function Field({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | number }) {
+  const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
-      {label}
+      {tx(label)}
       <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} />
     </label>
   );
 }
 
 function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string }) {
+  const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink sm:col-span-2">
-      {label}
+      {tx(label)}
       <textarea className={textareaClass} name={name} defaultValue={defaultValue ?? ""} />
     </label>
   );
 }
 
 function Select({ name, label, options, defaultValue }: { name: string; label: string; options: string[]; defaultValue?: string }) {
+  const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
-      {label}
+      {tx(label)}
       <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""}>
-        {options.map((option) => <option key={option} value={option}>{option || "None"}</option>)}
+        {options.map((option) => <option key={option} value={option}>{option ? tx(option) : tx("None")}</option>)}
       </select>
     </label>
   );
 }
 
 function Info({ label, value }: { label: string; value: string }) {
+  const { tx } = useI18n();
   return (
     <div className="rounded-lg border border-line bg-canvas-muted/58 p-4">
-      <p className="text-xs font-semibold uppercase text-ink-muted">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-ink">{value || "None"}</p>
+      <p className="text-xs font-semibold uppercase text-ink-muted">{tx(label)}</p>
+      <p className="mt-2 text-sm font-semibold text-ink">{value || tx("None")}</p>
     </div>
   );
 }
@@ -704,22 +715,24 @@ function SourcePill({ source }: { source?: "Demo" | "User" }) {
 }
 
 function RelatedList({ title, items }: { title: string; items: string[] }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2>
+      <h2 className="mb-4 text-lg font-semibold text-ink">{tx(title)}</h2>
       {items.length ? (
         <div className="grid gap-2">
           {items.map((item) => <p key={item} className="rounded-lg border border-line bg-canvas-muted/58 px-3 py-2 text-sm text-ink-subtle">{item}</p>)}
         </div>
-      ) : <p className="text-sm text-ink-subtle">No local records linked yet.</p>}
+      ) : <p className="text-sm text-ink-subtle">{tx("No local records linked yet.")}</p>}
     </Panel>
   );
 }
 
 function TimelinePreview({ events }: { events: MaintenanceTimelineEvent[] }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      <h2 className="mb-4 text-lg font-semibold text-ink">Maintenance Timeline Preview</h2>
+      <h2 className="mb-4 text-lg font-semibold text-ink">{tx("Maintenance Timeline Preview")}</h2>
       <div className="grid gap-3">
         {events.slice(0, 8).map((event) => (
           <div key={event.id} className="rounded-lg border border-line bg-canvas-muted/58 p-4">
@@ -738,10 +751,11 @@ function TimelinePreview({ events }: { events: MaintenanceTimelineEvent[] }) {
 }
 
 function Empty({ title }: { title: string }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      <p className="text-sm font-semibold text-ink">{title}</p>
-      <p className="mt-2 text-sm text-ink-subtle">The local record was not found. It may have been archived or removed from localStorage.</p>
+      <p className="text-sm font-semibold text-ink">{tx(title)}</p>
+      <p className="mt-2 text-sm text-ink-subtle">{tx("The local record was not found. It may have been archived or removed from localStorage.")}</p>
     </Panel>
   );
 }

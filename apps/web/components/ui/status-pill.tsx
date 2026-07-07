@@ -1,4 +1,7 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n/i18n-provider";
 
 type StatusPillProps = {
   children: React.ReactNode;
@@ -16,6 +19,7 @@ const toneClasses = {
 };
 
 export function StatusPill({ children, tone = "neutral", className }: StatusPillProps) {
+  const { tx } = useI18n();
   return (
     <span
       className={cn(
@@ -24,7 +28,7 @@ export function StatusPill({ children, tone = "neutral", className }: StatusPill
         className
       )}
     >
-      {children}
+      {typeof children === "string" ? tx(children) : children}
     </span>
   );
 }

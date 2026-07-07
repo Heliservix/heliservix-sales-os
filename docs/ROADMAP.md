@@ -99,6 +99,27 @@ Exit criteria:
 - Existing Fleet, Maintenance Crew Portal, Vessel Inventory, and Purchasing specs are aligned to the campaign-centric model.
 - Development can continue without treating campaigns, technical records, compliance, or digital twins as later bolt-ons.
 
+## Phase 2B: HSV OS 0.4 Bilingual Core and Aircraft Operations Center
+
+Goal: make HeliServiX OS bilingual from this version forward and align user-facing naming around Aircraft Operations Center.
+
+Deliverables:
+
+- HSV-CORE-003 Bilingual UI and Internationalization.
+- English default interface.
+- Spanish interface support.
+- Language selector in top navigation.
+- Local language preference persistence.
+- Translation dictionaries for navigation, dashboard, fleet, campaigns, aircraft operations, maintenance, inventory, purchasing, technical records, compliance, statuses, forms, tables, and common actions.
+- User-facing rename from Digital Twin to Aircraft Operations Center / Centro de Operaciones de la Aeronave.
+- Rule that user-entered data is not translated.
+
+Exit criteria:
+
+- Users can switch between English and Spanish without backend services.
+- Sidebar, dashboard, page headers, table headers, form labels, status labels, demo notices, and actions use the i18n system.
+- Future UI development has a documented translation governance model.
+
 ## Phase 3: HSV-SPEC-002 Maintenance Crew Portal
 
 Goal: give maintenance chiefs and authorized maintenance staff restricted operational access without exposing commercial or executive data.

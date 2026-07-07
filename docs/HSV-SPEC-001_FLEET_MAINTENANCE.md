@@ -73,6 +73,18 @@ Deferred capabilities:
 - Supabase or other backend integration.
 - Certified maintenance-record replacement.
 
+## HSV OS 0.4 Bilingual UI Alignment
+
+Fleet & Maintenance user-facing screens must use the i18n system defined in `HSV-CORE-003_I18N_BILINGUAL_UI.md`.
+
+Rules:
+
+- English is the default language.
+- Spanish is supported.
+- Aviation terms such as Registration, Aircraft, Current Hourmeter, Component, Remaining Hours, Calendar Limit, Maintenance Alert, Forecast, Technical Records, Compliance, Vessel, Campaign, Inventory, and Purchasing must follow the governed terminology list.
+- User-entered aircraft, vessel, campaign, component, document, and note data must not be translated.
+- The user-facing aircraft profile module must be Aircraft Operations Center in English and Centro de Operaciones de la Aeronave in Spanish.
+
 ## Campaign-Centric Alignment
 
 Fleet & Maintenance must support the HeliServiX OS campaign-centric operating model. A helicopter is not only an asset record; it is assigned into tuna-vessel campaigns where its readiness affects client delivery, vessel operations, contract performance, maintenance exposure, inventory usage, purchasing urgency, and future profitability.
@@ -92,6 +104,8 @@ Campaign context should be captured or inferred for:
 ## Helicopter Digital Twin
 
 Each helicopter must have a digital twin as defined in `HSV-CORE-002_DIGITAL_TWIN.md`.
+
+The user-facing name for this capability is Aircraft Operations Center / Centro de Operaciones de la Aeronave.
 
 The digital twin includes:
 

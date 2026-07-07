@@ -12,6 +12,12 @@ Create a commercial and operational system that helps helicopter operators ident
 
 The first business line is HeliServiX support for tuna purse seine vessels in Latin America. The architecture must allow future helicopter operations, territories, aircraft, and commercial teams to run from the same platform with strict data separation.
 
+## Bilingual Product Standard
+
+HeliServiX OS is bilingual from HSV OS 0.4 forward. English is the default interface language and Spanish is supported as a first-class language. Interface text, navigation, statuses, actions, form labels, table headers, demo-data notices, and system-generated messages must use the i18n system. User-entered data must remain in the language entered by the user.
+
+The user-facing module name for helicopter operational profiles is Aircraft Operations Center in English and Centro de Operaciones de la Aeronave in Spanish. Internal architecture may still use the term digital twin to describe the computed technical model.
+
 ## Campaign-Centric Operating Model
 
 Campaigns are now the central operating entity of HeliServiX OS. HeliServiX does not only manage helicopters; it manages helicopter deployments within tuna-vessel campaigns.
@@ -34,6 +40,7 @@ HeliServiX OS product domains are:
 - Intelligence.
 - Finance future.
 - Administration.
+- Bilingual UI and terminology governance.
 
 ## Primary Users
 
@@ -86,9 +93,15 @@ Compliance tracks AAC Panama, DGAC Ecuador, FAA references where relevant, Robin
 
 The Business Rules Engine governs flight-hour deduction, component status, calendar expiry, campaign assignment, inventory consumption, purchase-to-inventory traceability, maintenance event creation, compliance alerts, and forecasting. Rules must be versioned, auditable, and server-side in production.
 
-### HSV-CORE-002 Helicopter Digital Twin
+### HSV-CORE-002 Helicopter Digital Twin / Aircraft Operations Center
 
 Each helicopter must have a digital twin: current operational status, current hourmeter, installed components, component life remaining, maintenance history, flight history, campaign history, vessel assignment history, technical documents, photos, costs, forecast, compliance exposure, and future market value or asset profile.
+
+The user-facing experience for this capability is Aircraft Operations Center / Centro de Operaciones de la Aeronave.
+
+### HSV-CORE-003 Bilingual UI and Internationalization
+
+The platform must support English and Spanish interface text from HSV OS 0.4 forward. All future UI text must use the translation system, and aviation terminology must follow the governed bilingual glossary.
 
 ### Market Intelligence
 
@@ -138,6 +151,8 @@ The recommended model is multi-tenant at the application layer with strong tenan
 - Design the helicopter model for multiple aircraft on day one, with HP1804 represented as one aircraft record rather than a system-wide assumption.
 - Make campaign context mandatory for deployment analysis and recommended for flight logs, maintenance events, inventory usage, and purchases whenever operationally known.
 - Build helicopter digital twins from authoritative ledgers and technical records instead of maintaining disconnected dashboard summaries.
+- Use Aircraft Operations Center / Centro de Operaciones de la Aeronave for user-facing module labels while preserving digital twin as the internal technical concept.
+- Require every future frontend feature to add English and Spanish translations before release.
 - Treat the current component-control workbook as a migration/reference model: aircraft header becomes helicopter registry data, component rows become installed component records, workbook formulas become governed application rules, and the executive summary becomes a computed dashboard.
 - Build an auditable data model before building user interface screens.
 - Design every workflow around future multi-operation support.

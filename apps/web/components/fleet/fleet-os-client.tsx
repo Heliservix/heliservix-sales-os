@@ -17,6 +17,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   calculateComponentStatus,
   calculateRemainingPercentage,
@@ -77,6 +78,7 @@ const num = (value: FormDataEntryValue | null) => Number(value || 0);
 const text = (form: FormData, key: string) => String(form.get(key) ?? "");
 
 export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClientProps) {
+  const { tx } = useI18n();
   const [store, setStore] = useState<FleetStore>(() => {
     if (typeof window === "undefined") return initialFleetStore();
     const raw = window.localStorage.getItem(fleetStorageKey);
@@ -110,7 +112,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           record[idKey] === id ? { ...record, archived: true } : record
         )
       }),
-      "Record archived locally."
+      tx("Record archived locally.")
     );
   }
 
@@ -144,7 +146,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             ? current.helicopters.map((item) => (item.registration === recordId ? record : item))
             : [...current.helicopters, record]
       }),
-      "Helicopter saved to local Fleet state."
+      tx("Helicopter saved to local Fleet state.")
     );
   }
 
@@ -174,7 +176,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           helicopter.registration === record.assignedHelicopter ? { ...helicopter, assignedVessel: record.name } : helicopter
         )
       }),
-      "Vessel saved and assignment synchronized locally."
+      tx("Vessel saved and assignment synchronized locally.")
     );
   }
 
@@ -216,7 +218,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           mode === "edit" ? current.components.map((item) => (item.id === id ? record : item)) : [...current.components, record],
         maintenanceAlerts: [...current.maintenanceAlerts, ...createAlertsForComponents([record])]
       }),
-      "Component saved and status recalculated locally."
+      tx("Component saved and status recalculated locally.")
     );
   }
 
@@ -265,7 +267,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         components: nextComponents,
         maintenanceAlerts: [...current.maintenanceAlerts, ...createAlertsForComponents(recalculatedComponents)]
       };
-    }, "Flight log saved, hourmeter updated, components recalculated, and alerts refreshed.");
+    }, tx("Flight log saved, hourmeter updated, components recalculated, and alerts refreshed."));
   }
 
   function saveMaintenanceLog(event: React.FormEvent<HTMLFormElement>) {
@@ -284,7 +286,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       notes: text(form, "notes"),
       source: "User"
     };
-    updateStore((current) => ({ ...current, maintenanceLogs: [...current.maintenanceLogs, entry] }), "Maintenance log saved locally.");
+    updateStore((current) => ({ ...current, maintenanceLogs: [...current.maintenanceLogs, entry] }), tx("Maintenance log saved locally."));
   }
 
   function saveComponentChange(event: React.FormEvent<HTMLFormElement>) {
@@ -358,7 +360,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         }
       ],
       maintenanceAlerts: [...current.maintenanceAlerts, ...createAlertsForComponents([installed])]
-    }), "Component change saved, replacement history updated, and alerts recalculated.");
+    }), tx("Component change saved, replacement history updated, and alerts recalculated."));
   }
 
   function saveInventoryItem(event: React.FormEvent<HTMLFormElement>) {
@@ -386,7 +388,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     updateStore((current) => ({
       ...current,
       inventoryItems: editingInventoryId ? current.inventoryItems.map((record) => record.id === id ? item : record) : [...current.inventoryItems, item]
-    }), "Inventory item saved locally.");
+    }), tx("Inventory item saved locally."));
     setEditingInventoryId(undefined);
   }
 
@@ -415,7 +417,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       inventoryItems: current.inventoryItems.map((item) =>
         item.id === itemId ? { ...item, quantity: subtract ? Math.max(0, item.quantity - quantity) : item.quantity + quantity } : item
       )
-    }), "Stock movement recorded and quantity updated locally.");
+    }), tx("Stock movement recorded and quantity updated locally."));
   }
 
   function savePurchase(event: React.FormEvent<HTMLFormElement>) {
@@ -442,7 +444,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     updateStore((current) => ({
       ...current,
       purchaseRequests: editingPurchaseId ? current.purchaseRequests.map((record) => record.id === id ? request : record) : [...current.purchaseRequests, request]
-    }), "Purchase request saved locally.");
+    }), tx("Purchase request saved locally."));
     setEditingPurchaseId(undefined);
   }
 
@@ -495,7 +497,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         <Panel>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-ink">HSV OS 0.3 Campaigns & Digital Twin MVP</h2>
+              <h2 className="text-lg font-semibold text-ink">{tx("HSV OS 0.4 Bilingual Core + Aircraft Operations Center MVP")}</h2>
               <p className="mt-1 text-sm text-ink-subtle">{demoDataPolicy}</p>
             </div>
             <StatusPill tone="amber">localStorage only</StatusPill>
@@ -503,7 +505,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             {[
               ["Campaigns", "/campaigns"],
-              ["Digital Twin", "/digital-twin"],
+              ["Aircraft Operations Center", "/digital-twin"],
               ["Fleet CRUD", "/helicopters"],
               ["Crew Portal", "/crew-portal"],
               ["Vessel Inventory", "/inventory"],
@@ -962,8 +964,8 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 }
 
 function getHeader(view: FleetOSClientProps["view"], mode: string) {
-  const common = { status: "HSV OS 0.3 / localStorage MVP" };
-  if (view === "dashboard") return { eyebrow: "HSV OS 0.3 Operations", title: "Campaigns, fleet, and digital twin MVP with local persistence.", description: "Campaigns, Digital Twin, Fleet CRUD, flight-hour recalculation, records, compliance, inventory, and purchasing without backend services.", icon: Plane, ...common };
+  const common = { status: "HSV OS 0.4 / localStorage MVP" };
+  if (view === "dashboard") return { eyebrow: "HSV OS 0.4 Operations", title: "Campaigns, fleet, and Aircraft Operations Center MVP with bilingual local persistence.", description: "Campaigns, Aircraft Operations Center, Fleet CRUD, flight-hour recalculation, records, compliance, inventory, and purchasing without backend services.", icon: Plane, ...common };
   if (view.includes("helicopter")) return { eyebrow: "Fleet CRUD", title: mode === "edit" ? "Edit helicopter record." : view === "helicopter-form" ? "Create helicopter record." : "Manage helicopter registry records.", description: "All records are demo or user-entered local data until imported into a future backend.", icon: Plane, ...common };
   if (view.includes("vessel")) return { eyebrow: "Vessel CRUD", title: mode === "edit" ? "Edit vessel record." : view === "vessel-form" ? "Create vessel record." : "Manage vessel records and helicopter assignments.", description: "Assign helicopters to vessels using local mock state only.", icon: Anchor, ...common };
   if (view.includes("component")) return { eyebrow: "Component CRUD", title: mode === "edit" ? "Edit component record." : view === "component-form" ? "Create component record." : "Manage controlled component records.", description: "Component remaining life and status are calculated in the frontend MVP.", icon: Wrench, ...common };
@@ -976,32 +978,35 @@ function getHeader(view: FleetOSClientProps["view"], mode: string) {
 }
 
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      <StatusPill tone={tone}>{label}</StatusPill>
+      <StatusPill tone={tone}>{tx(label)}</StatusPill>
       <p className="mt-4 text-3xl font-semibold text-ink">{value}</p>
-      <p className="mt-2 text-sm text-ink-subtle">{detail}</p>
+      <p className="mt-2 text-sm text-ink-subtle">{tx(detail)}</p>
     </Panel>
   );
 }
 
 function ListHeader({ title, href, action }: { title: string; href: string; action: string }) {
+  const { tx } = useI18n();
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <h2 className="text-lg font-semibold text-ink">{title}</h2>
+      <h2 className="text-lg font-semibold text-ink">{tx(title)}</h2>
       <Link className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href={href}>
-        {action}
+        {tx(action)}
       </Link>
     </div>
   );
 }
 
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+  const { tx } = useI18n();
   return (
     <div className="overflow-x-auto rounded-lg border border-line">
       <table className="w-full min-w-[920px] border-collapse text-left text-sm">
         <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
-          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{header}</th>)}</tr>
+          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">{children}</tbody>
       </table>
@@ -1014,24 +1019,26 @@ function Cell({ children, muted = false }: { children: React.ReactNode; muted?: 
 }
 
 function Actions({ edit, onArchive }: { edit: string; onArchive: () => void }) {
+  const { tx } = useI18n();
   return (
     <div className="flex gap-3">
-      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>Edit</Link>
-      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">Archive</button>
+      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>{tx("Edit")}</Link>
+      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">{tx("Archive")}</button>
     </div>
   );
 }
 
 function FormShell({ children, onSubmit, title }: { children: React.ReactNode; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void; title?: string }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      {title ? <h2 className="mb-5 text-lg font-semibold text-ink">{title}</h2> : null}
+      {title ? <h2 className="mb-5 text-lg font-semibold text-ink">{tx(title)}</h2> : null}
       <form onSubmit={onSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">{children}</div>
         <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink-subtle">Frontend-only localStorage save. No backend or database is connected.</p>
+          <p className="text-sm text-ink-subtle">{tx("Frontend-only localStorage save. No backend or database is connected.")}</p>
           <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
-            Save locally
+            {tx("Save locally")}
           </button>
         </div>
       </form>
@@ -1040,39 +1047,43 @@ function FormShell({ children, onSubmit, title }: { children: React.ReactNode; o
 }
 
 function Field({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | number }) {
+  const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
-      {label}
+      {tx(label)}
       <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} />
     </label>
   );
 }
 
 function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string }) {
+  const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink sm:col-span-2">
-      {label}
+      {tx(label)}
       <textarea className={textareaClass} name={name} defaultValue={defaultValue ?? ""} />
     </label>
   );
 }
 
 function Select({ name, label, options, defaultValue }: { name: string; label: string; options: string[]; defaultValue?: string }) {
+  const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
-      {label}
+      {tx(label)}
       <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""}>
-        {options.map((option) => <option key={option} value={option}>{option || "None"}</option>)}
+        {options.map((option) => <option key={option} value={option}>{option ? tx(option) : tx("None")}</option>)}
       </select>
     </label>
   );
 }
 
 function Empty({ title }: { title: string }) {
+  const { tx } = useI18n();
   return (
     <Panel>
-      <p className="text-sm font-semibold text-ink">{title}</p>
-      <p className="mt-2 text-sm text-ink-subtle">The local record was not found. It may have been archived or removed from localStorage.</p>
+      <p className="text-sm font-semibold text-ink">{tx(title)}</p>
+      <p className="mt-2 text-sm text-ink-subtle">{tx("The local record was not found. It may have been archived or removed from localStorage.")}</p>
     </Panel>
   );
 }

@@ -8,6 +8,8 @@ The architecture should keep commercial workflows, fleet and maintenance operati
 
 The next strategic operating model is campaign-centric. Campaigns are the operating spine that connect commercial commitments to helicopter deployments on tuna vessels, including aircraft, crew, contract, flight logs, maintenance, inventory, purchasing, technical records, compliance, and future profitability.
 
+HSV OS is bilingual from HSV OS 0.4 forward. The web application must use the i18n system for user-facing text, default to English, support Spanish, and persist language preference locally until authenticated user profiles exist.
+
 ## Recommended Repository Architecture
 
 ```text
@@ -24,13 +26,13 @@ scripts/    Operational scripts for migrations, imports, exports, and validation
 assets/     Reference media, product assets, and domain source material.
 ```
 
-The current `apps/web` implementation uses Next.js, TypeScript, and TailwindCSS for the HSV OS 0.2 frontend MVP. Backend, database, authentication, document storage, and external service decisions remain open for production architecture.
+The current `apps/web` implementation uses Next.js, TypeScript, TailwindCSS, and a lightweight frontend i18n provider. Backend, database, authentication, document storage, and external service decisions remain open for production architecture.
 
 ## System Boundaries
 
 ### Web Application
 
-The web application will serve authenticated users through role-based navigation. It should provide commercial workspace views, campaign operations, account intelligence, opportunity boards, contract records, multi-helicopter fleet readiness, helicopter digital twins, component-control views, maintenance forecasts, technical records, compliance alerts, document management, campaign approvals, assistant chat, dashboards, and report exports.
+The web application will serve authenticated users through role-based navigation. It should provide commercial workspace views, campaign operations, account intelligence, opportunity boards, contract records, multi-helicopter fleet readiness, Aircraft Operations Center views backed by helicopter digital twins, component-control views, maintenance forecasts, technical records, compliance alerts, document management, campaign approvals, assistant chat, dashboards, and report exports.
 
 ### API Application
 
@@ -100,6 +102,12 @@ Owns production rules for flight-hour deduction, component status, calendar expi
 
 Builds each helicopter's operational truth graph from registry, meter readings, installed components, component life, maintenance history, flight history, campaign history, vessel assignment history, technical records, photos, costs, forecast, compliance exposure, and future asset profile.
 
+User-facing navigation and page language must call this module Aircraft Operations Center in English and Centro de Operaciones de la Aeronave in Spanish.
+
+### HSV-CORE-003 Bilingual UI and Internationalization
+
+Provides English and Spanish dictionaries, language switching, local preference persistence, translation helpers, aviation terminology governance, and the rule that future UI text must not be hardcoded outside the i18n system.
+
 ### Market Intelligence
 
 Manages intelligence sources, items, confidence scores, reviews, alerts, entity links, and resulting recommended actions.
@@ -138,6 +146,7 @@ Manages saved dashboard definitions, metrics, exports, scheduled reports, and ex
 - Purchasing events must link to inventory receipt and maintenance usage without becoming accounting postings.
 - Technical records must preserve checksums, versions, confidentiality, review state, and entity links.
 - Compliance alerts must preserve applicability basis and supporting evidence or resolution reason.
+- Interface text must be translated through the i18n layer. User-entered data must not be translated.
 
 ## Multi-Tenant Strategy
 
@@ -180,6 +189,7 @@ Production must include structured logs, request IDs, job IDs, audit events, met
 - Helicopter digital twin snapshot refresh cadence and timeline event generation model.
 - Technical Records storage provider, document classification, required record sets, and retention policy.
 - Compliance source-management policy for AAC Panama, DGAC Ecuador, FAA references, Robinson SBs, ADs, Service Letters, and manual revisions.
+- Production i18n strategy for user profile language preference, translation review, and tenant-specific terminology overrides if needed.
 - Maintenance crew portal role boundaries and offline evidence-capture needs.
 - Inventory location hierarchy, serialization policy, and transfer approval requirements.
 - Purchasing approval limits, supplier validation rules, and future accounting integration boundaries for Panama compliance.

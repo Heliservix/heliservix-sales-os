@@ -2,10 +2,12 @@
 
 import { primaryNavigation } from "@/lib/navigation";
 import { StatusPill } from "@/components/ui/status-pill";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import { usePathname } from "next/navigation";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <aside className="hidden w-72 shrink-0 border-r border-line bg-white/74 px-4 py-5 backdrop-blur-xl dark:bg-canvas-muted/70 lg:flex lg:flex-col">
@@ -15,11 +17,11 @@ export function Sidebar() {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">HeliServiX</p>
-          <p className="truncate text-xs text-ink-subtle">Fleet & Maintenance</p>
+          <p className="truncate text-xs text-ink-subtle">{t("shell.productArea")}</p>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1" aria-label="Primary navigation">
+      <nav className="flex-1 space-y-1" aria-label={t("shell.module")}>
         {primaryNavigation.map((item) => {
           const Icon = item.icon;
           const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -36,9 +38,9 @@ export function Sidebar() {
               ].join(" ")}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              <span className="min-w-0 flex-1 truncate">{t(item.labelKey)}</span>
               {item.status === "ready" ? (
-                <span className="h-1.5 w-1.5 rounded-full bg-aviation-green" aria-label="Ready" />
+                <span className="h-1.5 w-1.5 rounded-full bg-aviation-green" aria-label={t("status.ready")} />
               ) : null}
             </a>
           );
@@ -46,10 +48,10 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-6 rounded-lg border border-line bg-canvas-muted/72 p-4">
-        <StatusPill tone="teal">EPIC 001 MVP</StatusPill>
-        <p className="mt-3 text-sm font-medium text-ink">Fleet operations active</p>
+        <StatusPill tone="teal">{t("shell.mvp")}</StatusPill>
+        <p className="mt-3 text-sm font-medium text-ink">{t("shell.active")}</p>
         <p className="mt-1 text-xs leading-5 text-ink-subtle">
-          Multi-helicopter readiness, component exposure, alerts, and forecast surfaces are ready for review.
+          {t("shell.summary")}
         </p>
       </div>
     </aside>

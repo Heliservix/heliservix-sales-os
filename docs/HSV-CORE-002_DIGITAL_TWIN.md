@@ -8,6 +8,13 @@ Core capability: Helicopter Digital Twin
 
 Status: Architecture specification. No application code, backend, database, authentication, or external services are included in this scope.
 
+User-facing module name:
+
+- English: Aircraft Operations Center.
+- Spanish: Centro de Operaciones de la Aeronave.
+
+The phrase digital twin remains valid for the internal technical concept and architecture. Navigation, page titles, user-facing labels, and help text must use Aircraft Operations Center.
+
 ## Purpose
 
 Each helicopter in HeliServiX OS must have a digital twin: a governed operational profile that represents the aircraft's current state, installed component configuration, maintenance condition, campaign history, records, costs, and forecast.
@@ -56,7 +63,7 @@ The digital twin is assembled from:
 - Compliance items and alerts.
 - Future finance and asset valuation records.
 
-## Digital Twin Views
+## Aircraft Operations Center Views
 
 ### Operational View
 

@@ -14,6 +14,8 @@ Campaigns are the central operating entity of HeliServiX OS. HeliServiX does not
 
 A campaign is the structured operational commitment that connects a client or fleet owner, vessel, contract, helicopter, pilot, mechanic, flight logs, maintenance events, inventory usage, purchases, documents, compliance status, and future billing or profitability analysis.
 
+Campaign UI labels, statuses, forms, and tables must support English and Spanish through `HSV-CORE-003_I18N_BILINGUAL_UI.md`. Campaign names, contract references, vessel names, notes, and other user-entered data must remain in the language entered by the user.
+
 ## Operating Model
 
 The campaign-centric model ensures that commercial promises are evaluated against operational reality before and during execution.
@@ -33,6 +35,7 @@ A campaign connects:
 - Operational purchases.
 - Technical records.
 - Compliance obligations.
+- Aircraft Operations Center readiness state.
 - Future billing, margin, reserve, and profitability reporting.
 
 Campaigns must support tuna purse seine deployments across Panama, Ecuador, and other Latin American markets where vessel operations, aircraft readiness, personnel assignments, and regulatory requirements vary by country.
