@@ -13,6 +13,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { AircraftMigrationCenter } from "@/components/fleet/aircraft-migration-center";
 import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -326,6 +327,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           <Metric label="Open Compliance" value={String(complianceItems.filter((item) => !["Complied", "Not applicable"].includes(calculateComplianceStatus(item))).length)} tone="amber" detail="Applies to fleet readiness" />
           <Metric label="Timeline Events" value={String(helicopters.reduce((sum, helicopter) => sum + generateMaintenanceTimeline(store, helicopter.registration).length, 0))} tone="blue" detail="Generated from local state" />
         </section>
+        <AircraftMigrationCenter store={store} onApply={updateStore} />
         <Panel>
           <h2 className="mb-4 text-lg font-semibold text-ink">{tx("Aircraft Operations Center")}</h2>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -377,6 +379,12 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
             <Info label="Technical records" value={`${summary.technicalRecordCount} records`} />
           </div>
         </Panel>
+        <AircraftMigrationCenter
+          compact
+          preselectedRegistration={helicopter.registration}
+          store={store}
+          onApply={updateStore}
+        />
         <section className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
           <Panel>
             <h2 className="mb-4 text-lg font-semibold text-ink">Summary</h2>

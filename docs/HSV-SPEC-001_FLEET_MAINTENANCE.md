@@ -186,6 +186,130 @@ Real Fleet & Maintenance data enters the system through governed import or manua
    - Active records may be used in dashboards, assignment workflows, alerts, forecasts, and reporting.
    - Any later correction must preserve previous values in audit history.
 
+## Aircraft Migration Center Workflow
+
+HSV OS supports a frontend Aircraft Migration Center so HeliServiX users can migrate helicopter component-control data from Excel without manually entering each component row.
+
+Reference workbook:
+
+- `HSV-IMPORT-COMPONENTS-v1.xlsx`.
+- Legacy workbook structures such as `Control Maestro`, `Control Maestro (2)`, `Resumen Ejecutivo`, and `Leyenda` remain supported as migration source patterns.
+- The wizard must automatically detect worksheets and helicopter registrations.
+- Users choose which detected helicopters to import before committing local data.
+
+### Excel Format
+
+The Aircraft Migration Center must accept `.xlsx` files and parse them client-side during the frontend-only MVP. Production backend import may later move parsing server-side for audit, virus scanning, and permanent import logs.
+
+Supported workbook fields:
+
+- Registration / Matrícula.
+- Model / Modelo.
+- Aircraft Serial Number / Serial aeronave.
+- Current Hourmeter / Horómetro.
+- Component name / Componente.
+- Component category / Categoría.
+- Part Number / P/N.
+- Serial Number / S/N.
+- Position / Posición.
+- Installation date / Fecha instalación.
+- TSN.
+- TSO.
+- Life limit hours / Límite vida horas.
+- Remaining hours / Horas remanentes.
+- Calendar limit date / Límite calendario.
+- Remaining percentage / `% remanente`.
+- Status / Estado.
+- Notes / Observaciones.
+
+### Smart Column Mapping
+
+The importer must detect English and Spanish headers even when labels vary slightly. It should normalize case, accents, punctuation, common abbreviations, and workbook-specific header formats such as `TSN (HRS)`, `TSO (HRS)`, `Límite vida (HRS)`, `Remanente (HRS)`, `% remanente horas`, and `Observaciones`.
+
+Aircraft metadata may be read from a metadata block above the component table. Row-level values override metadata only when a row explicitly provides a value.
+
+### Wizard Steps
+
+The migration workflow is:
+
+1. Select Excel.
+2. Detect helicopters.
+3. Preview components.
+4. Validate.
+5. Import.
+
+Before saving, users must review the wizard output showing:
+
+- Worksheets detected.
+- Helicopters detected.
+- Component count by selected helicopter.
+- Warnings.
+- Errors.
+- Duplicates.
+- Missing data.
+- Missing required fields.
+- Duplicate components.
+- Invalid dates.
+- Invalid hour values.
+- Status inconsistencies between workbook status and recalculated HeliServiX OS status.
+- Mapped workbook columns.
+- A sample component row preview.
+
+The wizard must make clear that imported Excel records are real user data and must not be marked as demo data.
+
+### Validation
+
+Blocking validation:
+
+- Helicopter registration is required.
+- Component name is required.
+- Life limit hours or calendar limit date is required when the component is controlled.
+- Dates must parse into valid ISO dates.
+- Hour values must not be negative.
+
+Warning validation:
+
+- Part number or serial number is recommended for traceability.
+- Category is missing.
+- Position is missing.
+- Notes are missing.
+- Duplicate match exists in the workbook or current local data.
+- Workbook status differs from recalculated status.
+
+Warnings do not block import, but they must be visible before save.
+
+### Duplicate Handling
+
+Component matching uses:
+
+- Helicopter registration.
+- Component name.
+- Part Number.
+- Serial Number.
+- Position.
+
+Migration options:
+
+- Create helicopter.
+- Update helicopter.
+- Replace components.
+- Merge components.
+- Skip duplicates.
+- Replace mode archives current component records for selected helicopters before importing workbook rows.
+- Merge mode updates matching components and adds clean new rows.
+- Skip duplicates mode imports only clean new rows and leaves matching components unchanged.
+
+### Safety Rules
+
+- Imported Excel records are real user data.
+- Imported records must use source `User`, not `Demo`.
+- Demo records must remain visibly separated from imported records.
+- Migration must save to `localStorage` only until backend persistence is implemented.
+- Production migration must later capture user, timestamp, source workbook, workbook hash, selected helicopters, validation summary, approved options, and affected records.
+- Migration must recalculate remaining percentage and component status after parsing rather than blindly trusting workbook status.
+- Migration must generate maintenance alerts for Monitor, Critical, and Expired components.
+- Migration must never invent vessel assignments, owner data, aircraft serial numbers, or component history that is not present in the workbook or entered by HeliServiX.
+
 ## Vessel Management Workflow
 
 Vessel records are first-class Fleet & Maintenance entities because helicopter availability depends on vessel assignments, campaign geography, owner context, and operating commitments.

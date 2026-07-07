@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/fleet/page-header";
+import { AircraftMigrationCenter } from "@/components/fleet/aircraft-migration-center";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -579,6 +580,12 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           <ListHeader title={`${helicopter.registration} details`} href={`/helicopters/${helicopter.registration}/edit`} action="Edit helicopter" />
           <p className="text-sm leading-6 text-ink-subtle">{helicopter.notes}</p>
         </Panel>
+        <AircraftMigrationCenter
+          compact
+          preselectedRegistration={helicopter.registration}
+          store={store}
+          onApply={updateStore}
+        />
         <Panel>
           <h2 className="mb-4 text-lg font-semibold text-ink">Assigned Components</h2>
           {renderComponentsTable(assignedComponents)}
@@ -665,10 +672,13 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 
   function renderComponents() {
     return (
-      <Panel>
-        <ListHeader title="Components" href="/components/new" action="Create component" />
-        {renderComponentsTable(components)}
-      </Panel>
+      <div className="grid gap-5">
+        <AircraftMigrationCenter store={store} onApply={updateStore} />
+        <Panel>
+          <ListHeader title="Components" href="/components/new" action="Create component" />
+          {renderComponentsTable(components)}
+        </Panel>
+      </div>
     );
   }
 
