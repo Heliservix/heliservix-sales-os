@@ -12,6 +12,9 @@ The database must represent the commercial and operational reality of helicopter
 - Market intelligence and AI output remain traceable to sources.
 - Contracts and documents require version history.
 - Helicopter component life, flight logs, maintenance alerts, replacements, overhauls, and reserve calculations require audit history.
+- Maintenance crew actions, evidence uploads, inventory movements, and purchasing workflow changes require immutable audit history.
+- Inventory balances must be derived from ledger events, not manually overwritten quantities.
+- Purchasing supports operational traceability only; it does not create accounting postings in the current scope.
 - Email and assistant actions require immutable event logs.
 - External identifiers are stored separately from internal primary keys.
 
@@ -37,6 +40,7 @@ The database must represent the commercial and operational reality of helicopter
 `roles` and `permissions`
 
 - Defines access control for commercial, operations, maintenance, documents, campaigns, AI, reports, and administration.
+- Must include maintenance-only roles, inventory roles, and purchasing roles with least-privilege permissions.
 
 ### Commercial Entities
 
@@ -100,7 +104,7 @@ The database must represent the commercial and operational reality of helicopter
 
 - Structured pricing and delivery terms, including tiered tuna tonnage rates, included hours, excluded fuel/oil costs, crew assumptions, and billing rules.
 
-### Fleet & Maintenance Operations
+### HSV-SPEC-001 Fleet & Maintenance
 
 `helicopters`
 
@@ -183,6 +187,107 @@ The database must represent the commercial and operational reality of helicopter
 
 - Links helicopters, pilots, mechanics, vessels, ports, and contracts during a campaign.
 
+### HSV-SPEC-002 Maintenance Crew Portal
+
+`maintenance_crew_profiles`
+
+- Links authorized maintenance users to employee/vendor identity, certification context, permitted operations, and active status.
+- Fields include tenant, user, role type, authorization scope, license or credential reference when applicable, active_from, active_until, and notes.
+
+`maintenance_logs`
+
+- Maintenance entries created by authorized crew.
+- Fields include helicopter, maintenance event, log type, log date, entered_by, reviewed_by, review status, description, corrective action, hourmeter value, component references, and return-to-service indicator when applicable.
+
+`maintenance_evidence`
+
+- Evidence attached to maintenance logs, component changes, flight-hour entries, or purchasing receipts.
+- Supports photos, invoices, logbook pages, work orders, 8130 forms, certificates, inspection documents, and related files.
+- Fields include document, evidence type, source entity, uploaded_by, captured_at, checksum, confidentiality level, and review status.
+
+`maintenance_component_actions`
+
+- Crew-recorded removals, installations, inspections, overhauls, and corrections.
+- Fields include helicopter, removed component, installed component, action type, action date, meter reading, reason, performed_by, approved_by, evidence set, and recalculation status.
+
+`maintenance_recalculation_jobs`
+
+- Tracks recalculation runs triggered by flight logs, hourmeter updates, component changes, or corrections.
+- Fields include trigger event, requested_by, started_at, completed_at, status, affected helicopter, affected components, alerts generated, and errors.
+
+### HSV-SPEC-003 Vessel Inventory
+
+`inventory_locations`
+
+- Hierarchical locations for main warehouse, vessels, bodegas, helicopters, and temporary transfer locations.
+- Fields include location type, vessel, helicopter, parent location, name, country, port, status, and notes.
+
+`inventory_items`
+
+- Item catalog for components, hardware, consumables, oils, filters, tools, and kits.
+- Fields include item type, name, part number, manufacturer, description, unit of measure, serialized flag, lot-tracked flag, expiration-tracked flag, hazardous/material notes, and default minimum stock.
+
+`inventory_stock_lots`
+
+- Physical stock groupings by item, location, serial number, lot or batch, condition, expiration date, and source receipt.
+- Fields include item, location, quantity, unit of measure, condition, serial number, lot number, expiration date, purchase order line, received date, and status.
+
+`inventory_movements`
+
+- Immutable inventory ledger for receipts, transfers, adjustments, maintenance usage, installation, consumption, quarantine, and disposal.
+- Fields include movement type, item, stock lot, from location, to location, quantity, unit of measure, related helicopter, related vessel, related maintenance event, related purchase order, performed_by, approved_by, movement_date, and notes.
+
+`inventory_minimums`
+
+- Minimum stock policies by item and location.
+- Fields include item, location, minimum quantity, reorder quantity, criticality, preferred supplier, and review cadence.
+
+`inventory_stock_alerts`
+
+- Low-stock, expired, near-expiration, condition, missing-serial, or transfer-exception alerts.
+
+### HSV-SPEC-004 Purchasing
+
+`suppliers`
+
+- Supplier records for operational purchasing.
+- Fields include name, country, contact details, supplier type, preferred status, payment notes, document requirements, and status.
+
+`purchase_requests`
+
+- Operational request records for parts, tools, consumables, services, or logistics.
+- Fields include requester, request date, priority, related helicopter, vessel, campaign, maintenance event, justification, status, required_by, approved_by, and notes.
+
+`purchase_request_items`
+
+- Requested item lines with item, description, quantity, unit of measure, estimated cost, currency, required date, and source urgency.
+
+`supplier_quotes`
+
+- Supplier quote records linked to purchase requests or suppliers.
+- Fields include supplier, quote date, validity date, currency, lead time, freight terms, status, and attachment references.
+
+`supplier_quote_items`
+
+- Quote line items with item, description, quantity, unit price, currency, lead time, certificate availability, and notes.
+
+`purchase_orders`
+
+- Operational purchase orders, not accounting documents.
+- Fields include supplier, purchase request, order date, approved_by, status, currency, expected delivery, ship_to location, related vessel, related helicopter, related campaign, related maintenance event, and notes.
+
+`purchase_order_items`
+
+- Ordered items with item, description, quantity, unit cost, currency, received quantity, stored quantity, installed quantity, consumed quantity, and status.
+
+`purchasing_attachments`
+
+- Attachments for supplier quotes, invoices, packing lists, airway bills, delivery notes, certificates, and photos.
+
+`purchasing_status_events`
+
+- Immutable workflow status history from Requested, Quoted, Approved, Ordered, Received, Shipped to vessel, Stored, Installed, Consumed, and Closed.
+
 ### Documents
 
 `documents`
@@ -196,7 +301,7 @@ The database must represent the commercial and operational reality of helicopter
 
 `document_links`
 
-- Links documents to companies, contacts, vessels, helicopters, opportunities, contracts, intelligence items, and reports.
+- Links documents to companies, contacts, vessels, helicopters, opportunities, contracts, maintenance logs, maintenance events, component actions, inventory movements, purchase requests, purchase orders, intelligence items, and reports.
 
 ### Market Intelligence
 

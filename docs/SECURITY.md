@@ -38,6 +38,13 @@ Role-based access control should cover:
 - Operations manager.
 - Maintenance coordinator.
 - Maintenance approver.
+- Maintenance chief.
+- Maintenance staff.
+- Inventory manager.
+- Inventory user.
+- Purchasing manager.
+- Purchasing requester.
+- Purchasing approver.
 - Analyst.
 - Document manager.
 - Read-only viewer.
@@ -53,6 +60,16 @@ Sensitive permissions:
 - Approve flight logs.
 - Replace controlled components.
 - Override computed maintenance status.
+- Access maintenance crew portal.
+- Upload maintenance evidence.
+- Update helicopter hourmeter values.
+- Trigger component-life recalculation.
+- Manage vessel inventory locations.
+- Transfer inventory between vessels, bodegas, helicopters, and warehouse.
+- Consume inventory against maintenance events.
+- Create and approve purchase requests.
+- Manage suppliers, quotes, and purchase orders.
+- Receive, ship, store, install, or consume purchased items.
 - View maintenance reserve assumptions.
 - View confidential documents.
 - Delete or archive records.
@@ -83,6 +100,9 @@ Data categories:
 - Component serial numbers, life limits, and replacement history.
 - Flight logs and campaign-hour ledgers.
 - Maintenance reserve assumptions.
+- Vessel inventory quantities, item condition, serial numbers, lot numbers, and transfer history.
+- Supplier quotes, purchase orders, invoices, airway bills, delivery notes, certificates, and purchasing attachments.
+- Maintenance evidence including logbook pages, work orders, inspection documents, certificates, photos, and invoices.
 - Documents.
 - AI conversation data.
 - Audit logs.
@@ -135,6 +155,9 @@ Audit events should include:
 - Component installation, removal, replacement, and overhaul status changes.
 - Maintenance alert acknowledgement, override, and resolution.
 - Maintenance reserve policy changes.
+- Maintenance crew portal access, maintenance log creation, evidence upload, component removal, component installation, and recalculation trigger.
+- Inventory receipt, transfer, adjustment, quarantine, installation, consumption, disposal, and minimum-stock changes.
+- Supplier creation, quote upload, purchase request approval, purchase order status changes, receipt, shipment to vessel, storage, installation, consumption, and closure.
 - Document upload, download, and version changes.
 - Email approval and send events.
 - AI-generated draft approval and application.
@@ -191,6 +214,9 @@ Minimum incident process:
 - AI context isolation tests.
 - Flight-log approval and correction tests.
 - Component status override tests.
+- Maintenance crew portal permission tests.
+- Inventory movement permission and ledger immutability tests.
+- Purchasing approval workflow tests.
 - Cross-tenant fleet-maintenance isolation tests.
 - Document access tests.
 - Audit event verification.

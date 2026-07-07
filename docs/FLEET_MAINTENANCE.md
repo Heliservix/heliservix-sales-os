@@ -1,8 +1,8 @@
-# Fleet & Maintenance Operations
+# HSV-SPEC-001 Fleet & Maintenance Overview
 
 ## Purpose
 
-Fleet & Maintenance Operations is a day-one core module of HeliServiX OS. It exists to make commercial commitments trustworthy by connecting tuna-vessel campaigns to real helicopter availability, component life, calendar limits, maintenance forecast, replacement history, overhaul planning, and maintenance reserve exposure.
+HSV-SPEC-001 Fleet & Maintenance is a day-one core module of HeliServiX OS. It exists to make commercial commitments trustworthy by connecting tuna-vessel campaigns to real helicopter availability, component life, calendar limits, maintenance forecast, replacement history, overhaul planning, and maintenance reserve exposure.
 
 The module must support a fleet of helicopters operating across Panama, Ecuador, and other Latin American markets. HP1804 is the first known aircraft context, not a hardcoded product assumption.
 
@@ -309,7 +309,7 @@ Commercial reports should show maintenance reserve assumptions without requiring
 
 ## Workflow Boundaries
 
-Fleet & Maintenance Operations is not a full maintenance, repair, and overhaul system in Version 0.1. The product should not attempt to replace certified maintenance records, regulatory filings, or mechanic sign-off systems until explicitly designed and validated for that purpose.
+HSV-SPEC-001 Fleet & Maintenance is not a full maintenance, repair, and overhaul system in Version 0.1. The product should not attempt to replace certified maintenance records, regulatory filings, or mechanic sign-off systems until explicitly designed and validated for that purpose.
 
 The module should provide operational decision support, component-control visibility, commercial feasibility signals, and auditable planning records. Legal maintenance authority remains with approved aviation maintenance personnel and official maintenance records.
 

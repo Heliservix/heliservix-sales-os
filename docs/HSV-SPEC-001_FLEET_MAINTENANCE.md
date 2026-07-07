@@ -1,20 +1,20 @@
-# EPIC 001 — Fleet & Maintenance Operations
+# HSV-SPEC-001 — Fleet & Maintenance
 
-## Epic Status
+## Spec Status
 
 Priority: Highest
 
 Product: HeliServiX OS
 
-Module: Fleet & Maintenance Operations
+Module: Fleet & Maintenance
 
 Audience: Executive, operations, maintenance, commercial, finance, and product engineering teams
 
-Implementation status: Specification only. No application code is included in this epic document.
+Implementation status: Specification plus visual MVP. No backend, database, authentication, or production persistence is implemented yet.
 
 ## Executive Summary
 
-Fleet & Maintenance Operations is the first operational backbone of HeliServiX OS. The module must support multiple helicopters from day one and must not be hardcoded around HP1804. It will track helicopter registry data, component life, flight hours, maintenance alerts, forecasted expirations, component replacements, documents, vessel assignments, and maintenance reserve planning for helicopter operations supporting tuna purse seine vessels across Panama, Ecuador, and other Latin American markets.
+HSV-SPEC-001 Fleet & Maintenance is the first operational backbone of HeliServiX OS. The module must support multiple helicopters from day one and must not be hardcoded around HP1804. It will track helicopter registry data, component life, flight hours, maintenance alerts, forecasted expirations, component replacements, documents, vessel assignments, and maintenance reserve planning for helicopter operations supporting tuna purse seine vessels across Panama, Ecuador, and other Latin American markets.
 
 The current component-control workbook, `Heliservix_Control_Componentes_FINAL_PRO.xlsx`, is the reference model for the first import and data-mapping workflow. Its `Control Maestro`, `Control Maestro (2)`, `Resumen Ejecutivo`, and `Leyenda` sheets define the current operating language for aircraft metadata, controlled components, remaining life calculations, executive status summaries, and component-control criteria. HeliServiX OS must preserve that operational value while replacing spreadsheet fragility with governed workflows, auditability, user permissions, recalculation logic, and production-grade data integrity.
 

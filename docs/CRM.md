@@ -180,5 +180,5 @@ Timeline events must be filterable by type and visible from company, contact, ve
 - Lost opportunities require a loss reason.
 - Won opportunities should create or link a contract.
 - Operational review is required before marking a high-value opportunity ready for contract.
-- Opportunities that consume helicopter hours must request a Fleet & Maintenance Operations feasibility signal before proposal release.
+- Opportunities that consume helicopter hours must request an HSV-SPEC-001 Fleet & Maintenance feasibility signal before proposal release.
 - Commercial users should see clear OK, Monitor, Critical, or Expired-derived feasibility guidance without being able to alter technical component records.

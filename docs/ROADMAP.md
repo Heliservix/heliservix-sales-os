@@ -15,7 +15,7 @@ Deliverables:
 - Domain architecture documentation.
 - Initial database design.
 - CRM schema and workbook alignment.
-- Security, deployment, AI, fleet-maintenance, and email automation strategy.
+- Security, deployment, AI, fleet-maintenance, maintenance crew portal, vessel inventory, purchasing, and email automation strategy.
 
 Exit criteria:
 
@@ -41,7 +41,7 @@ Exit criteria:
 - A commercial director can manage active accounts and opportunities without relying on the spreadsheet as the primary system.
 - Every opportunity has a linked company, contact, vessel context when available, stage, value estimate, and next action.
 
-## Phase 2: Fleet & Maintenance Operations Foundation
+## Phase 2: HSV-SPEC-001 Fleet & Maintenance Foundation
 
 Goal: make the platform multi-helicopter from day one and connect commercial promises to aircraft readiness, component life, maintenance forecast, and reserve planning.
 
@@ -72,7 +72,70 @@ Exit criteria:
 - Commercial users can see whether a proposed campaign is operationally feasible before committing.
 - Leadership can distinguish high-value opportunities from deliverable opportunities and understand maintenance reserve exposure.
 
-## Phase 3: Market Intelligence System
+## Phase 3: HSV-SPEC-002 Maintenance Crew Portal
+
+Goal: give maintenance chiefs and authorized maintenance staff restricted operational access without exposing commercial or executive data.
+
+Deliverables:
+
+- Maintenance-only role set and permission matrix.
+- Flight-hour registration for any helicopter.
+- Maintenance log entries.
+- Component removal and installation workflow.
+- Evidence upload for photos, invoices, logbook pages, work orders, 8130 forms, certificates, inspection documents, and related files.
+- Hourmeter update workflow with reason and audit trail.
+- Component remaining-hour recalculation trigger.
+- Maintenance alert generation from crew-entered events.
+- Audit trail by user, date, helicopter, component, and action.
+
+Exit criteria:
+
+- Maintenance staff can execute approved maintenance workflows without CRM access.
+- Every maintenance action has an audit event and supporting source context.
+- Recalculation-triggering actions are controlled by permission and review status.
+
+## Phase 4: HSV-SPEC-003 Vessel Inventory
+
+Goal: establish traceable inventory control for items stored on vessels, in bodegas, on helicopters, and in the main warehouse.
+
+Deliverables:
+
+- Vessel inventory locations and bodegas.
+- Item catalog for components, hardware, consumables, oils, filters, tools, and kits.
+- Quantity, unit of measure, minimum stock, stock status, condition, serial, lot, and expiration tracking.
+- Transfer workflow between vessels, bodegas, helicopters, and warehouse.
+- Usage workflow against helicopter maintenance events.
+- Purchase-to-storage-to-installation traceability.
+- Low-stock and expiration alerts.
+
+Exit criteria:
+
+- Users can see what is stored on each vessel and where.
+- Inventory transfers and usage are ledgered and auditable.
+- Maintenance readiness can incorporate vessel stock availability.
+
+## Phase 5: HSV-SPEC-004 Purchasing
+
+Goal: support operational procurement and traceability without implementing full accounting.
+
+Deliverables:
+
+- Purchase request workflow.
+- Supplier records.
+- Quote tracking.
+- Purchase orders and item lines.
+- Cost and currency capture.
+- Links to helicopter, vessel, campaign, and maintenance event.
+- Status workflow from Requested through Closed.
+- Attachments for quotes, invoices, packing lists, airway bills, delivery notes, certificates, and photos.
+- Receipt linkage to inventory storage and maintenance usage.
+
+Exit criteria:
+
+- Operations can trace why an item was requested, who approved it, what was ordered, where it was shipped, where it was stored, and whether it was installed or consumed.
+- No accounting, tax, payable, or Panama compliance functionality is implied.
+
+## Phase 6: Market Intelligence System
 
 Goal: turn market research into structured, source-based commercial signals.
 
@@ -90,7 +153,7 @@ Exit criteria:
 - Analysts can record market signals in a way that improves account prioritization.
 - Commercial users can trace recommendations back to sources and reviewed intelligence.
 
-## Phase 4: Email Campaign Automation
+## Phase 7: Email Campaign Automation
 
 Goal: support controlled, personalized outreach with approval and compliance.
 
@@ -109,7 +172,7 @@ Exit criteria:
 - Campaigns can be executed without manual copy-paste.
 - Every outbound email is approved, traceable, and linked to CRM records.
 
-## Phase 5: AI Assistant
+## Phase 8: AI Assistant
 
 Goal: provide supervised AI assistance for research, drafting, summarization, and decision support.
 
@@ -126,7 +189,7 @@ Exit criteria:
 
 - AI helps users work faster without silently changing records or making unsupported claims.
 
-## Phase 6: Documents, Reports, and Executive Dashboards
+## Phase 9: Documents, Reports, and Executive Dashboards
 
 Goal: make the platform useful for leadership review, proposals, and operational reporting.
 
@@ -143,7 +206,7 @@ Exit criteria:
 - Leadership can run commercial review meetings from the platform.
 - Proposal and report generation is repeatable and auditable.
 
-## Phase 7: Multi-Operation SaaS Expansion
+## Phase 10: Multi-Operation SaaS Expansion
 
 Goal: support multiple helicopter operations across Latin America.
 
