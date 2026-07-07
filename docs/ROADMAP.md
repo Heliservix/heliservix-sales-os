@@ -1,5 +1,25 @@
 # Roadmap
 
+## Current Status
+
+Current version: HSV OS 0.2 Operational MVP.
+
+Feature Freeze is active. The architecture is approved. Roadmap phases beyond the current operational MVP are retained as approved context, but active development must focus on making existing modules production-ready.
+
+Allowed work during Feature Freeze:
+
+- Stability.
+- Usability.
+- Performance.
+- Data integrity.
+- Business rules.
+- UX.
+- Bug fixes.
+- Tests and verification.
+- Documentation that clarifies approved scope.
+
+No new modules, architecture expansions, or workflow redesigns should be started unless explicitly requested by the user.
+
 ## Delivery Philosophy
 
 Build the platform in controlled phases. Each phase should produce a usable capability, reduce commercial operating risk, and strengthen the data foundation. Avoid building generic CRM features before the tuna fleet and helicopter service model is represented correctly.
