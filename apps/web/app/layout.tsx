@@ -3,9 +3,12 @@ import { I18nProvider } from "@/components/i18n/i18n-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HeliServiX Commercial Intelligence Platform",
+  title: "HeliServiX OS | Helicopter Operations System",
   description:
-    "Enterprise commercial intelligence dashboard for helicopter operations serving tuna purse seine fleets."
+    "Bilingual helicopter operations system for fleet, campaign, maintenance, inventory, purchasing, technical records, and compliance workflows.",
+  icons: {
+    icon: "/favicon.png"
+  }
 };
 
 type RootLayoutProps = {

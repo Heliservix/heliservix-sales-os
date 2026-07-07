@@ -18,6 +18,12 @@ HeliServiX OS is bilingual from HSV OS 0.4 forward. English is the default inter
 
 The user-facing module name for helicopter operational profiles is Aircraft Operations Center in English and Centro de Operaciones de la Aeronave in Spanish. Internal architecture may still use the term digital twin to describe the computed technical model.
 
+## Brand System
+
+HeliServiX OS uses the official HeliServiX corporate logo with an OS product extension. The company logo remains primary and must not be redesigned, recolored, cropped, distorted, or redrawn. The approved product subtitle is Helicopter Operations System in English and Sistema de Operaciones de Helicópteros in Spanish.
+
+The product interface must follow the HeliServiX OS brand system: navy navigation, primary blue active states, clean white operating surfaces, light gray page structure, light blue emphasis areas, and green/yellow/red reserved for operational status. All future UI must follow `HSV-BRAND-001_BRAND_SYSTEM.md`.
+
 ## Campaign-Centric Operating Model
 
 Campaigns are now the central operating entity of HeliServiX OS. HeliServiX does not only manage helicopters; it manages helicopter deployments within tuna-vessel campaigns.
@@ -41,6 +47,7 @@ HeliServiX OS product domains are:
 - Finance future.
 - Administration.
 - Bilingual UI and terminology governance.
+- Brand system and product identity governance.
 
 ## Primary Users
 
@@ -102,6 +109,10 @@ The user-facing experience for this capability is Aircraft Operations Center / C
 ### HSV-CORE-003 Bilingual UI and Internationalization
 
 The platform must support English and Spanish interface text from HSV OS 0.4 forward. All future UI text must use the translation system, and aviation terminology must follow the governed bilingual glossary.
+
+### HSV-BRAND-001 HeliServiX OS Brand System
+
+The product brand system governs official logo usage, HeliServiX OS lockup rules, subtitle usage, color tokens, typography, spacing, status colors, and bilingual brand text. It ensures HeliServiX OS feels like a premium aviation operations platform without altering the official HeliServiX corporate identity.
 
 ### Market Intelligence
 

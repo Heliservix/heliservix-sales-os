@@ -10,6 +10,8 @@ The next strategic operating model is campaign-centric. Campaigns are the operat
 
 HSV OS is bilingual from HSV OS 0.4 forward. The web application must use the i18n system for user-facing text, default to English, support Spanish, and persist language preference locally until authenticated user profiles exist.
 
+HSV OS also follows the official HeliServiX OS brand system from HSV OS 0.4 forward. The web application must use the official HeliServiX logo as the primary mark, extend it only with the OS product mark, and centralize brand colors through shared constants and UI tokens.
+
 ## Recommended Repository Architecture
 
 ```text
@@ -27,6 +29,8 @@ assets/     Reference media, product assets, and domain source material.
 ```
 
 The current `apps/web` implementation uses Next.js, TypeScript, TailwindCSS, and a lightweight frontend i18n provider. Backend, database, authentication, document storage, and external service decisions remain open for production architecture.
+
+Brand assets for the frontend live under `apps/web/public/brand`. Shared brand constants live in the web application library layer and define the official product name, subtitles, logo metadata, and approved UI color tokens.
 
 ## System Boundaries
 
@@ -108,6 +112,10 @@ User-facing navigation and page language must call this module Aircraft Operatio
 
 Provides English and Spanish dictionaries, language switching, local preference persistence, translation helpers, aviation terminology governance, and the rule that future UI text must not be hardcoded outside the i18n system.
 
+### HSV-BRAND-001 Brand System
+
+Provides product identity governance for HeliServiX OS. It defines official logo usage, the OS lockup rule, subtitle usage, color palette, status color meaning, typography recommendations, spacing principles, and the rule that future UI must not modify the official HeliServiX logo.
+
 ### Market Intelligence
 
 Manages intelligence sources, items, confidence scores, reviews, alerts, entity links, and resulting recommended actions.
@@ -138,6 +146,7 @@ Manages saved dashboard definitions, metrics, exports, scheduled reports, and ex
 - Operational feasibility signals must be derived from aircraft and maintenance records, not typed casually into opportunity notes.
 - Campaign readiness signals must be derived from commercial, contract, aircraft, crew, maintenance, inventory, purchasing, technical-record, and compliance data.
 - Helicopter digital twins must be computed from authoritative ledgers and records. Digital twin snapshots are summaries, not independent sources of truth.
+- Brand assets must be treated as controlled product assets. The official HeliServiX logo may be referenced and placed in UI surfaces, but not programmatically altered to create a new mark.
 - Flight logs are authoritative operating events. Approved flight logs must recalculate helicopter totals, component remaining hours, component status, maintenance alerts, reserve accrual, and campaign feasibility.
 - Component status must be derived from hour and calendar rules. Manual status overrides require reason, approval, expiration, and audit history.
 - Workbook imports must separate opening balances from ongoing flight-ledger events. Imported TSN, TSO, life limits, calendar limits, and status criteria initialize the aircraft/component state; future changes come from approved flight logs, replacements, inspections, and maintenance events.

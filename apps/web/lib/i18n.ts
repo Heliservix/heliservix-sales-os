@@ -10,6 +10,10 @@ export const languages: Array<{ code: Language; label: string }> = [
 
 export const dictionary = {
   en: {
+    brand: {
+      productName: "HeliServiX OS",
+      subtitle: "Helicopter Operations System"
+    },
     nav: {
       dashboard: "Dashboard",
       campaigns: "Campaigns",
@@ -39,7 +43,11 @@ export const dictionary = {
       demoTitle: "Demo Data:",
       demoPolicy: "Demo records are for interface testing only. Real fleet, vessel, and component data must be imported or entered by HeliServiX.",
       noBackend: "No backend connected",
-      language: "Language"
+      language: "Language",
+      goodMorning: "Good Morning",
+      goodAfternoon: "Good Afternoon",
+      goodEvening: "Good Evening",
+      welcomeBack: "Welcome back, Administrator."
     },
     actions: {
       createCampaign: "Create campaign",
@@ -70,6 +78,10 @@ export const dictionary = {
     }
   },
   es: {
+    brand: {
+      productName: "HeliServiX OS",
+      subtitle: "Sistema de Operaciones de Helicópteros"
+    },
     nav: {
       dashboard: "Panel",
       campaigns: "Campañas",
@@ -99,7 +111,11 @@ export const dictionary = {
       demoTitle: "Datos Demo:",
       demoPolicy: "Los registros demo son solo para pruebas de interfaz. Los datos reales de flota, barcos y componentes deben ser importados o ingresados por HeliServiX.",
       noBackend: "Sin backend conectado",
-      language: "Idioma"
+      language: "Idioma",
+      goodMorning: "Buenos días",
+      goodAfternoon: "Buenas tardes",
+      goodEvening: "Buenas noches",
+      welcomeBack: "Bienvenido de nuevo, Administrador."
     },
     actions: {
       createCampaign: "Crear campaña",
@@ -132,6 +148,7 @@ export const dictionary = {
 } as const;
 
 export type TranslationKey =
+  | `brand.${keyof typeof dictionary.en.brand}`
   | `nav.${keyof typeof dictionary.en.nav}`
   | `shell.${keyof typeof dictionary.en.shell}`
   | `actions.${keyof typeof dictionary.en.actions}`
@@ -267,6 +284,7 @@ export const phraseTranslations: Record<string, string> = {
   "HSV OS 0.4 / localStorage MVP": "HSV OS 0.4 / MVP localStorage",
   "HSV OS 0.4 Operations": "Operaciones HSV OS 0.4",
   "HSV OS 0.4 Bilingual Core + Aircraft Operations Center MVP": "HSV OS 0.4 Núcleo Bilingüe + Centro de Operaciones de la Aeronave MVP",
+  "Panama · Ecuador · Latin America": "Panamá · Ecuador · Latinoamérica",
   "Campaigns, fleet, and Aircraft Operations Center MVP with bilingual local persistence.": "MVP de campañas, flota y Centro de Operaciones de la Aeronave con persistencia local bilingüe.",
   "Campaigns, Aircraft Operations Center, Fleet CRUD, flight-hour recalculation, records, compliance, inventory, and purchasing without backend services.": "Campañas, Centro de Operaciones de la Aeronave, CRUD de flota, recálculo de horas de vuelo, registros, cumplimiento, inventario y compras sin servicios backend.",
   "HSV OS 0.3 / localStorage MVP": "HSV OS 0.3 / MVP localStorage",

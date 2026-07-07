@@ -18,6 +18,8 @@ import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { BrandLockup } from "@/components/brand/brand-lockup";
+import { getTimeGreetingKey } from "@/lib/brand";
 import {
   calculateComponentStatus,
   calculateRemainingPercentage,
@@ -78,7 +80,7 @@ const num = (value: FormDataEntryValue | null) => Number(value || 0);
 const text = (form: FormData, key: string) => String(form.get(key) ?? "");
 
 export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClientProps) {
-  const { tx } = useI18n();
+  const { t, tx } = useI18n();
   const [store, setStore] = useState<FleetStore>(() => {
     if (typeof window === "undefined") return initialFleetStore();
     const raw = window.localStorage.getItem(fleetStorageKey);
@@ -488,6 +490,23 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const openAlerts = store.maintenanceAlerts.filter((alert) => alert.status !== "Resolved").length;
     return (
       <div className="grid gap-6">
+        <Panel className="overflow-hidden bg-white">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <BrandLockup variant="hero" />
+              <div className="mt-8">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-aviation-blue">{t(getTimeGreetingKey())}</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-normal text-ink sm:text-4xl">{t("shell.welcomeBack")}</h2>
+                <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">{t("brand.subtitle")}</p>
+              </div>
+            </div>
+            <div className="rounded-xl border border-line bg-brand-lightBlue/60 p-5">
+              <StatusPill tone="teal">HeliServiX OS</StatusPill>
+              <p className="mt-4 text-sm font-medium text-ink">{t("brand.subtitle")}</p>
+              <p className="mt-2 text-sm leading-6 text-ink-subtle">{tx("Panama · Ecuador · Latin America")}</p>
+            </div>
+          </div>
+        </Panel>
         <section className="grid gap-4 md:grid-cols-4">
           <Metric label="Helicopters" value={String(helicopters.length)} tone="teal" detail="Local fleet records" />
           <Metric label="Campaigns" value={String(store.campaigns.length)} tone="blue" detail="Deployment operating records" />

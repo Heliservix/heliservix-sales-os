@@ -20,6 +20,18 @@ const config: Config = {
           subtle: "rgb(var(--color-ink-subtle) / <alpha-value>)"
         },
         line: "rgb(var(--color-line) / <alpha-value>)",
+        brand: {
+          blue: "rgb(var(--color-brand-primary-blue) / <alpha-value>)",
+          navy: "rgb(var(--color-brand-dark-navy) / <alpha-value>)",
+          lightBlue: "rgb(var(--color-brand-light-blue) / <alpha-value>)",
+          white: "rgb(var(--color-brand-white) / <alpha-value>)",
+          lightGray: "rgb(var(--color-brand-light-gray) / <alpha-value>)"
+        },
+        status: {
+          green: "rgb(var(--color-status-green) / <alpha-value>)",
+          yellow: "rgb(var(--color-status-yellow) / <alpha-value>)",
+          red: "rgb(var(--color-status-red) / <alpha-value>)"
+        },
         aviation: {
           teal: "rgb(var(--color-aviation-teal) / <alpha-value>)",
           green: "rgb(var(--color-aviation-green) / <alpha-value>)",
@@ -29,7 +41,7 @@ const config: Config = {
         }
       },
       boxShadow: {
-        panel: "0 18px 55px rgba(15, 23, 42, 0.08)",
+        panel: "0 18px 55px rgba(6, 27, 46, 0.08)",
         control: "0 1px 2px rgba(15, 23, 42, 0.08)"
       },
       fontFamily: {

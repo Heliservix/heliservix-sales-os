@@ -15,11 +15,11 @@ type PageHeaderProps = {
 export function PageHeader({ eyebrow, title, description, icon: Icon, status }: PageHeaderProps) {
   const { tx } = useI18n();
   return (
-    <section className="mb-6 rounded-lg border border-line bg-white/76 p-6 shadow-panel backdrop-blur-xl dark:bg-canvas-muted/72 lg:p-7">
+    <section className="mb-6 rounded-xl border border-line bg-white p-6 shadow-panel backdrop-blur-xl dark:bg-canvas-muted/72 lg:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-canvas-muted text-ink">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-aviation-blue/15 bg-brand-lightBlue text-aviation-blue">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </div>
             <StatusPill tone="teal">{tx(eyebrow)}</StatusPill>

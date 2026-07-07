@@ -4,21 +4,30 @@
 
 :root {
   color-scheme: light;
-  --color-canvas: 248 250 252;
-  --color-canvas-muted: 241 245 249;
-  --color-ink: 15 23 42;
+  --color-brand-primary-blue: 0 91 170;
+  --color-brand-dark-navy: 6 27 46;
+  --color-brand-light-blue: 232 243 255;
+  --color-brand-white: 255 255 255;
+  --color-brand-light-gray: 243 246 250;
+  --color-status-green: 22 163 74;
+  --color-status-yellow: 217 119 6;
+  --color-status-red: 220 38 38;
+  --color-canvas: 243 246 250;
+  --color-canvas-muted: 232 243 255;
+  --color-ink: 6 27 46;
   --color-ink-muted: 71 85 105;
   --color-ink-subtle: 100 116 139;
-  --color-line: 226 232 240;
-  --color-aviation-teal: 13 148 136;
-  --color-aviation-green: 22 163 74;
-  --color-aviation-amber: 217 119 6;
-  --color-aviation-red: 220 38 38;
-  --color-aviation-blue: 37 99 235;
+  --color-line: 220 229 239;
+  --color-aviation-teal: 0 91 170;
+  --color-aviation-green: var(--color-status-green);
+  --color-aviation-amber: var(--color-status-yellow);
+  --color-aviation-red: var(--color-status-red);
+  --color-aviation-blue: var(--color-brand-primary-blue);
 }
 
 .dark {
   color-scheme: dark;
+  --color-brand-light-blue: 17 49 80;
   --color-canvas: 13 18 26;
   --color-canvas-muted: 19 27 39;
   --color-ink: 241 245 249;
@@ -45,7 +54,7 @@ body {
   min-height: 100%;
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.92) 28rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 246, 250, 0.96) 28rem),
     rgb(var(--color-canvas));
   color: rgb(var(--color-ink));
   text-rendering: geometricPrecision;
@@ -58,7 +67,7 @@ body {
 }
 
 ::selection {
-  background: rgba(13, 148, 136, 0.2);
+  background: rgba(0, 91, 170, 0.18);
 }
 
 button,

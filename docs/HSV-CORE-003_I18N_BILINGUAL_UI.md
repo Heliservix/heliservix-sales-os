@@ -44,6 +44,17 @@ The user-facing module formerly shown as Digital Twin must be named:
 
 The internal technical concept may still be called helicopter digital twin or digital twin in architecture, rules, and developer-facing documentation when discussing computed aircraft state. User-facing navigation, page titles, labels, and help text must use Aircraft Operations Center.
 
+## Brand Text Standard
+
+The product name is HeliServiX OS in every language and must not be translated.
+
+The product subtitle must be translated as:
+
+- English: Helicopter Operations System.
+- Spanish: Sistema de Operaciones de Helicópteros.
+
+The HeliServiX OS lockup uses the official HeliServiX logo plus the OS product extension. The i18n system translates the subtitle and surrounding interface text, but it must not translate or alter the official logo, product name, aircraft registrations, vessel names, document names, notes, or other user-entered data.
+
 ## Aviation Terminology
 
 Required terminology:
@@ -83,6 +94,7 @@ Required terminology:
 - Status labels must be translated centrally.
 - User-entered data must remain in the language entered by the user.
 - AI-generated or imported text must be marked as content, not interface text, unless explicitly translated through a reviewed workflow.
+- Product branding must follow `HSV-BRAND-001_BRAND_SYSTEM.md`, including the rule that the official HeliServiX logo is not modified.
 
 ## Implementation Rules
 
@@ -100,3 +112,4 @@ Required terminology:
 - Sidebar, dashboard, page headers, table headers, form labels, statuses, actions, demo notices, and Aircraft Operations Center pages use translated labels.
 - The application does not translate user-entered records.
 - User-facing text uses Aircraft Operations Center / Centro de Operaciones de la Aeronave instead of Digital Twin.
+- Brand subtitles and dashboard welcome messages appear in English and Spanish while preserving the HeliServiX OS product name.

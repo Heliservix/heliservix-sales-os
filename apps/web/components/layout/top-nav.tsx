@@ -4,6 +4,7 @@ import { Bell, Command, Moon, Search, ShieldCheck } from "lucide-react";
 import { primaryNavigation, quickActions } from "@/lib/navigation";
 import { languages } from "@/lib/i18n";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { BrandLockup } from "@/components/brand/brand-lockup";
 import { usePathname, useRouter } from "next/navigation";
 
 export function TopNav() {
@@ -14,10 +15,13 @@ export function TopNav() {
     primaryNavigation.find((item) => item.href !== "/" && pathname.startsWith(item.href))?.href ?? "/";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-canvas/82 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 border-b border-line bg-white/92 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="lg:hidden">
+          <div className="block">
+            <BrandLockup variant="compact" />
+          </div>
+          <div className="hidden md:block lg:hidden">
             <label htmlFor="mobile-module" className="sr-only">
               {t("shell.module")}
             </label>

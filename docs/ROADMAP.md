@@ -101,11 +101,12 @@ Exit criteria:
 
 ## Phase 2B: HSV OS 0.4 Bilingual Core and Aircraft Operations Center
 
-Goal: make HeliServiX OS bilingual from this version forward and align user-facing naming around Aircraft Operations Center.
+Goal: make HeliServiX OS bilingual from this version forward, align user-facing naming around Aircraft Operations Center, and apply the official HeliServiX OS product identity.
 
 Deliverables:
 
 - HSV-CORE-003 Bilingual UI and Internationalization.
+- HSV-BRAND-001 HeliServiX OS Brand System.
 - English default interface.
 - Spanish interface support.
 - Language selector in top navigation.
@@ -113,12 +114,18 @@ Deliverables:
 - Translation dictionaries for navigation, dashboard, fleet, campaigns, aircraft operations, maintenance, inventory, purchasing, technical records, compliance, statuses, forms, tables, and common actions.
 - User-facing rename from Digital Twin to Aircraft Operations Center / Centro de Operaciones de la Aeronave.
 - Rule that user-entered data is not translated.
+- Official HeliServiX logo asset in the web application.
+- HeliServiX OS lockup with the OS product extension and bilingual subtitle.
+- Central brand tokens for primary blue, dark navy, light blue, white, light gray, and operational status colors.
+- Navy sidebar, blue active navigation, clean white panels, soft shadows, and professional aviation dashboard spacing.
 
 Exit criteria:
 
 - Users can switch between English and Spanish without backend services.
 - Sidebar, dashboard, page headers, table headers, form labels, status labels, demo notices, and actions use the i18n system.
 - Future UI development has a documented translation governance model.
+- The official HeliServiX logo appears in the app shell and dashboard without distortion, recoloring, cropping, or redesign.
+- Future UI development has documented brand governance and shared color tokens.
 
 ## Phase 3: HSV-SPEC-002 Maintenance Crew Portal
 
