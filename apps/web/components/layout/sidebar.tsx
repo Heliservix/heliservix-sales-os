@@ -1,7 +1,12 @@
+"use client";
+
 import { primaryNavigation } from "@/lib/navigation";
 import { StatusPill } from "@/components/ui/status-pill";
+import { usePathname } from "next/navigation";
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="hidden w-72 shrink-0 border-r border-line bg-white/74 px-4 py-5 backdrop-blur-xl dark:bg-canvas-muted/70 lg:flex lg:flex-col">
       <div className="mb-8 flex items-center gap-3 px-2">
@@ -10,14 +15,14 @@ export function Sidebar() {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">HeliServiX</p>
-          <p className="truncate text-xs text-ink-subtle">Commercial Intelligence</p>
+          <p className="truncate text-xs text-ink-subtle">Fleet & Maintenance</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1" aria-label="Primary navigation">
         {primaryNavigation.map((item) => {
           const Icon = item.icon;
-          const isActive = item.label === "Dashboard";
+          const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
           return (
             <a
@@ -41,10 +46,10 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-6 rounded-lg border border-line bg-canvas-muted/72 p-4">
-        <StatusPill tone="teal">Version 0.1</StatusPill>
-        <p className="mt-3 text-sm font-medium text-ink">UI foundation active</p>
+        <StatusPill tone="teal">EPIC 001 MVP</StatusPill>
+        <p className="mt-3 text-sm font-medium text-ink">Fleet operations active</p>
         <p className="mt-1 text-xs leading-5 text-ink-subtle">
-          Navigation, layout, and dashboard architecture are ready for product workflows.
+          Multi-helicopter readiness, component exposure, alerts, and forecast surfaces are ready for review.
         </p>
       </div>
     </aside>

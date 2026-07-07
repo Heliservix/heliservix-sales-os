@@ -1,112 +1,112 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { CommandPanel } from "@/components/dashboard/command-panel";
-import { CountryExposure } from "@/components/dashboard/country-exposure";
-import { MetricCard } from "@/components/dashboard/metric-card";
-import { ReadinessGrid } from "@/components/dashboard/readiness-grid";
-import { Timeline } from "@/components/dashboard/timeline";
+import { AlertsList } from "@/components/fleet/alerts-list";
+import { ComponentsTable } from "@/components/fleet/components-table";
+import { FleetMetricCard } from "@/components/fleet/fleet-metric-card";
+import { ForecastTable } from "@/components/fleet/forecast-table";
+import { HelicopterCard } from "@/components/fleet/helicopter-card";
+import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
-  commandPanels,
-  countryExposure,
-  executiveMetrics,
-  focusCards,
-  operationalTimeline,
-  readinessSignals
-} from "@/lib/dashboard-data";
+  components,
+  fleetActivity,
+  fleetMetrics,
+  helicopters,
+  maintenanceAlerts,
+  maintenanceForecasts
+} from "@/lib/fleet-data";
+import { Plane } from "lucide-react";
 
 export default function DashboardPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
-        <section className="mb-6 overflow-hidden rounded-lg border border-line bg-white/76 shadow-panel backdrop-blur-xl dark:bg-canvas-muted/72">
-          <div className="grid gap-6 p-6 lg:grid-cols-[1.4fr_0.6fr] lg:p-8">
-            <div>
-              <StatusPill tone="teal">Commercial Intelligence Platform</StatusPill>
-              <h1 className="mt-5 max-w-4xl text-3xl font-semibold tracking-normal text-ink sm:text-4xl">
-                Executive command for helicopter-supported tuna fleet operations.
-              </h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-ink-muted">
-                HeliServiX connects commercial pipeline, fleet-owner intelligence, contract readiness,
-                aircraft availability, maintenance signals, documents, campaigns, and market movement
-                into one operational dashboard.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="h-11 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink"
-                >
-                  Review command center
-                </button>
-                <button
-                  type="button"
-                  className="h-11 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink shadow-control transition hover:bg-canvas-muted dark:bg-canvas-muted"
-                >
-                  Prepare account brief
-                </button>
+        <PageHeader
+          eyebrow="Fleet & Maintenance Operations"
+          title="Multi-helicopter control for tuna-vessel aviation campaigns."
+          description="Track aircraft readiness, controlled components, flight-hour impact, maintenance alerts, and reserve exposure across Panama, Ecuador, Colombia, and future Latin American operations."
+          icon={Plane}
+          status="Frontend MVP with typed mock data"
+        />
+
+        <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+          {fleetMetrics.map((metric) => (
+            <FleetMetricCard key={metric.label} {...metric} />
+          ))}
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          {helicopters.map((helicopter) => (
+            <HelicopterCard key={helicopter.registration} helicopter={helicopter} />
+          ))}
+        </section>
+
+        <section className="mt-6 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <Panel>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Controlled components</h2>
+                <p className="mt-1 text-sm text-ink-subtle">Hour and calendar exposure by aircraft.</p>
               </div>
+              <StatusPill tone="teal">{components.length} records</StatusPill>
             </div>
-            <div className="grid content-start gap-3">
-              {focusCards.map((card) => {
-                const Icon = card.icon;
+            <div className="mt-5">
+              <ComponentsTable components={components.slice(0, 4)} compact />
+            </div>
+          </Panel>
+
+          <Panel>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Operational signal</h2>
+                <p className="mt-1 text-sm text-ink-subtle">Latest readiness movement and maintenance planning activity.</p>
+              </div>
+              <StatusPill tone="amber">Live model mock</StatusPill>
+            </div>
+            <div className="mt-5 grid gap-3">
+              {fleetActivity.map((item) => {
+                const Icon = item.icon;
                 return (
-                  <article key={card.title} className="rounded-lg border border-line bg-canvas-muted/72 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase text-ink-subtle">{card.eyebrow}</p>
-                      <Icon className="h-4 w-4 text-ink-subtle" aria-hidden="true" />
+                  <article key={item.title} className="rounded-lg border border-line bg-canvas-muted/58 p-4">
+                    <div className="flex gap-3">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-white text-ink dark:bg-canvas-muted">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-semibold text-ink">{item.title}</h3>
+                          <StatusPill tone={item.tone}>{item.time}</StatusPill>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-ink-subtle">{item.description}</p>
+                      </div>
                     </div>
-                    <h2 className="mt-3 text-sm font-semibold text-ink">{card.title}</h2>
-                    <p className="mt-2 text-sm leading-6 text-ink-subtle">{card.body}</p>
-                    <p className="mt-3 text-sm font-semibold text-aviation-teal">{card.cta}</p>
                   </article>
                 );
               })}
             </div>
-          </div>
+          </Panel>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {executiveMetrics.map((metric) => (
-            <MetricCard key={metric.label} {...metric} />
-          ))}
-        </section>
-
-        <section className="mt-6 grid gap-4 xl:grid-cols-3">
-          {commandPanels.map((panel) => (
-            <CommandPanel key={panel.title} {...panel} />
-          ))}
-        </section>
-
-        <section className="mt-6 grid gap-4 xl:grid-cols-[1fr_0.85fr]">
-          <ReadinessGrid signals={readinessSignals} />
-          <Timeline items={operationalTimeline} />
-        </section>
-
-        <section className="mt-6 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-          <CountryExposure rows={countryExposure} />
+        <section className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <Panel>
-            <div className="flex items-center justify-between gap-4">
+            <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Version 0.1 scope</h2>
-                <p className="mt-1 text-sm text-ink-subtle">UI architecture without business execution logic.</p>
+                <h2 className="text-lg font-semibold text-ink">Maintenance alerts</h2>
+                <p className="mt-1 text-sm text-ink-subtle">Grounding, critical, monitor, and data quality items.</p>
               </div>
-              <StatusPill tone="green">Ready for review</StatusPill>
+              <StatusPill tone="red">1 grounding</StatusPill>
             </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {[
-                "Responsive application shell",
-                "Sidebar module architecture",
-                "Top navigation and command controls",
-                "Executive dashboard surfaces",
-                "Dark-mode-ready design tokens",
-                "Reusable components and typed data"
-              ].map((item) => (
-                <div key={item} className="rounded-lg border border-line bg-canvas-muted/60 p-4">
-                  <p className="text-sm font-medium text-ink">{item}</p>
-                </div>
-              ))}
+            <AlertsList alerts={maintenanceAlerts.slice(0, 3)} />
+          </Panel>
+          <Panel>
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Maintenance forecast</h2>
+                <p className="mt-1 text-sm text-ink-subtle">Due exposure, reserve planning, and procurement timing.</p>
+              </div>
+              <StatusPill tone="blue">180-day view</StatusPill>
             </div>
+            <ForecastTable forecasts={maintenanceForecasts} />
           </Panel>
         </section>
       </div>
