@@ -78,6 +78,16 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     return raw ? { ...initialFleetStore(), ...JSON.parse(raw) } : initialFleetStore();
   });
   const [message, setMessage] = useState("");
+  const [isReady, setIsReady] = useState(false);
+  const [listQuery, setListQuery] = useState("");
+  const [listFilter, setListFilter] = useState("All");
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setIsReady(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(fleetStorageKey, JSON.stringify(store));
@@ -97,6 +107,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function archiveRecord(collection: "campaigns" | "technicalRecords" | "complianceItems", id: string) {
+    if (!window.confirm(tx("Archive this local record? It will be hidden but preserved in localStorage."))) return;
     updateStore(
       (current) => ({
         ...current,
@@ -106,12 +117,27 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     );
   }
 
+  function deleteRecord(collection: "campaigns" | "technicalRecords" | "complianceItems", id: string) {
+    if (!window.confirm(tx("Delete this local record permanently? This cannot be undone."))) return;
+    updateStore(
+      (current) => ({
+        ...current,
+        [collection]: current[collection].filter((record) => record.id !== id)
+      }),
+      tx("Record deleted locally.")
+    );
+  }
+
   function saveCampaign(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("camp");
     const vesselId = text(form, "vesselId");
     const vessel = vessels.find((item) => item.id === vesselId);
+    if (!text(form, "code").trim() || !text(form, "name").trim()) {
+      setMessage(tx("Campaign code and name are required."));
+      return;
+    }
     const record: Campaign = {
       id,
       code: text(form, "code"),
@@ -146,6 +172,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("tech");
+    if (!text(form, "title").trim() || !text(form, "recordDate")) {
+      setMessage(tx("Title and date are required."));
+      return;
+    }
     const record: TechnicalRecord = {
       id,
       recordType: text(form, "recordType") as TechnicalRecord["recordType"],
@@ -172,6 +202,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("comp");
+    if (!text(form, "referenceNumber").trim() || !text(form, "title").trim()) {
+      setMessage(tx("Reference number and title are required."));
+      return;
+    }
     const item: ComplianceItem = {
       id,
       authority: text(form, "authority") as ComplianceItem["authority"],
@@ -208,7 +242,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
             {message}
           </div>
         ) : null}
-        {renderView()}
+        {!isReady ? <LoadingState /> : renderView()}
       </div>
     </AppShell>
   );
@@ -230,6 +264,15 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
 
   function renderCampaigns() {
     const activeCampaigns = campaigns.filter((campaign) => calculateCampaignStatus(campaign) === "Active").length;
+    const rows = prepareCrudRows(campaigns, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (campaign) => [campaign.code, campaign.name, campaign.clientFleetOwner, campaign.vesselName, campaign.helicopterRegistration, campaign.status, campaign.source],
+      filterValue: (campaign) => [calculateCampaignStatus(campaign), campaign.source ?? "Demo"],
+      sortValue: (campaign, key) => key === "status" ? calculateCampaignStatus(campaign) : key === "date" ? campaign.startDate : campaign.name
+    });
     return (
       <div className="grid gap-5">
         <section className="grid gap-4 md:grid-cols-4">
@@ -240,8 +283,21 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
         </section>
         <Panel>
           <ListHeader title="Campaigns" href="/campaigns/new" action="Create campaign" />
+          <ListControls
+            query={listQuery}
+            onQueryChange={setListQuery}
+            filter={listFilter}
+            onFilterChange={setListFilter}
+            filters={["All", "Draft", "Planned", "Active", "Completed", "Cancelled", "User", "Demo"]}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
+            sortOptions={[["name", "Campaign"], ["date", "Start date"], ["status", "Status"]]}
+            sortDirection={sortDirection}
+            onSortDirectionChange={setSortDirection}
+            resultCount={rows.length}
+          />
           <Table headers={["Code", "Campaign", "Client / owner", "Vessel", "Helicopter", "Dates", "Status", "Source", "Actions"]}>
-            {campaigns.map((campaign) => (
+            {rows.map((campaign) => (
               <tr key={campaign.id}>
                 <Cell muted>{campaign.code}</Cell>
                 <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${campaign.id}`}>{campaign.name}</Link></Cell>
@@ -251,9 +307,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
                 <Cell muted>{campaign.startDate} to {campaign.endDate}</Cell>
                 <Cell><StatusPill tone={campaignStatusTone(calculateCampaignStatus(campaign))}>{calculateCampaignStatus(campaign)}</StatusPill></Cell>
                 <Cell><SourcePill source={campaign.source} /></Cell>
-                <Cell><Actions edit={`/campaigns/${campaign.id}/edit`} onArchive={() => archiveRecord("campaigns", campaign.id)} /></Cell>
+                <Cell><Actions edit={`/campaigns/${campaign.id}/edit`} onArchive={() => archiveRecord("campaigns", campaign.id)} onDelete={() => deleteRecord("campaigns", campaign.id)} /></Cell>
               </tr>
             ))}
+            {!rows.length ? <EmptyTableRow colSpan={9} /> : null}
           </Table>
         </Panel>
       </div>
@@ -302,14 +359,14 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     const record = campaigns.find((item) => item.id === id);
     return (
       <FormShell onSubmit={saveCampaign}>
-        <Field name="code" label="Campaign name / code" defaultValue={record?.code ?? `HSV-CAMP-${new Date().getFullYear()}-`} />
-        <Field name="name" label="Campaign name" defaultValue={record?.name} />
-        <Field name="clientFleetOwner" label="Client or fleet owner" defaultValue={record?.clientFleetOwner} />
+        <Field name="code" label="Campaign name / code" defaultValue={record?.code ?? `HSV-CAMP-${new Date().getFullYear()}-`} required />
+        <Field name="name" label="Campaign name" defaultValue={record?.name} required />
+        <Field name="clientFleetOwner" label="Client or fleet owner" defaultValue={record?.clientFleetOwner} required />
         <Select name="vesselId" label="Vessel" defaultValue={record?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} />
         <Select name="helicopterRegistration" label="Helicopter" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={["", ...helicopters.map((item) => item.registration)]} />
         <Field name="pilot" label="Pilot" defaultValue={record?.pilot} />
         <Field name="mechanic" label="Mechanic" defaultValue={record?.mechanic} />
-        <Field name="startDate" label="Start date" defaultValue={record?.startDate} />
+        <Field name="startDate" label="Start date" defaultValue={record?.startDate} required />
         <Field name="endDate" label="End date" defaultValue={record?.endDate} />
         <Field name="operationArea" label="Country / operation area" defaultValue={record?.operationArea} />
         <Field name="contractReference" label="Contract reference" defaultValue={record?.contractReference} />
@@ -402,11 +459,33 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function renderTechnicalRecords() {
+    const rows = prepareCrudRows(technicalRecords, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (record) => [record.recordType, record.title, record.relatedHelicopter, record.documentNumber, record.recordDate, record.source],
+      filterValue: (record) => [record.recordType, record.source ?? "Demo", record.relatedHelicopter],
+      sortValue: (record, key) => key === "date" ? record.recordDate : key === "type" ? record.recordType : record.title
+    });
     return (
       <Panel>
         <ListHeader title="Technical Records" href="/technical-records/new" action="Create record" />
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "8130", "Logbook page", "Work order", "Invoice", "Photo", "Certificate", "Release to service", "Inspection", "Other", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Title"], ["date", "Date"], ["type", "Type"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <Table headers={["Type", "Title", "Helicopter", "Campaign", "Date", "Document", "Source", "Actions"]}>
-          {technicalRecords.map((record) => (
+          {rows.map((record) => (
             <tr key={record.id}>
               <Cell>{record.recordType}</Cell>
               <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/technical-records/${record.id}`}>{record.title}</Link></Cell>
@@ -415,9 +494,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
               <Cell muted>{record.recordDate}</Cell>
               <Cell muted>{record.documentNumber}</Cell>
               <Cell><SourcePill source={record.source} /></Cell>
-              <Cell><Actions edit={`/technical-records/${record.id}/edit`} onArchive={() => archiveRecord("technicalRecords", record.id)} /></Cell>
+              <Cell><Actions edit={`/technical-records/${record.id}/edit`} onArchive={() => archiveRecord("technicalRecords", record.id)} onDelete={() => deleteRecord("technicalRecords", record.id)} /></Cell>
             </tr>
           ))}
+          {!rows.length ? <EmptyTableRow colSpan={8} /> : null}
         </Table>
       </Panel>
     );
@@ -453,8 +533,8 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
         <Field name="relatedMaintenanceEvent" label="Related maintenance event" defaultValue={record?.relatedMaintenanceEvent} />
         <Select name="relatedCampaignId" label="Related campaign" defaultValue={record?.relatedCampaignId ?? ""} options={["", ...campaigns.map((item) => item.id)]} />
         <Select name="relatedPurchaseId" label="Related purchase" defaultValue={record?.relatedPurchaseId ?? ""} options={["", ...purchaseRequests.map((item) => item.id)]} />
-        <Field name="title" label="Title" defaultValue={record?.title} />
-        <Field name="recordDate" label="Date" defaultValue={record?.recordDate ?? new Date().toISOString().slice(0, 10)} />
+        <Field name="title" label="Title" defaultValue={record?.title} required />
+        <Field name="recordDate" label="Date" defaultValue={record?.recordDate ?? new Date().toISOString().slice(0, 10)} required />
         <Field name="documentNumber" label="Document number" defaultValue={record?.documentNumber} />
         <Field name="attachmentPlaceholder" label="Attachment placeholder" defaultValue={record?.attachmentPlaceholder} />
         <TextArea name="notes" label="Notes" defaultValue={record?.notes} />
@@ -463,11 +543,33 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function renderCompliance() {
+    const rows = prepareCrudRows(complianceItems, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (item) => [item.authority, item.complianceType, item.referenceNumber, item.title, item.relatedHelicopter, calculateComplianceStatus(item), item.source],
+      filterValue: (item) => [item.authority, item.complianceType, calculateComplianceStatus(item), item.source ?? "Demo", item.relatedHelicopter],
+      sortValue: (item, key) => key === "due" ? item.dueDate : key === "status" ? calculateComplianceStatus(item) : item.title
+    });
     return (
       <Panel>
         <ListHeader title="Compliance Items" href="/compliance/new" action="Create compliance item" />
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "AAC Panama", "DGAC Ecuador", "FAA", "Robinson", "AD", "SB", "Not reviewed", "Applicable", "In progress", "Complied", "Overdue", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Title"], ["due", "Due date"], ["status", "Status"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <Table headers={["Authority", "Type", "Reference", "Title", "Helicopter", "Due date", "Status", "Source", "Actions"]}>
-          {complianceItems.map((item) => (
+          {rows.map((item) => (
             <tr key={item.id}>
               <Cell>{item.authority}</Cell>
               <Cell muted>{item.complianceType}</Cell>
@@ -477,9 +579,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
               <Cell muted>{item.dueDate}</Cell>
               <Cell><StatusPill tone={complianceStatusTone(calculateComplianceStatus(item))}>{calculateComplianceStatus(item)}</StatusPill></Cell>
               <Cell><SourcePill source={item.source} /></Cell>
-              <Cell><Actions edit={`/compliance/${item.id}/edit`} onArchive={() => archiveRecord("complianceItems", item.id)} /></Cell>
+              <Cell><Actions edit={`/compliance/${item.id}/edit`} onArchive={() => archiveRecord("complianceItems", item.id)} onDelete={() => deleteRecord("complianceItems", item.id)} /></Cell>
             </tr>
           ))}
+          {!rows.length ? <EmptyTableRow colSpan={9} /> : null}
         </Table>
       </Panel>
     );
@@ -512,8 +615,8 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
       <FormShell onSubmit={saveComplianceItem}>
         <Select name="authority" label="Authority/source" defaultValue={item?.authority ?? "Robinson"} options={["AAC Panama", "DGAC Ecuador", "FAA", "Robinson", "Other"]} />
         <Select name="complianceType" label="Type" defaultValue={item?.complianceType ?? "SB"} options={["AD", "SB", "Service Letter", "Manual Revision", "Operational Requirement", "Life Limit"]} />
-        <Field name="referenceNumber" label="Reference number" defaultValue={item?.referenceNumber} />
-        <Field name="title" label="Title" defaultValue={item?.title} />
+        <Field name="referenceNumber" label="Reference number" defaultValue={item?.referenceNumber} required />
+        <Field name="title" label="Title" defaultValue={item?.title} required />
         <Field name="effectiveDate" label="Effective date" defaultValue={item?.effectiveDate} />
         <Field name="dueDate" label="Due date" defaultValue={item?.dueDate} />
         <Select name="relatedHelicopter" label="Related helicopter" defaultValue={item?.relatedHelicopter ?? ""} options={["", ...helicopters.map((record) => record.registration)]} />
@@ -527,10 +630,31 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function renderComplianceAlerts() {
-    const alerts = store.complianceAlerts.filter((alert) => alert.status !== "Resolved");
+    const alerts = prepareCrudRows(store.complianceAlerts.filter((alert) => alert.status !== "Resolved"), {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (alert) => [alert.relatedHelicopter, alert.description, alert.severity, alert.status, alert.source],
+      filterValue: (alert) => [alert.severity, alert.status, alert.source ?? "Demo", alert.relatedHelicopter],
+      sortValue: (alert, key) => key === "severity" ? alert.severity : alert.relatedHelicopter
+    });
     return (
       <Panel>
         <h2 className="mb-4 text-lg font-semibold text-ink">Compliance Alerts</h2>
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "Info", "Monitor", "Critical", "Open", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Aircraft"], ["severity", "Severity"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={alerts.length}
+        />
         <div className="grid gap-3">
           {alerts.map((alert) => {
             const item = store.complianceItems.find((record) => record.id === alert.complianceItemId);
@@ -546,6 +670,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
               </div>
             );
           })}
+          {!alerts.length ? <EmptyInlineState /> : null}
         </div>
       </Panel>
     );
@@ -605,6 +730,33 @@ function emptyComplianceItem(): ComplianceItem {
   };
 }
 
+function prepareCrudRows<T>(rows: T[], config: {
+  query: string;
+  filter: string;
+  sortKey: string;
+  sortDirection: "asc" | "desc";
+  searchable: (row: T) => Array<string | number | undefined>;
+  filterValue: (row: T) => Array<string | number | undefined>;
+  sortValue: (row: T, key: string) => string | number | undefined;
+}) {
+  const query = config.query.trim().toLowerCase();
+  return [...rows]
+    .filter((row) => {
+      const haystack = config.searchable(row).join(" ").toLowerCase();
+      const matchesQuery = !query || haystack.includes(query);
+      const matchesFilter = config.filter === "All" || config.filterValue(row).map(String).includes(config.filter);
+      return matchesQuery && matchesFilter;
+    })
+    .sort((left, right) => {
+      const leftValue = config.sortValue(left, config.sortKey) ?? "";
+      const rightValue = config.sortValue(right, config.sortKey) ?? "";
+      const comparison = typeof leftValue === "number" && typeof rightValue === "number"
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: "base" });
+      return config.sortDirection === "asc" ? comparison : -comparison;
+    });
+}
+
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
   const { tx } = useI18n();
   return (
@@ -631,6 +783,62 @@ function ListHeader({ title, href, action }: { title: string; href: string; acti
   );
 }
 
+function ListControls({
+  query,
+  onQueryChange,
+  filter,
+  onFilterChange,
+  filters,
+  sortKey,
+  onSortKeyChange,
+  sortOptions,
+  sortDirection,
+  onSortDirectionChange,
+  resultCount
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  filter: string;
+  onFilterChange: (value: string) => void;
+  filters: string[];
+  sortKey: string;
+  onSortKeyChange: (value: string) => void;
+  sortOptions: Array<[string, string]>;
+  sortDirection: "asc" | "desc";
+  onSortDirectionChange: (value: "asc" | "desc") => void;
+  resultCount: number;
+}) {
+  const { tx } = useI18n();
+  return (
+    <div className="mb-4 grid gap-3 rounded-lg border border-line bg-canvas-muted/44 p-3 lg:grid-cols-[1fr_180px_180px_120px_auto] lg:items-center">
+      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+        {tx("Search")}
+        <input className={inputClass} placeholder={tx("Search records")} value={query} onChange={(event) => onQueryChange(event.target.value)} />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+        {tx("Filter")}
+        <select className={inputClass} value={filter} onChange={(event) => onFilterChange(event.target.value)}>
+          {[...new Set(filters)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+        {tx("Sort")}
+        <select className={inputClass} value={sortKey} onChange={(event) => onSortKeyChange(event.target.value)}>
+          {sortOptions.map(([value, label]) => <option key={value} value={value}>{tx(label)}</option>)}
+        </select>
+      </label>
+      <button
+        className="h-11 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink shadow-control"
+        type="button"
+        onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
+      >
+        {sortDirection === "asc" ? tx("Ascending") : tx("Descending")}
+      </button>
+      <p className="text-sm font-semibold text-ink-muted">{resultCount} {tx("records")}</p>
+    </div>
+  );
+}
+
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   const { tx } = useI18n();
   return (
@@ -649,39 +857,71 @@ function Cell({ children, muted = false }: { children: React.ReactNode; muted?: 
   return <td className={["px-4 py-3", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
 }
 
-function Actions({ edit, onArchive }: { edit: string; onArchive: () => void }) {
+function Actions({ edit, onArchive, onDelete }: { edit: string; onArchive: () => void; onDelete: () => void }) {
   const { tx } = useI18n();
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-wrap gap-3">
       <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>{tx("Edit")}</Link>
       <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">{tx("Archive")}</button>
+      <button className="font-semibold text-ink-muted hover:text-aviation-red" onClick={onDelete} type="button">{tx("Delete")}</button>
     </div>
   );
 }
 
 function FormShell({ children, onSubmit }: { children: React.ReactNode; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
   const { tx } = useI18n();
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   return (
     <Panel>
-      <form onSubmit={onSubmit}>
+      <form
+        onChange={() => setDirty(true)}
+        onSubmit={(event) => {
+          if (!event.currentTarget.checkValidity()) return;
+          setDirty(false);
+          onSubmit(event);
+        }}
+      >
         <div className="grid gap-4 sm:grid-cols-2">{children}</div>
         <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink-subtle">{tx("Frontend-only localStorage save. No backend, auth, database, or external service is connected.")}</p>
-          <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
-            {tx("Save locally")}
-          </button>
+          <p className="text-sm text-ink-subtle">{tx(dirty ? "Unsaved changes" : "Frontend-only localStorage save. No backend, auth, database, or external service is connected.")}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="h-10 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink-muted shadow-control transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
+              type="reset"
+              disabled={!dirty}
+              onClick={(event) => {
+                if (!window.confirm(tx("Discard unsaved changes?"))) event.preventDefault();
+                else setDirty(false);
+              }}
+            >
+              {tx("Discard")}
+            </button>
+            <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
+              {tx("Save locally")}
+            </button>
+          </div>
         </div>
       </form>
     </Panel>
   );
 }
 
-function Field({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | number }) {
+function Field({ name, label, defaultValue, required = false }: { name: string; label: string; defaultValue?: string | number; required?: boolean }) {
   const { tx } = useI18n();
+  const inputType = name.toLowerCase().includes("date") ? "date" : "text";
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
       {tx(label)}
-      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} />
+      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} type={inputType} required={required} />
     </label>
   );
 }
@@ -696,12 +936,12 @@ function TextArea({ name, label, defaultValue }: { name: string; label: string; 
   );
 }
 
-function Select({ name, label, options, defaultValue }: { name: string; label: string; options: string[]; defaultValue?: string }) {
+function Select({ name, label, options, defaultValue, required = false }: { name: string; label: string; options: string[]; defaultValue?: string; required?: boolean }) {
   const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
       {tx(label)}
-      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""}>
+      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""} required={required}>
         {options.map((option) => <option key={option} value={option}>{option ? tx(option) : tx("None")}</option>)}
       </select>
     </label>
@@ -764,6 +1004,33 @@ function Empty({ title }: { title: string }) {
     <Panel>
       <p className="text-sm font-semibold text-ink">{tx(title)}</p>
       <p className="mt-2 text-sm text-ink-subtle">{tx("The local record was not found. It may have been archived or removed from localStorage.")}</p>
+    </Panel>
+  );
+}
+
+function EmptyTableRow({ colSpan }: { colSpan: number }) {
+  const { tx } = useI18n();
+  return (
+    <tr>
+      <td className="px-4 py-8 text-center text-sm text-ink-subtle" colSpan={colSpan}>
+        {tx("No records match the current search or filter.")}
+      </td>
+    </tr>
+  );
+}
+
+function EmptyInlineState() {
+  const { tx } = useI18n();
+  return <p className="rounded-lg border border-dashed border-line bg-canvas-muted/44 px-4 py-6 text-center text-sm text-ink-subtle">{tx("No records match the current search or filter.")}</p>;
+}
+
+function LoadingState() {
+  const { tx } = useI18n();
+  return (
+    <Panel>
+      <div className="h-3 w-36 animate-pulse rounded bg-canvas-muted" />
+      <div className="mt-4 h-20 animate-pulse rounded-lg bg-canvas-muted/70" />
+      <p className="mt-4 text-sm text-ink-subtle">{tx("Loading local records...")}</p>
     </Panel>
   );
 }

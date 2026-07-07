@@ -88,9 +88,19 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     return raw ? { ...initialFleetStore(), ...JSON.parse(raw) } : initialFleetStore();
   });
   const [message, setMessage] = useState("");
+  const [isReady, setIsReady] = useState(false);
+  const [listQuery, setListQuery] = useState("");
+  const [listFilter, setListFilter] = useState("All");
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [crewRole, setCrewRole] = useState<CrewPortalRole>("Maintenance Chief View");
   const [editingInventoryId, setEditingInventoryId] = useState<string | undefined>();
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | undefined>();
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setIsReady(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(fleetStorageKey, JSON.stringify(store));
@@ -108,6 +118,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function archiveRecord(collection: keyof FleetStore, idKey: string, id: string) {
+    if (!window.confirm(tx("Archive this local record? It will be hidden but preserved in localStorage."))) return;
     updateStore(
       (current) => ({
         ...current,
@@ -119,10 +130,29 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     );
   }
 
+  function deleteRecord(collection: keyof FleetStore, idKey: string, id: string) {
+    if (!window.confirm(tx("Delete this local record permanently? This cannot be undone."))) return;
+    updateStore(
+      (current) => ({
+        ...current,
+        [collection]: (current[collection] as Array<Record<string, unknown>>).filter((record) => record[idKey] !== id)
+      }),
+      tx("Record deleted locally.")
+    );
+  }
+
   function saveHelicopter(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const registration = text(form, "registration").trim().toUpperCase();
+    if (!registration) {
+      setMessage(tx("Registration is required."));
+      return;
+    }
+    if (mode !== "edit" && store.helicopters.some((item) => item.registration === registration && !item.archived)) {
+      setMessage(tx("A record with this identifier already exists."));
+      return;
+    }
     const record: Helicopter = {
       registration,
       model: text(form, "model"),
@@ -157,6 +187,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("vessel");
+    if (!text(form, "name").trim()) {
+      setMessage(tx("Vessel name is required."));
+      return;
+    }
     const record: Vessel = {
       id,
       name: text(form, "name"),
@@ -189,6 +223,14 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const remainingHours = num(form.get("remainingHours"));
     const lifeLimitHours = num(form.get("lifeLimitHours"));
     const remainingCalendarDays = num(form.get("remainingCalendarDays"));
+    if (!text(form, "helicopterRegistration") || !text(form, "componentName").trim()) {
+      setMessage(tx("Helicopter and component name are required."));
+      return;
+    }
+    if (remainingHours < 0 || lifeLimitHours < 0 || remainingCalendarDays < 0) {
+      setMessage(tx("Numeric values cannot be negative."));
+      return;
+    }
     const remainingPercentage = calculateRemainingPercentage(remainingHours, lifeLimitHours);
     const status = calculateComponentStatus({ remainingHours, remainingCalendarDays, remainingPercentage });
     const id = mode === "edit" && recordId ? recordId : generateId("cmp");
@@ -230,6 +272,14 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const form = new FormData(event.currentTarget);
     const hobbsStart = num(form.get("hobbsStart"));
     const hobbsEnd = num(form.get("hobbsEnd"));
+    if (!text(form, "helicopterRegistration") || !text(form, "flightDate")) {
+      setMessage(tx("Aircraft and date are required."));
+      return;
+    }
+    if (hobbsEnd < hobbsStart) {
+      setMessage(tx("Hobbs end must be greater than or equal to Hobbs start."));
+      return;
+    }
     const flightHours = Math.max(0, hobbsEnd - hobbsStart);
     const helicopterRegistration = text(form, "helicopterRegistration");
     const vesselName = text(form, "vesselName");
@@ -276,6 +326,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   function saveMaintenanceLog(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    if (!text(form, "helicopterRegistration") || !text(form, "maintenanceType").trim()) {
+      setMessage(tx("Helicopter and maintenance type are required."));
+      return;
+    }
     const entry: MaintenanceLogEntry = {
       id: generateId("mlog"),
       helicopterRegistration: text(form, "helicopterRegistration"),
@@ -298,6 +352,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const removedComponentId = text(form, "removedComponentId");
     const helicopterRegistration = text(form, "helicopterRegistration");
     const installedName = text(form, "installedComponentName");
+    if (!helicopterRegistration || !installedName.trim()) {
+      setMessage(tx("Helicopter and installed component are required."));
+      return;
+    }
     const change: ComponentChange = {
       id: generateId("chg"),
       helicopterRegistration,
@@ -370,6 +428,14 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = editingInventoryId ?? generateId("inv");
+    if (!text(form, "vesselId") || !text(form, "itemName").trim()) {
+      setMessage(tx("Vessel and item name are required."));
+      return;
+    }
+    if (num(form.get("quantity")) < 0 || num(form.get("minimumStock")) < 0) {
+      setMessage(tx("Numeric values cannot be negative."));
+      return;
+    }
     const item: InventoryItem = {
       id,
       vesselId: text(form, "vesselId"),
@@ -401,6 +467,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const itemId = text(form, "inventoryItemId");
     const movementType = text(form, "movementType") as StockMovement["movementType"];
     const quantity = num(form.get("quantity"));
+    if (!itemId || quantity <= 0) {
+      setMessage(tx("Inventory item and positive quantity are required."));
+      return;
+    }
     const movement: StockMovement = {
       id: generateId("mov"),
       inventoryItemId: itemId,
@@ -427,6 +497,14 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = editingPurchaseId ?? generateId("pr");
+    if (!text(form, "supplier").trim() || !text(form, "itemName").trim()) {
+      setMessage(tx("Supplier and item name are required."));
+      return;
+    }
+    if (num(form.get("quantity")) <= 0 || num(form.get("unitCost")) < 0) {
+      setMessage(tx("Quantity must be positive and cost cannot be negative."));
+      return;
+    }
     const request: PurchaseRequest = {
       id,
       supplier: text(form, "supplier"),
@@ -462,7 +540,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             {message}
           </div>
         ) : null}
-        {renderView()}
+        {!isReady ? <LoadingState /> : renderView()}
       </div>
     </AppShell>
   );
@@ -544,11 +622,33 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderHelicopters() {
+    const rows = prepareCrudRows(helicopters, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (helicopter) => [helicopter.registration, helicopter.model, helicopter.status, helicopter.assignedVessel, helicopter.source],
+      filterValue: (helicopter) => [helicopter.status, helicopter.source ?? "Demo"],
+      sortValue: (helicopter, key) => key === "hourmeter" ? helicopter.currentHourmeter : key === "status" ? helicopter.status : helicopter.registration
+    });
     return (
       <Panel>
         <ListHeader title="Helicopters" href="/helicopters/new" action="Create helicopter" />
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "Available", "Assigned", "In Campaign", "Maintenance", "Grounded", "User", "Demo"]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Registration"], ["hourmeter", "Hourmeter"], ["status", "Status"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <Table headers={["Registration", "Model", "Hourmeter", "Status", "Assigned vessel", "Source", "Actions"]}>
-          {helicopters.map((helicopter) => (
+          {rows.map((helicopter) => (
             <tr key={helicopter.registration}>
               <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/helicopters/${helicopter.registration}`}>{helicopter.registration}</Link></Cell>
               <Cell muted>{helicopter.model}</Cell>
@@ -556,9 +656,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
               <Cell><StatusPill tone={helicopter.status === "Grounded" ? "red" : "teal"}>{helicopter.status}</StatusPill></Cell>
               <Cell muted>{helicopter.assignedVessel || "Unassigned"}</Cell>
               <Cell><StatusPill tone={helicopter.source === "User" ? "green" : "amber"}>{helicopter.source ?? "Demo"}</StatusPill></Cell>
-              <Cell><Actions edit={`/helicopters/${helicopter.registration}/edit`} onArchive={() => archiveRecord("helicopters", "registration", helicopter.registration)} /></Cell>
+              <Cell><Actions edit={`/helicopters/${helicopter.registration}/edit`} onArchive={() => archiveRecord("helicopters", "registration", helicopter.registration)} onDelete={() => deleteRecord("helicopters", "registration", helicopter.registration)} /></Cell>
             </tr>
           ))}
+          {!rows.length ? <EmptyTableRow colSpan={7} /> : null}
         </Table>
       </Panel>
     );
@@ -598,11 +699,11 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const record = helicopters.find((item) => item.registration === registration);
     return (
       <FormShell onSubmit={saveHelicopter}>
-        <Field name="registration" label="Registration" defaultValue={record?.registration} />
-        <Field name="model" label="Model" defaultValue={record?.model} />
+        <Field name="registration" label="Registration" defaultValue={record?.registration} required />
+        <Field name="model" label="Model" defaultValue={record?.model} required />
         <Field name="serialNumber" label="Serial number" defaultValue={record?.serialNumber} />
         <Field name="manufactureYear" label="Year" defaultValue={record?.manufactureYear} />
-        <Field name="currentHourmeter" label="Current hourmeter" defaultValue={record?.currentHourmeter} />
+        <Field name="currentHourmeter" label="Current hourmeter" defaultValue={record?.currentHourmeter} required />
         <Select name="status" label="Status" defaultValue={record?.status ?? "Available"} options={["Available", "Assigned", "In Campaign", "Maintenance", "Grounded", "Retired"]} />
         <Field name="ownerCompany" label="Owner company" defaultValue={record?.ownerCompany} />
         <Select name="assignedVessel" label="Assigned vessel" defaultValue={record?.assignedVessel ?? "Unassigned"} options={["Unassigned", ...vessels.map((item) => item.name)]} />
@@ -613,11 +714,33 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderVessels() {
+    const rows = prepareCrudRows(vessels, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (vessel) => [vessel.name, vessel.owner, vessel.country, vessel.homePort, vessel.campaign, vessel.assignedHelicopter, vessel.status, vessel.source],
+      filterValue: (vessel) => [vessel.status, vessel.source ?? "Demo"],
+      sortValue: (vessel, key) => key === "country" ? vessel.country : key === "status" ? vessel.status : vessel.name
+    });
     return (
       <Panel>
         <ListHeader title="Vessels" href="/vessels/new" action="Create vessel" />
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "Active", "Inactive", "Prospect", "User", "Demo"]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Vessel"], ["country", "Country"], ["status", "Status"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <Table headers={["Vessel", "Owner", "Country", "Port", "Campaign", "Assigned helicopter", "Source", "Actions"]}>
-          {vessels.map((vessel) => (
+          {rows.map((vessel) => (
             <tr key={vessel.id}>
               <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/vessels/${vessel.id}`}>{vessel.name}</Link></Cell>
               <Cell muted>{vessel.owner}</Cell>
@@ -626,9 +749,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
               <Cell muted>{vessel.campaign}</Cell>
               <Cell muted>{vessel.assignedHelicopter || "Unassigned"}</Cell>
               <Cell><StatusPill tone={vessel.source === "User" ? "green" : "amber"}>{vessel.source ?? "Demo"}</StatusPill></Cell>
-              <Cell><Actions edit={`/vessels/${vessel.id}/edit`} onArchive={() => archiveRecord("vessels", "id", vessel.id)} /></Cell>
+              <Cell><Actions edit={`/vessels/${vessel.id}/edit`} onArchive={() => archiveRecord("vessels", "id", vessel.id)} onDelete={() => deleteRecord("vessels", "id", vessel.id)} /></Cell>
             </tr>
           ))}
+          {!rows.length ? <EmptyTableRow colSpan={8} /> : null}
         </Table>
       </Panel>
     );
@@ -657,9 +781,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const record = vessels.find((item) => item.id === id);
     return (
       <FormShell onSubmit={saveVessel}>
-        <Field name="name" label="Vessel name" defaultValue={record?.name} />
-        <Field name="owner" label="Owner company" defaultValue={record?.owner} />
-        <Field name="country" label="Country" defaultValue={record?.country} />
+        <Field name="name" label="Vessel name" defaultValue={record?.name} required />
+        <Field name="owner" label="Owner company" defaultValue={record?.owner} required />
+        <Field name="country" label="Country" defaultValue={record?.country} required />
         <Field name="homePort" label="Home port" defaultValue={record?.homePort} />
         <Field name="capacityTons" label="Capacity tons" defaultValue={record?.capacityTons} />
         <Field name="campaign" label="Current campaign" defaultValue={record?.campaign} />
@@ -683,9 +807,32 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderComponentsTable(rows: HelicopterComponent[]) {
+    const preparedRows = prepareCrudRows(rows, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (component) => [component.helicopterRegistration, component.componentName, component.category, component.partNumber, component.serialNumber, component.position, component.status, component.source],
+      filterValue: (component) => [component.status, component.source ?? "Demo", component.helicopterRegistration],
+      sortValue: (component, key) => key === "remaining" ? component.remainingHours : key === "status" ? component.status : component.componentName
+    });
     return (
-      <Table headers={["Aircraft", "Component", "P/N", "S/N", "Remaining", "%", "Status", "Source", "Actions"]}>
-        {rows.map((component) => (
+      <>
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "OK", "Monitor", "Critical", "Expired", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Component"], ["remaining", "Remaining"], ["status", "Status"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={preparedRows.length}
+        />
+        <Table headers={["Aircraft", "Component", "P/N", "S/N", "Remaining", "%", "Status", "Source", "Actions"]}>
+        {preparedRows.map((component) => (
           <tr key={component.id}>
             <Cell>{component.helicopterRegistration}</Cell>
             <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/components/${component.id}`}>{component.componentName}</Link></Cell>
@@ -695,10 +842,12 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             <Cell>{component.remainingPercentage.toFixed(1)}%</Cell>
             <Cell><StatusPill tone={component.status === "OK" ? "green" : component.status === "Monitor" ? "amber" : component.status === "Removed" ? "neutral" : "red"}>{component.status}</StatusPill></Cell>
             <Cell><StatusPill tone={component.source === "User" ? "green" : "amber"}>{component.source ?? "Demo"}</StatusPill></Cell>
-            <Cell><Actions edit={`/components/${component.id}/edit`} onArchive={() => archiveRecord("components", "id", component.id)} /></Cell>
+            <Cell><Actions edit={`/components/${component.id}/edit`} onArchive={() => archiveRecord("components", "id", component.id)} onDelete={() => deleteRecord("components", "id", component.id)} /></Cell>
           </tr>
         ))}
-      </Table>
+        {!preparedRows.length ? <EmptyTableRow colSpan={9} /> : null}
+        </Table>
+      </>
     );
   }
 
@@ -725,17 +874,17 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const record = components.find((item) => item.id === id);
     return (
       <FormShell onSubmit={saveComponent}>
-        <Select name="helicopterRegistration" label="Helicopter registration" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={helicopters.map((item) => item.registration)} />
+        <Select name="helicopterRegistration" label="Helicopter registration" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={helicopters.map((item) => item.registration)} required />
         <Select name="category" label="Component category" defaultValue={record?.category ?? "Engine"} options={componentCategories.map((item) => item.name)} />
-        <Field name="componentName" label="Component name" defaultValue={record?.componentName} />
+        <Field name="componentName" label="Component name" defaultValue={record?.componentName} required />
         <Field name="partNumber" label="Part number" defaultValue={record?.partNumber} />
         <Field name="serialNumber" label="Serial number" defaultValue={record?.serialNumber} />
         <Field name="position" label="Position" defaultValue={record?.position} />
         <Field name="installationDate" label="Installation date" defaultValue={record?.installationDate} />
         <Field name="tsnHours" label="TSN hours" defaultValue={record?.tsnHours} />
         <Field name="tsoHours" label="TSO hours" defaultValue={record?.tsoHours} />
-        <Field name="lifeLimitHours" label="Life limit hours" defaultValue={record?.lifeLimitHours} />
-        <Field name="remainingHours" label="Remaining hours" defaultValue={record?.remainingHours} />
+        <Field name="lifeLimitHours" label="Life limit hours" defaultValue={record?.lifeLimitHours} required />
+        <Field name="remainingHours" label="Remaining hours" defaultValue={record?.remainingHours} required />
         <Field name="calendarLimitDate" label="Calendar limit date" defaultValue={record?.calendarLimitDate} />
         <Field name="remainingCalendarDays" label="Remaining calendar days" defaultValue={record?.remainingCalendarDays} />
         <TextArea name="notes" label="Notes" defaultValue={record?.notes} />
@@ -744,22 +893,45 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderFlightLog() {
+    const logs = prepareCrudRows(store.flightLogs, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (log) => [log.helicopterRegistration, log.vesselName, log.campaign, log.flightDate, log.pilot, log.mechanic],
+      filterValue: (log) => [log.helicopterRegistration, log.vesselName, log.approvalStatus],
+      sortValue: (log, key) => key === "hours" ? log.flightHours : key === "date" ? log.flightDate : log.helicopterRegistration
+    });
     return (
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         {renderFlightLogForm()}
         <Panel>
           <h2 className="mb-4 text-lg font-semibold text-ink">Flight Logs</h2>
+          <ListControls
+            query={listQuery}
+            onQueryChange={setListQuery}
+            filter={listFilter}
+            onFilterChange={setListFilter}
+            filters={["All", "Approved", ...helicopters.map((item) => item.registration)]}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
+            sortOptions={[["date", "Date"], ["aircraft", "Aircraft"], ["hours", "Hours"]]}
+            sortDirection={sortDirection}
+            onSortDirectionChange={setSortDirection}
+            resultCount={logs.length}
+          />
           <Table headers={["Aircraft", "Vessel", "Date", "Hours", "Pilot", "Actions"]}>
-            {store.flightLogs.map((log) => (
+            {logs.map((log) => (
               <tr key={log.id}>
                 <Cell>{log.helicopterRegistration}</Cell>
                 <Cell muted>{log.vesselName}</Cell>
                 <Cell muted>{log.flightDate}</Cell>
                 <Cell>{log.flightHours.toFixed(1)}</Cell>
                 <Cell muted>{log.pilot}</Cell>
-                <Cell><Link className="font-semibold text-aviation-teal" href={`/flight-log/${log.id}/edit`}>Edit</Link></Cell>
+                <Cell><Actions edit={`/flight-log/${log.id}/edit`} onArchive={() => archiveRecord("flightLogs", "id", log.id)} onDelete={() => deleteRecord("flightLogs", "id", log.id)} /></Cell>
               </tr>
             ))}
+            {!logs.length ? <EmptyTableRow colSpan={6} /> : null}
           </Table>
         </Panel>
       </div>
@@ -770,14 +942,14 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const record = store.flightLogs.find((item) => item.id === id);
     return (
       <FormShell onSubmit={saveFlightLog}>
-        <Select name="helicopterRegistration" label="Helicopter" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={helicopters.map((item) => item.registration)} />
+        <Select name="helicopterRegistration" label="Helicopter" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={helicopters.map((item) => item.registration)} required />
         <Select name="vesselName" label="Vessel / campaign" defaultValue={record?.vesselName ?? vessels[0]?.name} options={vessels.map((item) => item.name)} />
         <Field name="campaign" label="Campaign" defaultValue={record?.campaign ?? vessels[0]?.campaign} />
-        <Field name="flightDate" label="Flight date" defaultValue={record?.flightDate ?? new Date().toISOString().slice(0, 10)} />
+        <Field name="flightDate" label="Flight date" defaultValue={record?.flightDate ?? new Date().toISOString().slice(0, 10)} required />
         <Field name="pilot" label="Pilot" defaultValue={record?.pilot} />
         <Field name="mechanic" label="Mechanic" defaultValue={record?.mechanic} />
-        <Field name="hobbsStart" label="Hobbs start" defaultValue={record?.hobbsStart} />
-        <Field name="hobbsEnd" label="Hobbs end" defaultValue={record?.hobbsEnd} />
+        <Field name="hobbsStart" label="Hobbs start" defaultValue={record?.hobbsStart} required />
+        <Field name="hobbsEnd" label="Hobbs end" defaultValue={record?.hobbsEnd} required />
         <TextArea name="notes" label="Notes" defaultValue={record?.notes} />
       </FormShell>
     );
@@ -825,9 +997,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   function renderMaintenanceLogForm() {
     return (
       <FormShell onSubmit={saveMaintenanceLog} title="Maintenance Log Entry">
-        <Select name="helicopterRegistration" label="Helicopter" options={helicopters.map((item) => item.registration)} />
+        <Select name="helicopterRegistration" label="Helicopter" options={helicopters.map((item) => item.registration)} required />
         <Field name="date" label="Date" defaultValue={new Date().toISOString().slice(0, 10)} />
-        <Field name="maintenanceType" label="Maintenance type" />
+        <Field name="maintenanceType" label="Maintenance type" required />
         <Field name="technician" label="Technician / maintenance chief" />
         <Select name="relatedComponentId" label="Related component" options={["", ...components.map((item) => item.id)]} />
         <TextArea name="description" label="Description" />
@@ -841,9 +1013,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   function renderComponentChangeForm() {
     return (
       <FormShell onSubmit={saveComponentChange} title="Component Change">
-        <Select name="helicopterRegistration" label="Helicopter" options={helicopters.map((item) => item.registration)} />
+        <Select name="helicopterRegistration" label="Helicopter" options={helicopters.map((item) => item.registration)} required />
         <Select name="removedComponentId" label="Removed component" options={["", ...components.map((item) => item.id)]} />
-        <Field name="installedComponentName" label="Installed component" />
+        <Field name="installedComponentName" label="Installed component" required />
         <Select name="category" label="Category" options={componentCategories.map((item) => item.name)} />
         <Field name="installedPartNumber" label="Installed part number" />
         <Field name="installedSerialNumber" label="Installed serial number" />
@@ -863,18 +1035,27 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 
   function renderInventory() {
     const editing = inventoryItems.find((item) => item.id === editingInventoryId);
+    const rows = prepareCrudRows(inventoryItems, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (item) => [item.itemName, item.itemType, item.storageLocation, item.partNumber, item.serialNumber, item.condition, item.relatedHelicopter],
+      filterValue: (item) => [getLowStockStatus(item), item.itemType, item.source ?? "Demo"],
+      sortValue: (item, key) => key === "quantity" ? item.quantity : key === "status" ? getLowStockStatus(item) : item.itemName
+    });
     return (
       <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="grid gap-5">
           <FormShell key={editing?.id ?? "new-inventory-item"} onSubmit={saveInventoryItem} title={editing ? "Edit Inventory Item" : "Create Inventory Item"}>
-            <Select name="vesselId" label="Vessel" defaultValue={editing?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} />
+            <Select name="vesselId" label="Vessel" defaultValue={editing?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} required />
             <Field name="storageLocation" label="Bodega / storage location" defaultValue={editing?.storageLocation} />
             <Select name="itemType" label="Item type" defaultValue={editing?.itemType ?? "Component"} options={["Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "Other"]} />
-            <Field name="itemName" label="Item name" defaultValue={editing?.itemName} />
+            <Field name="itemName" label="Item name" defaultValue={editing?.itemName} required />
             <Field name="partNumber" label="Part number" defaultValue={editing?.partNumber} />
             <Field name="serialNumber" label="Serial number" defaultValue={editing?.serialNumber} />
             <Field name="lotBatch" label="Lot / batch" defaultValue={editing?.lotBatch} />
-            <Field name="quantity" label="Quantity" defaultValue={editing?.quantity} />
+            <Field name="quantity" label="Quantity" defaultValue={editing?.quantity} required />
             <Field name="unitOfMeasure" label="Unit of measure" defaultValue={editing?.unitOfMeasure ?? "ea"} />
             <Field name="minimumStock" label="Minimum stock" defaultValue={editing?.minimumStock} />
             <Field name="condition" label="Condition" defaultValue={editing?.condition ?? "Serviceable"} />
@@ -883,11 +1064,11 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             <TextArea name="notes" label="Notes" defaultValue={editing?.notes} />
           </FormShell>
           <FormShell onSubmit={saveStockMovement} title="Record Stock Movement">
-            <Select name="inventoryItemId" label="Inventory item" options={inventoryItems.map((item) => item.id)} />
+            <Select name="inventoryItemId" label="Inventory item" options={inventoryItems.map((item) => item.id)} required />
             <Select name="movementType" label="Movement type" options={["Received", "Transferred", "Used", "Installed", "Consumed", "Adjusted"]} />
             <Field name="fromLocation" label="From location" />
             <Field name="toLocation" label="To location" />
-            <Field name="quantity" label="Quantity" />
+            <Field name="quantity" label="Quantity" required />
             <Field name="date" label="Date" defaultValue={new Date().toISOString().slice(0, 10)} />
             <Field name="relatedMaintenanceEvent" label="Related maintenance event" />
             <TextArea name="notes" label="Notes" />
@@ -895,8 +1076,21 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         </div>
         <Panel>
           <h2 className="mb-4 text-lg font-semibold text-ink">Vessel Inventory</h2>
+          <ListControls
+            query={listQuery}
+            onQueryChange={setListQuery}
+            filter={listFilter}
+            onFilterChange={setListFilter}
+            filters={["All", "OK", "Low", "Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "User", "Demo"]}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
+            sortOptions={[["name", "Item"], ["quantity", "Quantity"], ["status", "Status"]]}
+            sortDirection={sortDirection}
+            onSortDirectionChange={setSortDirection}
+            resultCount={rows.length}
+          />
           <Table headers={["Item", "Vessel", "Location", "Qty", "Min", "Status", "Actions"]}>
-            {inventoryItems.map((item) => (
+            {rows.map((item) => (
               <tr key={item.id}>
                 <Cell>{item.itemName}</Cell>
                 <Cell muted>{vessels.find((vessel) => vessel.id === item.vesselId)?.name ?? item.vesselId}</Cell>
@@ -904,9 +1098,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
                 <Cell>{item.quantity} {item.unitOfMeasure}</Cell>
                 <Cell>{item.minimumStock}</Cell>
                 <Cell><StatusPill tone={getLowStockStatus(item) === "OK" ? "green" : "amber"}>{getLowStockStatus(item)}</StatusPill></Cell>
-                <Cell><button className="font-semibold text-aviation-teal" onClick={() => setEditingInventoryId(item.id)} type="button">Edit</button></Cell>
+                <Cell><InlineActions onEdit={() => setEditingInventoryId(item.id)} onArchive={() => archiveRecord("inventoryItems", "id", item.id)} onDelete={() => deleteRecord("inventoryItems", "id", item.id)} /></Cell>
               </tr>
             ))}
+            {!rows.length ? <EmptyTableRow colSpan={7} /> : null}
           </Table>
         </Panel>
       </div>
@@ -915,14 +1110,23 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 
   function renderPurchasing() {
     const editing = purchaseRequests.find((item) => item.id === editingPurchaseId);
+    const rows = prepareCrudRows(purchaseRequests, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (request) => [request.supplier, request.itemName, request.partNumber, request.status, request.relatedHelicopter, request.relatedCampaign],
+      filterValue: (request) => [request.status, request.source ?? "Demo"],
+      sortValue: (request, key) => key === "cost" ? request.unitCost : key === "status" ? request.status : request.itemName
+    });
     return (
       <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <FormShell key={editing?.id ?? "new-purchase-request"} onSubmit={savePurchase} title={editing ? "Edit Purchase Request" : "Create Purchase Request"}>
-          <Field name="supplier" label="Supplier" defaultValue={editing?.supplier} />
-          <Field name="itemName" label="Item name" defaultValue={editing?.itemName} />
+          <Field name="supplier" label="Supplier" defaultValue={editing?.supplier} required />
+          <Field name="itemName" label="Item name" defaultValue={editing?.itemName} required />
           <Field name="partNumber" label="Part number" defaultValue={editing?.partNumber} />
-          <Field name="quantity" label="Quantity" defaultValue={editing?.quantity} />
-          <Field name="unitCost" label="Unit cost" defaultValue={editing?.unitCost} />
+          <Field name="quantity" label="Quantity" defaultValue={editing?.quantity} required />
+          <Field name="unitCost" label="Unit cost" defaultValue={editing?.unitCost} required />
           <Field name="currency" label="Currency" defaultValue={editing?.currency ?? "USD"} />
           <Select name="relatedHelicopter" label="Related helicopter" defaultValue={editing?.relatedHelicopter ?? ""} options={["", ...helicopters.map((item) => item.registration)]} />
           <Select name="relatedVessel" label="Related vessel" defaultValue={editing?.relatedVessel ?? ""} options={["", ...vessels.map((item) => item.id)]} />
@@ -934,17 +1138,31 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         </FormShell>
         <Panel>
           <h2 className="mb-4 text-lg font-semibold text-ink">Purchase Requests</h2>
+          <ListControls
+            query={listQuery}
+            onQueryChange={setListQuery}
+            filter={listFilter}
+            onFilterChange={setListFilter}
+            filters={["All", "Requested", "Quoted", "Approved", "Ordered", "Received", "Closed", "User", "Demo"]}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
+            sortOptions={[["name", "Item"], ["cost", "Cost"], ["status", "Status"]]}
+            sortDirection={sortDirection}
+            onSortDirectionChange={setSortDirection}
+            resultCount={rows.length}
+          />
           <Table headers={["Supplier", "Item", "Qty", "Cost", "Status", "Actions"]}>
-            {purchaseRequests.map((request) => (
+            {rows.map((request) => (
               <tr key={request.id}>
                 <Cell>{request.supplier}</Cell>
                 <Cell muted>{request.itemName}</Cell>
                 <Cell>{request.quantity}</Cell>
                 <Cell>{request.currency} {request.unitCost.toFixed(2)}</Cell>
                 <Cell><StatusPill tone={purchaseStatusTone(request.status)}>{request.status}</StatusPill></Cell>
-                <Cell><button className="font-semibold text-aviation-teal" onClick={() => setEditingPurchaseId(request.id)} type="button">Edit</button></Cell>
+                <Cell><InlineActions onEdit={() => setEditingPurchaseId(request.id)} onArchive={() => archiveRecord("purchaseRequests", "id", request.id)} onDelete={() => deleteRecord("purchaseRequests", "id", request.id)} /></Cell>
               </tr>
             ))}
+            {!rows.length ? <EmptyTableRow colSpan={6} /> : null}
           </Table>
         </Panel>
       </div>
@@ -952,11 +1170,33 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderAlerts() {
+    const alerts = prepareCrudRows(store.maintenanceAlerts, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (alert) => [alert.helicopterRegistration, alert.componentName, alert.description, alert.severity, alert.alertType, alert.source],
+      filterValue: (alert) => [alert.severity, alert.status, alert.source ?? "Demo"],
+      sortValue: (alert, key) => key === "severity" ? alert.severity : alert.componentName
+    });
     return (
       <Panel>
         <h2 className="mb-4 text-lg font-semibold text-ink">Maintenance Alerts</h2>
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "Info", "Monitor", "Critical", "Open", "Resolved", "User", "Demo"]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Component"], ["severity", "Severity"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={alerts.length}
+        />
         <div className="grid gap-3">
-          {store.maintenanceAlerts.map((alert) => (
+          {alerts.map((alert) => (
             <div key={alert.id} className="rounded-lg border border-line bg-canvas-muted/58 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill tone={alert.severity === "Info" ? "blue" : alert.severity === "Monitor" ? "amber" : "red"}>{alert.severity}</StatusPill>
@@ -967,25 +1207,47 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
               <p className="mt-2 text-sm leading-6 text-ink-subtle">{alert.description}</p>
             </div>
           ))}
+          {!alerts.length ? <EmptyInlineState /> : null}
         </div>
       </Panel>
     );
   }
 
   function renderForecast() {
+    const rows = prepareCrudRows(components.filter((component) => component.status !== "OK"), {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (component) => [component.helicopterRegistration, component.componentName, component.status, component.category],
+      filterValue: (component) => [component.status, component.source ?? "Demo", component.helicopterRegistration],
+      sortValue: (component, key) => key === "remaining" ? component.remainingHours : component.componentName
+    });
     return (
       <Panel>
         <h2 className="text-lg font-semibold text-ink">Maintenance Forecast</h2>
         <p className="mt-2 text-sm text-ink-subtle">0.2 keeps forecast display local. Backend forecasting remains deferred.</p>
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "Monitor", "Critical", "Expired", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Component"], ["remaining", "Remaining"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <div className="mt-5 grid gap-3">
-          {components
-            .filter((component) => component.status !== "OK")
-            .map((component) => (
+          {rows.map((component) => (
               <div key={component.id} className="rounded-lg border border-line bg-canvas-muted/58 p-4">
                 <p className="text-sm font-semibold text-ink">{component.helicopterRegistration} / {component.componentName}</p>
                 <p className="mt-2 text-sm text-ink-subtle">{component.remainingHours.toFixed(1)} hours and {component.remainingCalendarDays} calendar days remaining.</p>
               </div>
             ))}
+          {!rows.length ? <EmptyInlineState /> : null}
         </div>
       </Panel>
     );
@@ -1004,6 +1266,33 @@ function getHeader(view: FleetOSClientProps["view"], mode: string) {
   if (view === "purchasing") return { eyebrow: "Purchasing", title: "Track operational purchase requests without accounting.", description: "Purchasing status and attachments are local placeholders. Full accounting is deferred.", icon: ShoppingCart, ...common };
   if (view === "alerts") return { eyebrow: "Maintenance Alerts", title: "Review generated maintenance alerts.", description: "Alerts come from demo seed data and local component recalculation.", icon: AlertTriangle, ...common };
   return { eyebrow: "Forecast", title: "Local maintenance exposure preview.", description: "Backend forecasting is deferred to a later version.", icon: Gauge, ...common };
+}
+
+function prepareCrudRows<T>(rows: T[], config: {
+  query: string;
+  filter: string;
+  sortKey: string;
+  sortDirection: "asc" | "desc";
+  searchable: (row: T) => Array<string | number | undefined>;
+  filterValue: (row: T) => Array<string | number | undefined>;
+  sortValue: (row: T, key: string) => string | number | undefined;
+}) {
+  const query = config.query.trim().toLowerCase();
+  return [...rows]
+    .filter((row) => {
+      const haystack = config.searchable(row).join(" ").toLowerCase();
+      const matchesQuery = !query || haystack.includes(query);
+      const matchesFilter = config.filter === "All" || config.filterValue(row).map(String).includes(config.filter);
+      return matchesQuery && matchesFilter;
+    })
+    .sort((left, right) => {
+      const leftValue = config.sortValue(left, config.sortKey) ?? "";
+      const rightValue = config.sortValue(right, config.sortKey) ?? "";
+      const comparison = typeof leftValue === "number" && typeof rightValue === "number"
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: "base" });
+      return config.sortDirection === "asc" ? comparison : -comparison;
+    });
 }
 
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
@@ -1029,6 +1318,67 @@ function ListHeader({ title, href, action }: { title: string; href: string; acti
   );
 }
 
+function ListControls({
+  query,
+  onQueryChange,
+  filter,
+  onFilterChange,
+  filters,
+  sortKey,
+  onSortKeyChange,
+  sortOptions,
+  sortDirection,
+  onSortDirectionChange,
+  resultCount
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  filter: string;
+  onFilterChange: (value: string) => void;
+  filters: string[];
+  sortKey: string;
+  onSortKeyChange: (value: string) => void;
+  sortOptions: Array<[string, string]>;
+  sortDirection: "asc" | "desc";
+  onSortDirectionChange: (value: "asc" | "desc") => void;
+  resultCount: number;
+}) {
+  const { tx } = useI18n();
+  return (
+    <div className="mb-4 grid gap-3 rounded-lg border border-line bg-canvas-muted/44 p-3 lg:grid-cols-[1fr_180px_180px_120px_auto] lg:items-center">
+      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+        {tx("Search")}
+        <input
+          className={inputClass}
+          placeholder={tx("Search records")}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+        {tx("Filter")}
+        <select className={inputClass} value={filter} onChange={(event) => onFilterChange(event.target.value)}>
+          {[...new Set(filters)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+        {tx("Sort")}
+        <select className={inputClass} value={sortKey} onChange={(event) => onSortKeyChange(event.target.value)}>
+          {sortOptions.map(([value, label]) => <option key={value} value={value}>{tx(label)}</option>)}
+        </select>
+      </label>
+      <button
+        className="h-11 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink shadow-control"
+        type="button"
+        onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
+      >
+        {sortDirection === "asc" ? tx("Ascending") : tx("Descending")}
+      </button>
+      <p className="text-sm font-semibold text-ink-muted">{resultCount} {tx("records")}</p>
+    </div>
+  );
+}
+
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   const { tx } = useI18n();
   return (
@@ -1047,40 +1397,83 @@ function Cell({ children, muted = false }: { children: React.ReactNode; muted?: 
   return <td className={["px-4 py-3", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
 }
 
-function Actions({ edit, onArchive }: { edit: string; onArchive: () => void }) {
+function Actions({ edit, onArchive, onDelete }: { edit: string; onArchive: () => void; onDelete: () => void }) {
   const { tx } = useI18n();
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-wrap gap-3">
       <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>{tx("Edit")}</Link>
       <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">{tx("Archive")}</button>
+      <button className="font-semibold text-ink-muted hover:text-aviation-red" onClick={onDelete} type="button">{tx("Delete")}</button>
+    </div>
+  );
+}
+
+function InlineActions({ onEdit, onArchive, onDelete }: { onEdit: () => void; onArchive: () => void; onDelete: () => void }) {
+  const { tx } = useI18n();
+  return (
+    <div className="flex flex-wrap gap-3">
+      <button className="font-semibold text-aviation-teal" onClick={onEdit} type="button">{tx("Edit")}</button>
+      <button className="font-semibold text-aviation-red" onClick={onArchive} type="button">{tx("Archive")}</button>
+      <button className="font-semibold text-ink-muted hover:text-aviation-red" onClick={onDelete} type="button">{tx("Delete")}</button>
     </div>
   );
 }
 
 function FormShell({ children, onSubmit, title }: { children: React.ReactNode; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void; title?: string }) {
   const { tx } = useI18n();
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   return (
     <Panel>
       {title ? <h2 className="mb-5 text-lg font-semibold text-ink">{tx(title)}</h2> : null}
-      <form onSubmit={onSubmit}>
+      <form
+        onChange={() => setDirty(true)}
+        onSubmit={(event) => {
+          if (!event.currentTarget.checkValidity()) return;
+          setDirty(false);
+          onSubmit(event);
+        }}
+      >
         <div className="grid gap-4 sm:grid-cols-2">{children}</div>
         <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink-subtle">{tx("Frontend-only localStorage save. No backend or database is connected.")}</p>
-          <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
-            {tx("Save locally")}
-          </button>
+          <p className="text-sm text-ink-subtle">{tx(dirty ? "Unsaved changes" : "Frontend-only localStorage save. No backend or database is connected.")}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="h-10 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink-muted shadow-control transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
+              type="reset"
+              disabled={!dirty}
+              onClick={(event) => {
+                if (!window.confirm(tx("Discard unsaved changes?"))) event.preventDefault();
+                else setDirty(false);
+              }}
+            >
+              {tx("Discard")}
+            </button>
+            <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
+              {tx("Save locally")}
+            </button>
+          </div>
         </div>
       </form>
     </Panel>
   );
 }
 
-function Field({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | number }) {
+function Field({ name, label, defaultValue, required = false }: { name: string; label: string; defaultValue?: string | number; required?: boolean }) {
   const { tx } = useI18n();
+  const inputType = name.toLowerCase().includes("date") ? "date" : ["hour", "hours", "quantity", "stock", "cost", "tons"].some((token) => name.toLowerCase().includes(token)) ? "number" : "text";
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
       {tx(label)}
-      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} />
+      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} type={inputType} required={required} min={inputType === "number" ? 0 : undefined} step={inputType === "number" ? "any" : undefined} />
     </label>
   );
 }
@@ -1095,12 +1488,12 @@ function TextArea({ name, label, defaultValue }: { name: string; label: string; 
   );
 }
 
-function Select({ name, label, options, defaultValue }: { name: string; label: string; options: string[]; defaultValue?: string }) {
+function Select({ name, label, options, defaultValue, required = false }: { name: string; label: string; options: string[]; defaultValue?: string; required?: boolean }) {
   const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
       {tx(label)}
-      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""}>
+      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""} required={required}>
         {options.map((option) => <option key={option} value={option}>{option ? tx(option) : tx("None")}</option>)}
       </select>
     </label>
@@ -1113,6 +1506,33 @@ function Empty({ title }: { title: string }) {
     <Panel>
       <p className="text-sm font-semibold text-ink">{tx(title)}</p>
       <p className="mt-2 text-sm text-ink-subtle">{tx("The local record was not found. It may have been archived or removed from localStorage.")}</p>
+    </Panel>
+  );
+}
+
+function EmptyTableRow({ colSpan }: { colSpan: number }) {
+  const { tx } = useI18n();
+  return (
+    <tr>
+      <td className="px-4 py-8 text-center text-sm text-ink-subtle" colSpan={colSpan}>
+        {tx("No records match the current search or filter.")}
+      </td>
+    </tr>
+  );
+}
+
+function EmptyInlineState() {
+  const { tx } = useI18n();
+  return <p className="rounded-lg border border-dashed border-line bg-canvas-muted/44 px-4 py-6 text-center text-sm text-ink-subtle">{tx("No records match the current search or filter.")}</p>;
+}
+
+function LoadingState() {
+  const { tx } = useI18n();
+  return (
+    <Panel>
+      <div className="h-3 w-36 animate-pulse rounded bg-canvas-muted" />
+      <div className="mt-4 h-20 animate-pulse rounded-lg bg-canvas-muted/70" />
+      <p className="mt-4 text-sm text-ink-subtle">{tx("Loading local records...")}</p>
     </Panel>
   );
 }
