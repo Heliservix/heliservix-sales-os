@@ -27,6 +27,8 @@ The Maintenance Crew Portal gives maintenance chiefs and authorized maintenance 
 
 The portal is not a certified maintenance record replacement in the first release. It is an auditable operational layer for flight-hour entry, maintenance activity capture, component movement, evidence attachment, recalculation triggers, and alert generation.
 
+The portal must operate inside the campaign-centric model. When maintenance work occurs during or because of a vessel deployment, entries should link to campaign, vessel, helicopter, component, and maintenance event context so operations can understand campaign readiness and historical cost exposure.
+
 ## Users and Roles
 
 ### Maintenance Chief
@@ -39,6 +41,7 @@ The portal is not a certified maintenance record replacement in the first releas
 - Can trigger component remaining-hour recalculation.
 - Can acknowledge, assign, and resolve maintenance alerts.
 - Can view audit trails for maintenance actions.
+- Can link maintenance logs and evidence to active campaigns and technical records.
 
 ### Maintenance Staff
 
@@ -75,6 +78,9 @@ The portal is not a certified maintenance record replacement in the first releas
 - `maintenance.recalculation.trigger`
 - `maintenance.alerts.manage`
 - `maintenance.audit.view`
+- `technical_records.upload`
+- `technical_records.link`
+- `compliance.alerts.view`
 
 Permissions must be tenant-scoped and operation-scoped. Users with maintenance-only permissions must not see CRM contacts, opportunity values, contract pricing, email campaigns, or AI commercial briefings.
 
@@ -90,6 +96,7 @@ Permissions must be tenant-scoped and operation-scoped. Users with maintenance-o
 6. Authorized approver approves or rejects the entry.
 7. Approved flight hours update helicopter meter state and trigger component-life recalculation.
 8. Recalculation creates alerts when thresholds are reached.
+9. Campaign readiness and helicopter digital twin snapshots refresh when the flight affects active deployment state.
 
 ### Maintenance Log Entry
 
@@ -99,6 +106,7 @@ Permissions must be tenant-scoped and operation-scoped. Users with maintenance-o
 4. User attaches supporting evidence.
 5. Entry is submitted for review when required.
 6. Approved entry becomes part of the helicopter maintenance timeline.
+7. If the event is tied to a vessel deployment, the entry links to campaign history.
 
 ### Component Removal and Installation
 
@@ -110,6 +118,7 @@ Permissions must be tenant-scoped and operation-scoped. Users with maintenance-o
 6. Authorized approver approves the component action.
 7. System posts component life ledger entries and triggers recalculation.
 8. System updates alerts and forecast exposure.
+9. System creates helicopter digital twin timeline events for removals, installations, inspections, or overhauls.
 
 ### Evidence Attachment
 
@@ -126,6 +135,8 @@ Supported evidence:
 
 Every evidence file must record uploader, timestamp, source workflow, linked helicopter, linked component when applicable, checksum, document type, and review status.
 
+Evidence that supports airworthiness, component traceability, release to service, compliance, or campaign readiness must also create or link a Technical Record.
+
 ### Hourmeter Update
 
 1. User enters helicopter, reading type, current reading, reading date, source, and reason.
@@ -141,7 +152,7 @@ Every evidence file must record uploader, timestamp, source workflow, linked hel
 - `maintenance_evidence`
 - `maintenance_component_actions`
 - `maintenance_recalculation_jobs`
-- Extensions to `flight_logs`, `helicopter_meter_readings`, `component_life_ledger`, `maintenance_alerts`, `documents`, and `audit_logs`.
+- Extensions to `flight_logs`, `helicopter_meter_readings`, `component_life_ledger`, `maintenance_alerts`, `technical_records`, `document_links`, `maintenance_timeline_events`, `helicopter_digital_twins`, `compliance_alerts`, and `audit_logs`.
 
 ## Audit Trail
 
@@ -157,6 +168,8 @@ Every portal action must write an audit event with:
 - Maintenance event or log entry when applicable.
 - Previous value and new value for changed fields.
 - Evidence identifiers.
+- Technical record identifiers when evidence is promoted to technical records.
+- Campaign and vessel context when the action affects an active deployment.
 - Approval status.
 - IP/session metadata when available.
 

@@ -36,6 +36,7 @@ Role-based access control should cover:
 - Commercial manager.
 - Sales user.
 - Operations manager.
+- Campaign manager.
 - Maintenance coordinator.
 - Maintenance approver.
 - Maintenance chief.
@@ -47,6 +48,8 @@ Role-based access control should cover:
 - Purchasing approver.
 - Analyst.
 - Document manager.
+- Technical records manager.
+- Compliance manager.
 - Read-only viewer.
 
 Sensitive permissions:
@@ -56,6 +59,8 @@ Sensitive permissions:
 - Send email campaigns.
 - Approve AI-generated external text.
 - Modify contracts.
+- Create, approve, suspend, close, or archive campaigns.
+- Assign helicopters, pilots, mechanics, vessels, or contracts to campaigns.
 - Modify aircraft or maintenance records.
 - Approve flight logs.
 - Replace controlled components.
@@ -70,6 +75,10 @@ Sensitive permissions:
 - Create and approve purchase requests.
 - Manage suppliers, quotes, and purchase orders.
 - Receive, ship, store, install, or consume purchased items.
+- Upload, review, link, download, or archive technical records.
+- Manage compliance items and resolve compliance alerts.
+- Override campaign readiness, technical-record readiness, or compliance readiness warnings.
+- View helicopter digital twins and cost exposure.
 - View maintenance reserve assumptions.
 - View confidential documents.
 - Delete or archive records.
@@ -97,11 +106,15 @@ Data categories:
 - Commercial pipeline data.
 - Contract and pricing data.
 - Aircraft and maintenance data.
+- Campaign assignment and readiness data.
 - Component serial numbers, life limits, and replacement history.
 - Flight logs and campaign-hour ledgers.
 - Maintenance reserve assumptions.
+- Helicopter digital twin snapshots.
 - Vessel inventory quantities, item condition, serial numbers, lot numbers, and transfer history.
 - Supplier quotes, purchase orders, invoices, airway bills, delivery notes, certificates, and purchasing attachments.
+- Technical records including 8130 forms, logbook pages, work orders, photos, release-to-service documents, certificates, component documents, and aircraft documents.
+- Compliance items, compliance applicability decisions, and compliance alert resolutions.
 - Maintenance evidence including logbook pages, work orders, inspection documents, certificates, photos, and invoices.
 - Documents.
 - AI conversation data.
@@ -150,6 +163,8 @@ Audit events should include:
 - Permission changes.
 - Record creation, update, archive, and restore.
 - Contract status changes.
+- Campaign creation, approval, assignment change, suspension, completion, closure, archive, and readiness override.
+- Helicopter digital twin snapshot refreshes when they create material readiness status changes.
 - Helicopter meter-reading changes.
 - Flight-log creation, approval, correction, and reversal.
 - Component installation, removal, replacement, and overhaul status changes.
@@ -158,6 +173,8 @@ Audit events should include:
 - Maintenance crew portal access, maintenance log creation, evidence upload, component removal, component installation, and recalculation trigger.
 - Inventory receipt, transfer, adjustment, quarantine, installation, consumption, disposal, and minimum-stock changes.
 - Supplier creation, quote upload, purchase request approval, purchase order status changes, receipt, shipment to vessel, storage, installation, consumption, and closure.
+- Technical record upload, review, link, unlink, download, version change, expiration change, and archive.
+- Compliance item creation, applicability review, alert generation, resolution, not-applicable decision, deferral, supersession, and readiness override.
 - Document upload, download, and version changes.
 - Email approval and send events.
 - AI-generated draft approval and application.
@@ -191,6 +208,8 @@ The platform should be designed for responsible B2B data handling:
 - Limit personal data collection.
 - Keep source references for intelligence.
 
+Operational aviation compliance tracking must be treated as decision support until approved by authorized HeliServiX personnel. The system may track AAC Panama, DGAC Ecuador, FAA references, Robinson Service Bulletins, Airworthiness Directives, Service Letters, manual revisions, and life-limit requirements, but it must not imply regulator filing, legal certification, or airworthiness release without an explicit approved workflow and supporting technical records.
+
 ## Incident Response
 
 Minimum incident process:
@@ -217,6 +236,10 @@ Minimum incident process:
 - Maintenance crew portal permission tests.
 - Inventory movement permission and ledger immutability tests.
 - Purchasing approval workflow tests.
+- Campaign assignment and readiness approval tests.
+- Technical record permission and confidential download tests.
+- Compliance applicability and alert resolution tests.
+- Digital twin snapshot tenant-isolation and source-traceability tests.
 - Cross-tenant fleet-maintenance isolation tests.
 - Document access tests.
 - Audit event verification.

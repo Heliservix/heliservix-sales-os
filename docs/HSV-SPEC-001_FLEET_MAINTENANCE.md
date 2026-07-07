@@ -25,11 +25,14 @@ The current component-control workbook, `Heliservix_Control_Componentes_FINAL_PR
 - Track components independently per helicopter.
 - Calculate remaining hours, remaining calendar time, remaining percentage, and status.
 - Log flight hours by helicopter and vessel/campaign.
+- Treat campaign as the primary deployment context for flight logs, maintenance events, inventory usage, purchasing, technical records, and future profitability.
 - Recalculate component life after approved flight logs.
 - Generate maintenance alerts automatically.
 - Forecast maintenance exposure using monthly flight-hour trends.
 - Support component replacement and overhaul planning.
 - Estimate maintenance reserve requirements by helicopter, campaign, and contract.
+- Build a helicopter digital twin for every aircraft from authoritative operational records.
+- Maintain a visual maintenance timeline for installations, removals, inspections, overhauls, annuals, SB/AD compliance, and forecasted due events.
 - Import data safely from the current workbook through preview and approval.
 
 ## Non-Goals
@@ -69,6 +72,61 @@ Deferred capabilities:
 - Document upload storage.
 - Supabase or other backend integration.
 - Certified maintenance-record replacement.
+
+## Campaign-Centric Alignment
+
+Fleet & Maintenance must support the HeliServiX OS campaign-centric operating model. A helicopter is not only an asset record; it is assigned into tuna-vessel campaigns where its readiness affects client delivery, vessel operations, contract performance, maintenance exposure, inventory usage, purchasing urgency, and future profitability.
+
+Campaign context should be captured or inferred for:
+
+- Flight logs.
+- Maintenance events.
+- Component removals and installations.
+- Maintenance alerts that affect deployment readiness.
+- Inventory consumption and installed parts.
+- Purchases triggered by campaign readiness.
+- Technical records created during campaign operations.
+- Compliance alerts affecting the aircraft, component, vessel, country, or operation.
+- Maintenance reserve and future finance inputs.
+
+## Helicopter Digital Twin
+
+Each helicopter must have a digital twin as defined in `HSV-CORE-002_DIGITAL_TWIN.md`.
+
+The digital twin includes:
+
+- Current operational status.
+- Current hourmeter.
+- Installed components.
+- Component life remaining.
+- Maintenance history.
+- Flight history.
+- Campaign history.
+- Vessel assignment history.
+- Technical documents.
+- Photos.
+- Costs.
+- Forecast.
+- Compliance exposure.
+- Future market value or asset profile.
+
+The digital twin is computed from authoritative ledgers and records. It must not become a separate manually edited source of truth.
+
+## Maintenance Timeline
+
+Each helicopter should have a visual maintenance timeline containing:
+
+- Installations.
+- Removals.
+- Inspections.
+- Overhauls.
+- Annuals.
+- SB/AD compliance.
+- Technical record uploads when relevant.
+- Compliance actions.
+- Forecasted due events.
+
+Timeline events must link back to their source records: maintenance event, component action, flight log, compliance item, technical record, forecast, or campaign assignment.
 
 ## Demo Data Policy
 
@@ -939,6 +997,78 @@ Indexes:
 - Index `tenant_id, status`.
 - Index `tenant_id, assigned_vessel_id`.
 
+## `helicopter_digital_twins`
+
+Purpose: computed helicopter operational snapshot for dashboard and detail views.
+
+Fields:
+
+- `id`.
+- `tenant_id`.
+- `helicopter_id`.
+- `snapshot_at`.
+- `operational_status`.
+- `current_hourmeter`.
+- `current_campaign_id`.
+- `current_vessel_id`.
+- `next_limiting_component_id`.
+- `open_alert_count`.
+- `critical_alert_count`.
+- `expired_component_count`.
+- `compliance_alert_count`.
+- `document_readiness_status`.
+- `forecast_status`.
+- `maintenance_reserve_exposure`.
+- `currency`.
+- `data_quality_status`.
+- `snapshot_source`.
+
+Rules:
+
+- Snapshot values are computed from source ledgers and records.
+- Snapshot generation must be repeatable.
+- Snapshot values must not override helicopter, component, flight, maintenance, document, or compliance source records.
+
+## `maintenance_timeline_events`
+
+Purpose: timeline events for helicopter digital twin history and forecast.
+
+Fields:
+
+- `id`.
+- `tenant_id`.
+- `helicopter_id`.
+- `event_type`.
+- `event_date`.
+- `meter_reading`.
+- `component_id`.
+- `campaign_id`.
+- `vessel_id`.
+- `maintenance_event_id`.
+- `compliance_item_id`.
+- `technical_record_id`.
+- `title`.
+- `description`.
+- `severity`.
+- `source_entity_type`.
+- `source_entity_id`.
+- `forecasted`.
+
+Timeline event types:
+
+- Installation.
+- Removal.
+- Inspection.
+- Overhaul.
+- Annual.
+- SB compliance.
+- AD compliance.
+- Manual revision.
+- Forecasted due event.
+- Campaign assignment.
+- Vessel assignment.
+- Technical record.
+
 ## `component_categories`
 
 Purpose: normalized component category list.
@@ -1016,26 +1146,94 @@ Indexes:
 
 ## `campaigns`
 
-Purpose: operational campaign records linking vessels, contracts, and helicopters.
+Purpose: central operational campaign records linking client, fleet owner, vessel, contract, helicopter deployment, maintenance, inventory, purchasing, technical records, compliance, and future finance inputs. Full campaign specification is defined in `HSV-SPEC-005_CAMPAIGNS.md`.
 
 Fields:
 
 - `id`.
 - `tenant_id`.
+- `campaign_code`.
 - `name`.
+- `client_company_id`.
+- `fleet_owner_id`.
 - `vessel_id`.
 - `contract_id`.
+- `opportunity_id`.
 - `country`.
-- `start_date`.
-- `end_date`.
+- `operating_area`.
+- `home_port`.
+- `campaign_type`.
+- `planned_start_date`.
+- `planned_end_date`.
+- `actual_start_date`.
+- `actual_end_date`.
 - `expected_monthly_hours`.
 - `status`.
+- `commercial_owner_user_id`.
+- `operations_owner_user_id`.
 - `notes`.
 
 Indexes:
 
 - Index `tenant_id, vessel_id`.
+- Index `tenant_id, contract_id`.
 - Index `tenant_id, status`.
+
+## `campaign_assignments`
+
+Purpose: time-bound aircraft, crew, vessel, and contract assignments for campaigns.
+
+Fields:
+
+- `id`.
+- `tenant_id`.
+- `campaign_id`.
+- `helicopter_id`.
+- `vessel_id`.
+- `pilot_user_id`.
+- `mechanic_user_id`.
+- `contract_id`.
+- `assignment_start`.
+- `assignment_end`.
+- `assignment_type`.
+- `status`.
+- `approved_by`.
+- `approved_at`.
+- `reason`.
+- `notes`.
+
+Indexes:
+
+- Index `tenant_id, campaign_id`.
+- Index `tenant_id, helicopter_id, assignment_start`.
+- Index `tenant_id, vessel_id, assignment_start`.
+
+## `vessel_assignment_history`
+
+Purpose: immutable or append-only assignment history for helicopter-to-vessel deployment context.
+
+Fields:
+
+- `id`.
+- `tenant_id`.
+- `helicopter_id`.
+- `vessel_id`.
+- `campaign_id`.
+- `contract_id`.
+- `assignment_start`.
+- `assignment_end`.
+- `status`.
+- `country`.
+- `operating_area`.
+- `changed_by`.
+- `change_reason`.
+- `notes`.
+
+Indexes:
+
+- Index `tenant_id, helicopter_id, assignment_start`.
+- Index `tenant_id, vessel_id, assignment_start`.
+- Index `tenant_id, campaign_id`.
 
 ## `flight_logs`
 

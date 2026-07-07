@@ -31,6 +31,8 @@ The module must answer four operational questions:
 - Is it usable, expired, low, serialized, or reserved?
 - How did it move from purchase to storage to installation or consumption?
 
+Inventory must operate in the campaign-centric model. Vessel stock readiness affects active and planned campaigns, and inventory usage should link to campaign when materials are consumed, installed, transferred, or reserved for a helicopter deployment.
+
 ## Scope
 
 Supported inventory categories:
@@ -172,6 +174,7 @@ Required fields:
 - Unit of measure.
 - Related helicopter.
 - Related vessel.
+- Related campaign.
 - Related maintenance event.
 - Related purchase order.
 - Performed by.
@@ -213,7 +216,9 @@ Low-stock, out-of-stock, near-expiration, expired, missing-serial, condition, an
 3. User records installed or consumed quantity.
 4. Serialized components require serial number confirmation.
 5. System links usage to helicopter, component action, and maintenance evidence.
-6. Stock status and minimum stock alerts refresh.
+6. System links usage to campaign when the maintenance event is part of a vessel deployment.
+7. Technical records are linked when certificates, photos, invoices, 8130 forms, or release documents support the movement.
+8. Stock status and minimum stock alerts refresh.
 
 ### Stock Count and Adjustment
 
@@ -244,8 +249,10 @@ Inventory audit events must capture:
 - Destination location.
 - Vessel.
 - Helicopter.
+- Campaign.
 - Maintenance event.
 - Purchase order.
+- Technical record or document link when evidence supports the movement.
 - Reason.
 - Approval status.
 - Previous and resulting stock balance.
@@ -257,6 +264,7 @@ Inventory audit events must capture:
 - Stock lots with quantity, UOM, condition, serial, lot, and expiration fields.
 - Transfer workflow.
 - Usage against maintenance events.
+- Campaign-linked usage for vessel deployments.
 - Low-stock and expiration status.
 - Purchase-to-storage-to-usage traceability links.
 - Inventory audit log.

@@ -15,6 +15,9 @@ The database must represent the commercial and operational reality of helicopter
 - Maintenance crew actions, evidence uploads, inventory movements, and purchasing workflow changes require immutable audit history.
 - Inventory balances must be derived from ledger events, not manually overwritten quantities.
 - Purchasing supports operational traceability only; it does not create accounting postings in the current scope.
+- Campaigns are the central operating entity for helicopter deployments on tuna vessels.
+- Helicopter digital twins are computed from authoritative source records and snapshots, not manually maintained as separate truth.
+- Technical records and compliance evidence must link to the operational entities they support.
 - Email and assistant actions require immutable event logs.
 - External identifiers are stored separately from internal primary keys.
 
@@ -104,6 +107,23 @@ The database must represent the commercial and operational reality of helicopter
 
 - Structured pricing and delivery terms, including tiered tuna tonnage rates, included hours, excluded fuel/oil costs, crew assumptions, and billing rules.
 
+### HSV-SPEC-005 Campaigns
+
+`campaigns`
+
+- Central operating records for helicopter deployments within tuna-vessel campaigns.
+- Fields include tenant, campaign code, name, client company, fleet owner, vessel, contract, opportunity, country, operating area, home port, campaign type, planned dates, actual dates, status, expected monthly hours, commercial owner, operations owner, and notes.
+
+`campaign_assignments`
+
+- Time-bound resource assignments for campaigns.
+- Fields include campaign, helicopter, vessel, pilot, mechanic, contract, assignment start, assignment end, assignment type, status, reason, approved_by, approved_at, and notes.
+
+`vessel_assignment_history`
+
+- Historical assignment ledger connecting helicopters, vessels, campaigns, contracts, countries, operating areas, dates, status, change reason, and user.
+- Supports helicopter digital twin history, campaign review, and commercial traceability.
+
 ### HSV-SPEC-001 Fleet & Maintenance
 
 `helicopters`
@@ -186,6 +206,16 @@ The database must represent the commercial and operational reality of helicopter
 `operation_assignments`
 
 - Links helicopters, pilots, mechanics, vessels, ports, and contracts during a campaign.
+
+`maintenance_timeline_events`
+
+- Timeline events for each helicopter digital twin.
+- Fields include helicopter, event type, event date, meter reading, component, campaign, vessel, maintenance event, compliance item, technical record, title, description, severity, source entity, and forecasted flag.
+
+`helicopter_digital_twins`
+
+- Computed snapshot metadata for each helicopter.
+- Fields include helicopter, snapshot time, operational status, current hourmeter, current campaign, current vessel, next limiting component, alert counts, compliance alert count, document readiness status, forecast status, maintenance reserve exposure, currency, data quality status, and snapshot source.
 
 ### HSV-SPEC-002 Maintenance Crew Portal
 
@@ -288,6 +318,50 @@ The database must represent the commercial and operational reality of helicopter
 
 - Immutable workflow status history from Requested, Quoted, Approved, Ordered, Received, Shipped to vessel, Stored, Installed, Consumed, and Closed.
 
+### HSV-SPEC-006 Technical Records
+
+`technical_records`
+
+- Structured aviation evidence records linked to documents.
+- Supports 8130 forms, logbook pages, work orders, invoices, photos, release-to-service documents, certificates, inspection documents, maintenance evidence, component documents, aircraft documents, and supplier traceability documents.
+- Fields include record type, title, document, record date, received date, source type, source reference, review status, reviewed_by, reviewed_at, confidentiality level, expiration date, and notes.
+
+`document_links`
+
+- Links documents and technical records to operational entities.
+- Fields include document, technical record, linked entity type, linked entity id, link role, required-for-readiness flag, created_by, created_at, and notes.
+
+### HSV-SPEC-007 Compliance
+
+`compliance_items`
+
+- Regulatory, manufacturer, manual, and operational requirements.
+- Supports AAC Panama, DGAC Ecuador, FAA references where relevant, Robinson Service Bulletins, Airworthiness Directives, Service Letters, manual revisions, life-limit compliance, and operational regulatory requirements.
+- Fields include authority, item type, reference number, title, revision, effective date, source document, applicability basis, affected country, affected model, affected serial range, affected component category, affected part number, severity, due basis, due date, due hours, required action, status, and notes.
+
+`compliance_alerts`
+
+- Applicability and readiness alerts generated from compliance items.
+- Fields include compliance item, helicopter, component, campaign, maintenance event, alert type, severity, status, due date, due hours, generated_at, assigned_to, resolved_by, resolved_at, resolution reason, and supporting document.
+
+### HSV-CORE-001 Business Rules Engine
+
+`business_rules`
+
+- Tenant and platform rule definitions for operational calculations and decisions.
+
+`business_rule_versions`
+
+- Versioned rule logic, thresholds, status, effective dates, and approval metadata.
+
+`business_rule_executions`
+
+- Execution audit records with trigger entity, trigger action, rule version, input snapshot reference, executed_by, executed_at, status, warnings, and errors.
+
+`business_rule_results`
+
+- Output references created by rule executions, including alerts, ledger entries, forecasts, digital twin snapshots, campaign readiness results, and timeline events.
+
 ### Documents
 
 `documents`
@@ -299,9 +373,7 @@ The database must represent the commercial and operational reality of helicopter
 
 - Immutable versions with checksum, created_by, created_at, and source.
 
-`document_links`
-
-- Links documents to companies, contacts, vessels, helicopters, opportunities, contracts, maintenance logs, maintenance events, component actions, inventory movements, purchase requests, purchase orders, intelligence items, and reports.
+Document-to-entity linkage is handled by the canonical `document_links` model defined under HSV-SPEC-006 Technical Records.
 
 ### Market Intelligence
 
@@ -327,17 +399,17 @@ The database must represent the commercial and operational reality of helicopter
 
 - Versioned templates by language, region, contact role, stage, and campaign type.
 
-`campaigns`
+`email_campaigns`
 
-- Campaign definitions, segments, approval status, sender identity, schedule, and objective.
+- Email campaign definitions, segments, approval status, sender identity, schedule, and objective. This table is separate from operational `campaigns`.
 
-`campaign_recipients`
+`email_campaign_recipients`
 
 - Recipient membership, personalization variables, approval state, suppression checks, and send status.
 
 `email_events`
 
-- Immutable send, delivery, bounce, reply, open, click, unsubscribe, and failure events when available.
+- Immutable send, delivery, bounce, reply, open, click, unsubscribe, and failure events when available. Events link to `email_campaigns`, not operational `campaigns`.
 
 `suppression_list`
 
@@ -396,10 +468,14 @@ The database must represent the commercial and operational reality of helicopter
 - A vessel can have changing owner/operator relationships over time.
 - An opportunity can link to a company, contact, fleet owner, vessel, helicopter feasibility view, campaign, documents, and intelligence.
 - A contract should trace back to the opportunity that created it when applicable.
+- A campaign should link client, fleet owner, vessel, contract, helicopter assignment, crew, flight logs, maintenance events, inventory movements, purchases, technical records, compliance alerts, and future finance inputs.
 - A helicopter can be linked to components, meter readings, flight logs, maintenance events, maintenance alerts, availability windows, documents, and contract assignments.
+- A helicopter digital twin is derived from helicopter registry, meter readings, components, flight logs, maintenance events, campaign assignments, vessel assignment history, technical records, compliance alerts, inventory usage, purchasing links, and forecasts.
 - A component can be installed on only one active helicopter position at a time, while replacement history preserves prior installations.
 - A flight log can consume component life for all active installed components on the helicopter.
 - A maintenance forecast can link to opportunities and contracts when forecasted component limits affect campaign feasibility.
+- A technical record may link to multiple entities, but every link must define its operational role.
+- A compliance alert must link back to the compliance item and affected helicopter, component, campaign, or operation.
 - Intelligence should never exist as unlinked text if a relevant company, vessel, owner, or country can be identified.
 
 ## Initial Migration Source
@@ -436,5 +512,9 @@ The component-control workbook `Heliservix_Control_Componentes_FINAL_PRO.xlsx` s
 - AI-generated fields must be marked as generated until reviewed.
 - Contract values must separate estimated, proposed, signed, invoiced, and realized amounts.
 - Component status must be computed from current life rules and authoritative flight/component ledgers.
+- Digital twin snapshots must be recomputable from source records and must not override source ledgers.
+- Campaign readiness must be computed from verified operational, technical-record, inventory, purchasing, maintenance, and compliance data.
+- Technical records require document type, source, review status, checksum, confidentiality, and links to affected entities.
+- Compliance items require source authority, reference, revision, applicability basis, and resolution evidence when closed.
 - Flight-log corrections must preserve original values, correction reason, approver, and recalculated downstream effects.
 - Expired components must block aircraft availability unless an authorized maintenance override exists with expiration and audit trail.

@@ -74,6 +74,31 @@ Exit criteria:
 - Commercial users can see whether a proposed campaign is operationally feasible before committing.
 - Leadership can distinguish high-value opportunities from deliverable opportunities and understand maintenance reserve exposure.
 
+## Phase 2A: Campaign, Digital Twin, Technical Records, and Compliance Architecture
+
+Goal: expand the product model before further implementation so HeliServiX OS is organized around helicopter deployments within tuna-vessel campaigns.
+
+Deliverables:
+
+- HSV-SPEC-005 Campaigns.
+- HSV-SPEC-006 Technical Records.
+- HSV-SPEC-007 Compliance.
+- HSV-CORE-001 Business Rules Engine.
+- HSV-CORE-002 Helicopter Digital Twin.
+- Campaign-centric operating model connecting client, fleet owner, vessel, contract, helicopter, pilot, mechanic, flight logs, maintenance, inventory usage, purchasing, technical records, compliance, and future profitability.
+- Digital twin model per helicopter, including current status, hourmeter, installed components, maintenance history, flight history, campaign history, vessel assignment history, documents, photos, costs, forecast, and future asset profile.
+- Maintenance timeline model for installations, removals, inspections, overhauls, annuals, SB/AD compliance, and forecasted due events.
+- Technical record document graph for 8130 forms, logbook pages, work orders, invoices, photos, release-to-service documents, certificates, maintenance evidence, component documents, and aircraft documents.
+- Compliance tracking for AAC Panama, DGAC Ecuador, FAA references where relevant, Robinson Service Bulletins, Airworthiness Directives, Service Letters, manual revisions, life-limit compliance, and operational regulatory requirements.
+- Business rules model for flight-hour deduction, component status, calendar expiry, campaign assignment, inventory consumption, purchasing traceability, maintenance event creation, compliance alerts, and forecasting.
+
+Exit criteria:
+
+- Campaigns are documented as the central operating entity.
+- New data entities are defined for campaigns, campaign assignments, technical records, compliance items, compliance alerts, maintenance timeline events, helicopter digital twins, document links, and vessel assignment history.
+- Existing Fleet, Maintenance Crew Portal, Vessel Inventory, and Purchasing specs are aligned to the campaign-centric model.
+- Development can continue without treating campaigns, technical records, compliance, or digital twins as later bolt-ons.
+
 ## Phase 3: HSV-SPEC-002 Maintenance Crew Portal
 
 Goal: give maintenance chiefs and authorized maintenance staff restricted operational access without exposing commercial or executive data.
@@ -171,7 +196,7 @@ Deliverables:
 
 Exit criteria:
 
-- Campaigns can be executed without manual copy-paste.
+- Email campaigns can be executed without manual copy-paste.
 - Every outbound email is approved, traceable, and linked to CRM records.
 
 ## Phase 8: AI Assistant
@@ -191,17 +216,19 @@ Exit criteria:
 
 - AI helps users work faster without silently changing records or making unsupported claims.
 
-## Phase 9: Documents, Reports, and Executive Dashboards
+## Phase 9: Technical Records, Compliance, Reports, and Executive Dashboards
 
 Goal: make the platform useful for leadership review, proposals, and operational reporting.
 
 Deliverables:
 
 - Document repository.
+- Technical records repository and entity-link graph.
+- Compliance dashboard for AD, SB, manual revision, regulator, life-limit, and operational requirement exposure.
 - Proposal and contract document generation.
 - Versioned document metadata.
 - Scheduled reports.
-- Executive dashboards for pipeline, contract exposure, fleet commitment, component constraints, maintenance reserve exposure, campaign performance, and intelligence alerts.
+- Executive dashboards for pipeline, contract exposure, campaign performance, fleet commitment, component constraints, technical-record readiness, compliance exposure, maintenance reserve exposure, and intelligence alerts.
 
 Exit criteria:
 

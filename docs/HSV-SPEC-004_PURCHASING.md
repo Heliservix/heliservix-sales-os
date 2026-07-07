@@ -23,6 +23,8 @@ HeliServiX OS must support purchasing because maintenance readiness depends on r
 
 Future accounting must be designed later for Panama compliance. Current purchasing records should preserve enough structure to support future integration without pretending to be an accounting ledger.
 
+Purchasing must operate inside the campaign-centric model. A purchase request should identify the campaign, vessel, helicopter, maintenance event, inventory location, or compliance requirement that created the operational need whenever that context is known.
+
 ## Users and Roles
 
 ### Purchasing Requester
@@ -49,6 +51,7 @@ Future accounting must be designed later for Panama compliance. Current purchasi
 - Initiates urgent maintenance-related requests.
 - Confirms technical suitability of parts, components, consumables, and certificates.
 - Confirms installed or consumed status after receipt.
+- Links supporting certificates, 8130 forms, invoices, photos, or release documents to Technical Records when they support component traceability or maintenance readiness.
 
 ### Inventory Manager
 
@@ -66,6 +69,8 @@ Future accounting must be designed later for Panama compliance. Current purchasi
 - `purchasing.status.update`
 - `purchasing.attachments.upload`
 - `purchasing.receipts.create`
+- `technical_records.link`
+- `technical_records.upload`
 - `purchasing.costs.view`
 - `purchasing.audit.view`
 
@@ -209,9 +214,10 @@ Immutable status history for purchase requests and purchase orders.
 
 1. User creates request with item, quantity, reason, urgency, and operational linkage.
 2. User links request to helicopter, vessel, campaign, maintenance event, or inventory location when known.
-3. Request enters Requested status.
-4. Approver reviews operational need, cost estimate, urgency, and readiness impact.
-5. Approved requests can move to quote or direct order depending on policy.
+3. User links request to compliance item or compliance alert when the purchase is required by AD, SB, service letter, manual revision, or regulatory requirement.
+4. Request enters Requested status.
+5. Approver reviews operational need, cost estimate, urgency, campaign readiness impact, maintenance readiness impact, and supplier suitability.
+6. Approved requests can move to quote or direct order depending on policy.
 
 ### Quote Management
 
@@ -234,8 +240,9 @@ Immutable status history for purchase requests and purchase orders.
 2. Inventory manager records receipt and condition.
 3. Items shipped to vessel move through transit and vessel/bodega locations.
 4. Stored items create inventory stock lots.
-5. Installed or consumed items are linked to maintenance events.
-6. Closed status requires all ordered quantities to be received, cancelled, installed, consumed, or otherwise reconciled operationally.
+5. Certificates, invoices, airway bills, delivery notes, photos, and 8130 forms are attached and promoted to technical records when applicable.
+6. Installed or consumed items are linked to maintenance events, campaigns, components, and inventory movements.
+7. Closed status requires all ordered quantities to be received, cancelled, installed, consumed, or otherwise reconciled operationally.
 
 ## Audit Trail
 
@@ -249,6 +256,7 @@ Purchasing audit events must include:
 - Cost and currency changes.
 - Quantity changes.
 - Related helicopter, vessel, campaign, and maintenance event.
+- Related technical records, compliance items, inventory stock lots, and campaign readiness impact.
 - Attachment additions.
 - Approval or rejection reason.
 
