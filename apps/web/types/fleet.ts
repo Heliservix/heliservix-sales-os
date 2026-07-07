@@ -44,6 +44,60 @@ export type PurchaseStatus =
 
 export type CrewPortalRole = "Admin View" | "Maintenance Chief View";
 
+export type DataSource = "Demo" | "User";
+
+export type CampaignStatus =
+  | "Draft"
+  | "Planned"
+  | "Readiness Review"
+  | "Approved"
+  | "Active"
+  | "Suspended"
+  | "Completed"
+  | "Cancelled"
+  | "Archived";
+
+export type TechnicalRecordType =
+  | "8130"
+  | "Logbook page"
+  | "Work order"
+  | "Invoice"
+  | "Photo"
+  | "Certificate"
+  | "Release to service"
+  | "Inspection"
+  | "Other";
+
+export type ComplianceAuthority = "AAC Panama" | "DGAC Ecuador" | "FAA" | "Robinson" | "Other";
+
+export type ComplianceType =
+  | "AD"
+  | "SB"
+  | "Service Letter"
+  | "Manual Revision"
+  | "Operational Requirement"
+  | "Life Limit";
+
+export type ComplianceStatus =
+  | "Not reviewed"
+  | "Applicable"
+  | "Not applicable"
+  | "In progress"
+  | "Complied"
+  | "Overdue";
+
+export type TimelineEventType =
+  | "Installation"
+  | "Removal"
+  | "Inspection"
+  | "Overhaul"
+  | "Annual"
+  | "SB/AD Compliance"
+  | "Forecasted Due Event"
+  | "Flight"
+  | "Campaign Assignment"
+  | "Technical Record";
+
 export type Helicopter = {
   registration: string;
   model: string;
@@ -252,6 +306,103 @@ export type PurchaseRequest = {
   source?: "Demo" | "User";
 };
 
+export type Campaign = {
+  id: string;
+  code: string;
+  name: string;
+  clientFleetOwner: string;
+  vesselId: string;
+  vesselName: string;
+  helicopterRegistration: string;
+  pilot: string;
+  mechanic: string;
+  startDate: string;
+  endDate: string;
+  operationArea: string;
+  contractReference: string;
+  status: CampaignStatus;
+  notes: string;
+  archived?: boolean;
+  source?: DataSource;
+};
+
+export type TechnicalRecord = {
+  id: string;
+  recordType: TechnicalRecordType;
+  relatedHelicopter?: string;
+  relatedComponentId?: string;
+  relatedMaintenanceEvent?: string;
+  relatedCampaignId?: string;
+  relatedPurchaseId?: string;
+  title: string;
+  recordDate: string;
+  documentNumber: string;
+  notes: string;
+  attachmentPlaceholder: string;
+  archived?: boolean;
+  source?: DataSource;
+};
+
+export type ComplianceItem = {
+  id: string;
+  authority: ComplianceAuthority;
+  complianceType: ComplianceType;
+  referenceNumber: string;
+  title: string;
+  effectiveDate: string;
+  dueDate: string;
+  applicability: string;
+  relatedHelicopter?: string;
+  relatedComponentId?: string;
+  status: ComplianceStatus;
+  notes: string;
+  attachmentPlaceholder: string;
+  archived?: boolean;
+  source?: DataSource;
+};
+
+export type ComplianceAlert = {
+  id: string;
+  complianceItemId: string;
+  relatedHelicopter?: string;
+  relatedComponentId?: string;
+  relatedCampaignId?: string;
+  severity: AlertSeverity;
+  status: AlertStatus;
+  dueDate: string;
+  description: string;
+  source?: DataSource;
+};
+
+export type MaintenanceTimelineEvent = {
+  id: string;
+  helicopterRegistration: string;
+  eventType: TimelineEventType;
+  eventDate: string;
+  title: string;
+  description: string;
+  severity: "Info" | "Monitor" | "Critical";
+  sourceEntityType: string;
+  sourceEntityId: string;
+  forecasted?: boolean;
+  source?: DataSource;
+};
+
+export type DigitalTwinSummary = {
+  helicopter: Helicopter;
+  activeCampaign?: Campaign;
+  assignedVessel?: Vessel;
+  installedComponents: number;
+  criticalComponents: number;
+  openAlerts: number;
+  forecastedDueItems: number;
+  totalFlightHours: number;
+  campaignCount: number;
+  technicalRecordCount: number;
+  complianceOpenCount: number;
+  timeline: MaintenanceTimelineEvent[];
+};
+
 export type FleetStore = {
   helicopters: Helicopter[];
   vessels: Vessel[];
@@ -264,6 +415,10 @@ export type FleetStore = {
   inventoryItems: InventoryItem[];
   stockMovements: StockMovement[];
   purchaseRequests: PurchaseRequest[];
+  campaigns: Campaign[];
+  technicalRecords: TechnicalRecord[];
+  complianceItems: ComplianceItem[];
+  complianceAlerts: ComplianceAlert[];
 };
 
 export type DashboardMetric = {

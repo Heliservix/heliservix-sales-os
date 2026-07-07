@@ -488,24 +488,28 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       <div className="grid gap-6">
         <section className="grid gap-4 md:grid-cols-4">
           <Metric label="Helicopters" value={String(helicopters.length)} tone="teal" detail="Local fleet records" />
-          <Metric label="Vessels" value={String(vessels.length)} tone="blue" detail="Vessel records and assignments" />
+          <Metric label="Campaigns" value={String(store.campaigns.length)} tone="blue" detail="Deployment operating records" />
           <Metric label="Alerts" value={String(openAlerts)} tone="amber" detail="Generated maintenance alerts" />
-          <Metric label="Inventory Items" value={String(inventoryItems.length)} tone="green" detail="Vessel inventory records" />
+          <Metric label="Technical Records" value={String(store.technicalRecords.length)} tone="green" detail="Linked evidence records" />
         </section>
         <Panel>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-ink">HSV OS 0.2 Fleet Operational MVP</h2>
+              <h2 className="text-lg font-semibold text-ink">HSV OS 0.3 Campaigns & Digital Twin MVP</h2>
               <p className="mt-1 text-sm text-ink-subtle">{demoDataPolicy}</p>
             </div>
             <StatusPill tone="amber">localStorage only</StatusPill>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             {[
+              ["Campaigns", "/campaigns"],
+              ["Digital Twin", "/digital-twin"],
               ["Fleet CRUD", "/helicopters"],
               ["Crew Portal", "/crew-portal"],
               ["Vessel Inventory", "/inventory"],
-              ["Purchasing", "/purchasing"]
+              ["Purchasing", "/purchasing"],
+              ["Technical Records", "/technical-records"],
+              ["Compliance", "/compliance"]
             ].map(([label, href]) => (
               <Link key={href} className="rounded-lg border border-line bg-canvas-muted/58 p-4 text-sm font-semibold text-ink transition hover:text-aviation-teal" href={href}>
                 {label}
@@ -958,8 +962,8 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 }
 
 function getHeader(view: FleetOSClientProps["view"], mode: string) {
-  const common = { status: "HSV OS 0.2 / localStorage MVP" };
-  if (view === "dashboard") return { eyebrow: "HSV OS 0.2 Fleet", title: "Operational Fleet MVP with local persistence.", description: "CRUD, flight-hour recalculation, crew portal simulation, vessel inventory, and purchasing without backend services.", icon: Plane, ...common };
+  const common = { status: "HSV OS 0.3 / localStorage MVP" };
+  if (view === "dashboard") return { eyebrow: "HSV OS 0.3 Operations", title: "Campaigns, fleet, and digital twin MVP with local persistence.", description: "Campaigns, Digital Twin, Fleet CRUD, flight-hour recalculation, records, compliance, inventory, and purchasing without backend services.", icon: Plane, ...common };
   if (view.includes("helicopter")) return { eyebrow: "Fleet CRUD", title: mode === "edit" ? "Edit helicopter record." : view === "helicopter-form" ? "Create helicopter record." : "Manage helicopter registry records.", description: "All records are demo or user-entered local data until imported into a future backend.", icon: Plane, ...common };
   if (view.includes("vessel")) return { eyebrow: "Vessel CRUD", title: mode === "edit" ? "Edit vessel record." : view === "vessel-form" ? "Create vessel record." : "Manage vessel records and helicopter assignments.", description: "Assign helicopters to vessels using local mock state only.", icon: Anchor, ...common };
   if (view.includes("component")) return { eyebrow: "Component CRUD", title: mode === "edit" ? "Edit component record." : view === "component-form" ? "Create component record." : "Manage controlled component records.", description: "Component remaining life and status are calculated in the frontend MVP.", icon: Wrench, ...common };

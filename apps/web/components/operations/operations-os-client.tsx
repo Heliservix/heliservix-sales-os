@@ -1,0 +1,747 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  BookOpenCheck,
+  CalendarRange,
+  ClipboardCheck,
+  FileText,
+  GitBranch,
+  Plane,
+  Radar,
+  ShieldCheck
+} from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/fleet/page-header";
+import { Panel } from "@/components/ui/panel";
+import { StatusPill } from "@/components/ui/status-pill";
+import { demoDataPolicy } from "@/lib/fleet-data";
+import {
+  calculateCampaignStatus,
+  calculateComplianceStatus,
+  calculateDigitalTwinSummary,
+  campaignStatusTone,
+  complianceStatusTone,
+  createComplianceAlert,
+  fleetStorageKey,
+  generateId,
+  generateMaintenanceTimeline,
+  initialFleetStore,
+  technicalRecordLinkingSummary
+} from "@/lib/fleet-ops";
+import type {
+  Campaign,
+  CampaignStatus,
+  ComplianceItem,
+  ComplianceStatus,
+  FleetStore,
+  MaintenanceTimelineEvent,
+  TechnicalRecord
+} from "@/types/fleet";
+
+type OperationsView =
+  | "campaigns"
+  | "campaign-form"
+  | "campaign-detail"
+  | "digital-twin-list"
+  | "digital-twin-detail"
+  | "technical-records"
+  | "technical-record-form"
+  | "technical-record-detail"
+  | "compliance"
+  | "compliance-form"
+  | "compliance-detail"
+  | "compliance-alerts";
+
+type OperationsOSClientProps = {
+  view: OperationsView;
+  recordId?: string;
+  mode?: "create" | "edit";
+};
+
+const inputClass =
+  "h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted";
+const textareaClass =
+  "min-h-28 rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted";
+
+const text = (form: FormData, key: string) => String(form.get(key) ?? "");
+const active = <T extends { archived?: boolean }>(records: T[]) => records.filter((record) => !record.archived);
+
+export function OperationsOSClient({ view, recordId, mode = "create" }: OperationsOSClientProps) {
+  const [store, setStore] = useState<FleetStore>(() => {
+    if (typeof window === "undefined") return initialFleetStore();
+    const raw = window.localStorage.getItem(fleetStorageKey);
+    return raw ? { ...initialFleetStore(), ...JSON.parse(raw) } : initialFleetStore();
+  });
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    window.localStorage.setItem(fleetStorageKey, JSON.stringify(store));
+  }, [store]);
+
+  const helicopters = useMemo(() => active(store.helicopters), [store.helicopters]);
+  const vessels = useMemo(() => active(store.vessels), [store.vessels]);
+  const campaigns = useMemo(() => active(store.campaigns), [store.campaigns]);
+  const technicalRecords = useMemo(() => active(store.technicalRecords), [store.technicalRecords]);
+  const complianceItems = useMemo(() => active(store.complianceItems), [store.complianceItems]);
+  const components = useMemo(() => active(store.components), [store.components]);
+  const purchaseRequests = useMemo(() => active(store.purchaseRequests), [store.purchaseRequests]);
+
+  function updateStore(updater: (current: FleetStore) => FleetStore, success: string) {
+    setStore((current) => updater(current));
+    setMessage(success);
+  }
+
+  function archiveRecord(collection: "campaigns" | "technicalRecords" | "complianceItems", id: string) {
+    updateStore(
+      (current) => ({
+        ...current,
+        [collection]: current[collection].map((record) => record.id === id ? { ...record, archived: true } : record)
+      }),
+      "Record archived locally."
+    );
+  }
+
+  function saveCampaign(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const id = mode === "edit" && recordId ? recordId : generateId("camp");
+    const vesselId = text(form, "vesselId");
+    const vessel = vessels.find((item) => item.id === vesselId);
+    const record: Campaign = {
+      id,
+      code: text(form, "code"),
+      name: text(form, "name"),
+      clientFleetOwner: text(form, "clientFleetOwner"),
+      vesselId,
+      vesselName: vessel?.name ?? text(form, "vesselName"),
+      helicopterRegistration: text(form, "helicopterRegistration"),
+      pilot: text(form, "pilot"),
+      mechanic: text(form, "mechanic"),
+      startDate: text(form, "startDate"),
+      endDate: text(form, "endDate"),
+      operationArea: text(form, "operationArea"),
+      contractReference: text(form, "contractReference"),
+      status: calculateCampaignStatus({ ...emptyCampaign(), status: text(form, "status") as CampaignStatus, startDate: text(form, "startDate"), endDate: text(form, "endDate") }),
+      notes: text(form, "notes"),
+      source: "User"
+    };
+
+    updateStore((current) => ({
+      ...current,
+      campaigns: mode === "edit" ? current.campaigns.map((item) => item.id === id ? record : item) : [...current.campaigns, record],
+      helicopters: current.helicopters.map((helicopter) =>
+        helicopter.registration === record.helicopterRegistration
+          ? { ...helicopter, assignedVessel: record.vesselName, status: record.status === "Active" ? "In Campaign" : helicopter.status }
+          : helicopter
+      )
+    }), "Campaign saved locally and helicopter assignment preview updated.");
+  }
+
+  function saveTechnicalRecord(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const id = mode === "edit" && recordId ? recordId : generateId("tech");
+    const record: TechnicalRecord = {
+      id,
+      recordType: text(form, "recordType") as TechnicalRecord["recordType"],
+      relatedHelicopter: text(form, "relatedHelicopter"),
+      relatedComponentId: text(form, "relatedComponentId"),
+      relatedMaintenanceEvent: text(form, "relatedMaintenanceEvent"),
+      relatedCampaignId: text(form, "relatedCampaignId"),
+      relatedPurchaseId: text(form, "relatedPurchaseId"),
+      title: text(form, "title"),
+      recordDate: text(form, "recordDate"),
+      documentNumber: text(form, "documentNumber"),
+      notes: text(form, "notes"),
+      attachmentPlaceholder: text(form, "attachmentPlaceholder"),
+      source: "User"
+    };
+
+    updateStore((current) => ({
+      ...current,
+      technicalRecords: mode === "edit" ? current.technicalRecords.map((item) => item.id === id ? record : item) : [...current.technicalRecords, record]
+    }), "Technical record saved locally.");
+  }
+
+  function saveComplianceItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const id = mode === "edit" && recordId ? recordId : generateId("comp");
+    const item: ComplianceItem = {
+      id,
+      authority: text(form, "authority") as ComplianceItem["authority"],
+      complianceType: text(form, "complianceType") as ComplianceItem["complianceType"],
+      referenceNumber: text(form, "referenceNumber"),
+      title: text(form, "title"),
+      effectiveDate: text(form, "effectiveDate"),
+      dueDate: text(form, "dueDate"),
+      applicability: text(form, "applicability"),
+      relatedHelicopter: text(form, "relatedHelicopter"),
+      relatedComponentId: text(form, "relatedComponentId"),
+      status: calculateComplianceStatus({ ...emptyComplianceItem(), status: text(form, "status") as ComplianceStatus, dueDate: text(form, "dueDate") }),
+      notes: text(form, "notes"),
+      attachmentPlaceholder: text(form, "attachmentPlaceholder"),
+      source: "User"
+    };
+    const alert = createComplianceAlert(item);
+
+    updateStore((current) => ({
+      ...current,
+      complianceItems: mode === "edit" ? current.complianceItems.map((record) => record.id === id ? item : record) : [...current.complianceItems, item],
+      complianceAlerts: alert ? [...current.complianceAlerts.filter((record) => record.complianceItemId !== id), alert] : current.complianceAlerts
+    }), "Compliance item saved locally and alert status recalculated.");
+  }
+
+  const header = getHeader(view, mode);
+
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-[1500px]">
+        <PageHeader {...header} />
+        {message ? (
+          <div className="mb-5 rounded-lg border border-aviation-green/25 bg-aviation-green/10 px-4 py-3 text-sm font-medium text-aviation-green">
+            {message}
+          </div>
+        ) : null}
+        {renderView()}
+      </div>
+    </AppShell>
+  );
+
+  function renderView() {
+    if (view === "campaigns") return renderCampaigns();
+    if (view === "campaign-form") return renderCampaignForm(recordId);
+    if (view === "campaign-detail") return renderCampaignDetail(recordId);
+    if (view === "digital-twin-list") return renderDigitalTwinList();
+    if (view === "digital-twin-detail") return renderDigitalTwinDetail(recordId);
+    if (view === "technical-records") return renderTechnicalRecords();
+    if (view === "technical-record-form") return renderTechnicalRecordForm(recordId);
+    if (view === "technical-record-detail") return renderTechnicalRecordDetail(recordId);
+    if (view === "compliance") return renderCompliance();
+    if (view === "compliance-form") return renderComplianceForm(recordId);
+    if (view === "compliance-detail") return renderComplianceDetail(recordId);
+    return renderComplianceAlerts();
+  }
+
+  function renderCampaigns() {
+    const activeCampaigns = campaigns.filter((campaign) => calculateCampaignStatus(campaign) === "Active").length;
+    return (
+      <div className="grid gap-5">
+        <section className="grid gap-4 md:grid-cols-4">
+          <Metric label="Campaigns" value={String(campaigns.length)} tone="teal" detail="Local campaign records" />
+          <Metric label="Active" value={String(activeCampaigns)} tone="green" detail="Computed from status and dates" />
+          <Metric label="Linked Hours" value={campaignFlightHours(campaigns[0]?.id).toFixed(1)} tone="blue" detail="First campaign preview" />
+          <Metric label="Data Policy" value="Demo" tone="amber" detail="Unknown records stay non-operational" />
+        </section>
+        <Panel>
+          <ListHeader title="Campaigns" href="/campaigns/new" action="Create campaign" />
+          <Table headers={["Code", "Campaign", "Client / owner", "Vessel", "Helicopter", "Dates", "Status", "Source", "Actions"]}>
+            {campaigns.map((campaign) => (
+              <tr key={campaign.id}>
+                <Cell muted>{campaign.code}</Cell>
+                <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${campaign.id}`}>{campaign.name}</Link></Cell>
+                <Cell muted>{campaign.clientFleetOwner}</Cell>
+                <Cell muted>{campaign.vesselName}</Cell>
+                <Cell>{campaign.helicopterRegistration || "Unassigned"}</Cell>
+                <Cell muted>{campaign.startDate} to {campaign.endDate}</Cell>
+                <Cell><StatusPill tone={campaignStatusTone(calculateCampaignStatus(campaign))}>{calculateCampaignStatus(campaign)}</StatusPill></Cell>
+                <Cell><SourcePill source={campaign.source} /></Cell>
+                <Cell><Actions edit={`/campaigns/${campaign.id}/edit`} onArchive={() => archiveRecord("campaigns", campaign.id)} /></Cell>
+              </tr>
+            ))}
+          </Table>
+        </Panel>
+      </div>
+    );
+  }
+
+  function renderCampaignDetail(id?: string) {
+    const campaign = campaigns.find((item) => item.id === id);
+    if (!campaign) return <Empty title="Campaign not found" />;
+    const flightHours = campaignFlightHours(campaign.id);
+    const maintenanceEvents = store.maintenanceLogs.filter((event) => event.helicopterRegistration === campaign.helicopterRegistration);
+    const inventoryUsage = store.stockMovements.filter((movement) => movement.notes.includes(campaign.name) || movement.notes.includes(campaign.code));
+    const purchases = purchaseRequests.filter((request) => request.relatedCampaign === campaign.name || request.relatedCampaign === campaign.id);
+    const linkedRecords = technicalRecordLinkingSummary(store, { campaignId: campaign.id, helicopterRegistration: campaign.helicopterRegistration });
+    return (
+      <div className="grid gap-5">
+        <section className="grid gap-4 md:grid-cols-4">
+          <Metric label="Flight Hours" value={flightHours.toFixed(1)} tone="blue" detail="Linked by campaign name/code" />
+          <Metric label="Maintenance Events" value={String(maintenanceEvents.length)} tone="amber" detail="Helicopter-linked local logs" />
+          <Metric label="Technical Records" value={String(linkedRecords.length)} tone="teal" detail="Record graph preview" />
+          <Metric label="Future Profitability" value="Deferred" tone="neutral" detail="Finance is future scope" />
+        </section>
+        <Panel>
+          <ListHeader title={`${campaign.code} / ${campaign.name}`} href={`/campaigns/${campaign.id}/edit`} action="Edit campaign" />
+          <div className="grid gap-4 md:grid-cols-3">
+            <Info label="Assigned helicopter" value={campaign.helicopterRegistration || "Unassigned"} />
+            <Info label="Vessel" value={campaign.vesselName} />
+            <Info label="Status" value={calculateCampaignStatus(campaign)} />
+            <Info label="Pilot" value={campaign.pilot} />
+            <Info label="Mechanic" value={campaign.mechanic} />
+            <Info label="Contract" value={campaign.contractReference} />
+          </div>
+          <p className="mt-5 text-sm leading-6 text-ink-subtle">{campaign.notes}</p>
+        </Panel>
+        <section className="grid gap-5 lg:grid-cols-2">
+          <RelatedList title="Maintenance Events" items={maintenanceEvents.map((event) => `${event.date} / ${event.maintenanceType}`)} />
+          <RelatedList title="Inventory Usage" items={inventoryUsage.map((movement) => `${movement.date} / ${movement.movementType} / ${movement.quantity}`)} />
+          <RelatedList title="Purchases" items={purchases.map((request) => `${request.status} / ${request.itemName}`)} />
+          <RelatedList title="Technical Records" items={linkedRecords.map((record) => `${record.recordType} / ${record.title}`)} />
+        </section>
+      </div>
+    );
+  }
+
+  function renderCampaignForm(id?: string) {
+    const record = campaigns.find((item) => item.id === id);
+    return (
+      <FormShell onSubmit={saveCampaign}>
+        <Field name="code" label="Campaign name / code" defaultValue={record?.code ?? `HSV-CAMP-${new Date().getFullYear()}-`} />
+        <Field name="name" label="Campaign name" defaultValue={record?.name} />
+        <Field name="clientFleetOwner" label="Client or fleet owner" defaultValue={record?.clientFleetOwner} />
+        <Select name="vesselId" label="Vessel" defaultValue={record?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} />
+        <Select name="helicopterRegistration" label="Helicopter" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={["", ...helicopters.map((item) => item.registration)]} />
+        <Field name="pilot" label="Pilot" defaultValue={record?.pilot} />
+        <Field name="mechanic" label="Mechanic" defaultValue={record?.mechanic} />
+        <Field name="startDate" label="Start date" defaultValue={record?.startDate} />
+        <Field name="endDate" label="End date" defaultValue={record?.endDate} />
+        <Field name="operationArea" label="Country / operation area" defaultValue={record?.operationArea} />
+        <Field name="contractReference" label="Contract reference" defaultValue={record?.contractReference} />
+        <Select name="status" label="Status" defaultValue={record?.status ?? "Draft"} options={["Draft", "Planned", "Readiness Review", "Approved", "Active", "Suspended", "Completed", "Cancelled", "Archived"]} />
+        <TextArea name="notes" label="Notes" defaultValue={record?.notes} />
+      </FormShell>
+    );
+  }
+
+  function renderDigitalTwinList() {
+    return (
+      <div className="grid gap-5">
+        <section className="grid gap-4 md:grid-cols-3">
+          <Metric label="Digital Twins" value={String(helicopters.length)} tone="teal" detail="One operational profile per helicopter" />
+          <Metric label="Open Compliance" value={String(complianceItems.filter((item) => !["Complied", "Not applicable"].includes(calculateComplianceStatus(item))).length)} tone="amber" detail="Applies to fleet readiness" />
+          <Metric label="Timeline Events" value={String(helicopters.reduce((sum, helicopter) => sum + generateMaintenanceTimeline(store, helicopter.registration).length, 0))} tone="blue" detail="Generated from local state" />
+        </section>
+        <Panel>
+          <h2 className="mb-4 text-lg font-semibold text-ink">Helicopter Digital Twins</h2>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {helicopters.map((helicopter) => {
+              const summary = calculateDigitalTwinSummary(store, helicopter.registration);
+              return (
+                <Link key={helicopter.registration} className="rounded-lg border border-line bg-canvas-muted/58 p-4 transition hover:border-aviation-teal" href={`/digital-twin/${helicopter.registration}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-ink">{helicopter.registration}</p>
+                    <StatusPill tone={helicopter.status === "Grounded" ? "red" : helicopter.status === "Maintenance" ? "amber" : "teal"}>{helicopter.status}</StatusPill>
+                  </div>
+                  <p className="mt-2 text-sm text-ink-subtle">{helicopter.model} / {helicopter.currentHourmeter.toFixed(1)} hrs</p>
+                  <p className="mt-3 text-xs font-semibold uppercase text-ink-muted">{summary?.installedComponents ?? 0} components / {summary?.openAlerts ?? 0} open alerts</p>
+                </Link>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  function renderDigitalTwinDetail(registration?: string) {
+    const summary = registration ? calculateDigitalTwinSummary(store, registration) : undefined;
+    if (!summary) return <Empty title="Digital twin not found" />;
+    const { helicopter } = summary;
+    return (
+      <div className="grid gap-5">
+        <section className="grid gap-4 md:grid-cols-4">
+          <Metric label="Hourmeter" value={helicopter.currentHourmeter.toFixed(1)} tone="blue" detail="Current local value" />
+          <Metric label="Components" value={String(summary.installedComponents)} tone="teal" detail={`${summary.criticalComponents} critical or expired`} />
+          <Metric label="Open Alerts" value={String(summary.openAlerts)} tone="amber" detail="Maintenance alert count" />
+          <Metric label="Compliance" value={String(summary.complianceOpenCount)} tone={summary.complianceOpenCount ? "red" : "green"} detail="Open compliance items" />
+        </section>
+        <Panel>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{helicopter.registration} Digital Twin</h2>
+              <p className="mt-1 text-sm text-ink-subtle">{helicopter.model} / serial {helicopter.serialNumber}</p>
+            </div>
+            <SourcePill source={helicopter.source} />
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <Info label="Operational status" value={helicopter.status} />
+            <Info label="Assigned vessel" value={summary.assignedVessel?.name ?? helicopter.assignedVessel ?? "Unassigned"} />
+            <Info label="Active campaign" value={summary.activeCampaign?.name ?? "None"} />
+            <Info label="Flight history" value={`${summary.totalFlightHours.toFixed(1)} linked hours`} />
+            <Info label="Campaign history" value={`${summary.campaignCount} campaigns`} />
+            <Info label="Technical records" value={`${summary.technicalRecordCount} records`} />
+          </div>
+        </Panel>
+        <section className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+          <Panel>
+            <h2 className="mb-4 text-lg font-semibold text-ink">Summary</h2>
+            <div className="grid gap-3">
+              <Info label="Installed component summary" value={`${summary.installedComponents} active components`} />
+              <Info label="Forecasted due items" value={`${summary.forecastedDueItems} forecasted events`} />
+              <Info label="Technical records summary" value={`${summary.technicalRecordCount} linked records`} />
+              <Info label="Compliance status summary" value={summary.complianceOpenCount ? `${summary.complianceOpenCount} open items` : "No open local items"} />
+            </div>
+          </Panel>
+          <TimelinePreview events={summary.timeline} />
+        </section>
+      </div>
+    );
+  }
+
+  function renderTechnicalRecords() {
+    return (
+      <Panel>
+        <ListHeader title="Technical Records" href="/technical-records/new" action="Create record" />
+        <Table headers={["Type", "Title", "Helicopter", "Campaign", "Date", "Document", "Source", "Actions"]}>
+          {technicalRecords.map((record) => (
+            <tr key={record.id}>
+              <Cell>{record.recordType}</Cell>
+              <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/technical-records/${record.id}`}>{record.title}</Link></Cell>
+              <Cell muted>{record.relatedHelicopter || "None"}</Cell>
+              <Cell muted>{campaigns.find((campaign) => campaign.id === record.relatedCampaignId)?.name ?? "None"}</Cell>
+              <Cell muted>{record.recordDate}</Cell>
+              <Cell muted>{record.documentNumber}</Cell>
+              <Cell><SourcePill source={record.source} /></Cell>
+              <Cell><Actions edit={`/technical-records/${record.id}/edit`} onArchive={() => archiveRecord("technicalRecords", record.id)} /></Cell>
+            </tr>
+          ))}
+        </Table>
+      </Panel>
+    );
+  }
+
+  function renderTechnicalRecordDetail(id?: string) {
+    const record = technicalRecords.find((item) => item.id === id);
+    if (!record) return <Empty title="Technical record not found" />;
+    return (
+      <Panel>
+        <ListHeader title={record.title} href={`/technical-records/${record.id}/edit`} action="Edit record" />
+        <div className="grid gap-4 md:grid-cols-3">
+          <Info label="Record type" value={record.recordType} />
+          <Info label="Related helicopter" value={record.relatedHelicopter || "None"} />
+          <Info label="Related component" value={components.find((component) => component.id === record.relatedComponentId)?.componentName ?? "None"} />
+          <Info label="Related campaign" value={campaigns.find((campaign) => campaign.id === record.relatedCampaignId)?.name ?? "None"} />
+          <Info label="Related purchase" value={purchaseRequests.find((purchase) => purchase.id === record.relatedPurchaseId)?.itemName ?? "None"} />
+          <Info label="Document number" value={record.documentNumber} />
+        </div>
+        <p className="mt-5 text-sm leading-6 text-ink-subtle">{record.notes}</p>
+        <p className="mt-3 text-sm font-medium text-ink">Attachment placeholder: {record.attachmentPlaceholder || "None"}</p>
+      </Panel>
+    );
+  }
+
+  function renderTechnicalRecordForm(id?: string) {
+    const record = technicalRecords.find((item) => item.id === id);
+    return (
+      <FormShell onSubmit={saveTechnicalRecord}>
+        <Select name="recordType" label="Record type" defaultValue={record?.recordType ?? "8130"} options={["8130", "Logbook page", "Work order", "Invoice", "Photo", "Certificate", "Release to service", "Inspection", "Other"]} />
+        <Select name="relatedHelicopter" label="Related helicopter" defaultValue={record?.relatedHelicopter ?? ""} options={["", ...helicopters.map((item) => item.registration)]} />
+        <Select name="relatedComponentId" label="Related component" defaultValue={record?.relatedComponentId ?? ""} options={["", ...components.map((item) => item.id)]} />
+        <Field name="relatedMaintenanceEvent" label="Related maintenance event" defaultValue={record?.relatedMaintenanceEvent} />
+        <Select name="relatedCampaignId" label="Related campaign" defaultValue={record?.relatedCampaignId ?? ""} options={["", ...campaigns.map((item) => item.id)]} />
+        <Select name="relatedPurchaseId" label="Related purchase" defaultValue={record?.relatedPurchaseId ?? ""} options={["", ...purchaseRequests.map((item) => item.id)]} />
+        <Field name="title" label="Title" defaultValue={record?.title} />
+        <Field name="recordDate" label="Date" defaultValue={record?.recordDate ?? new Date().toISOString().slice(0, 10)} />
+        <Field name="documentNumber" label="Document number" defaultValue={record?.documentNumber} />
+        <Field name="attachmentPlaceholder" label="Attachment placeholder" defaultValue={record?.attachmentPlaceholder} />
+        <TextArea name="notes" label="Notes" defaultValue={record?.notes} />
+      </FormShell>
+    );
+  }
+
+  function renderCompliance() {
+    return (
+      <Panel>
+        <ListHeader title="Compliance Items" href="/compliance/new" action="Create compliance item" />
+        <Table headers={["Authority", "Type", "Reference", "Title", "Helicopter", "Due date", "Status", "Source", "Actions"]}>
+          {complianceItems.map((item) => (
+            <tr key={item.id}>
+              <Cell>{item.authority}</Cell>
+              <Cell muted>{item.complianceType}</Cell>
+              <Cell muted>{item.referenceNumber}</Cell>
+              <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/compliance/${item.id}`}>{item.title}</Link></Cell>
+              <Cell muted>{item.relatedHelicopter || "Fleet"}</Cell>
+              <Cell muted>{item.dueDate}</Cell>
+              <Cell><StatusPill tone={complianceStatusTone(calculateComplianceStatus(item))}>{calculateComplianceStatus(item)}</StatusPill></Cell>
+              <Cell><SourcePill source={item.source} /></Cell>
+              <Cell><Actions edit={`/compliance/${item.id}/edit`} onArchive={() => archiveRecord("complianceItems", item.id)} /></Cell>
+            </tr>
+          ))}
+        </Table>
+      </Panel>
+    );
+  }
+
+  function renderComplianceDetail(id?: string) {
+    const item = complianceItems.find((record) => record.id === id);
+    if (!item) return <Empty title="Compliance item not found" />;
+    return (
+      <Panel>
+        <ListHeader title={`${item.complianceType} / ${item.referenceNumber}`} href={`/compliance/${item.id}/edit`} action="Edit item" />
+        <div className="grid gap-4 md:grid-cols-3">
+          <Info label="Authority/source" value={item.authority} />
+          <Info label="Status" value={calculateComplianceStatus(item)} />
+          <Info label="Due date" value={item.dueDate} />
+          <Info label="Effective date" value={item.effectiveDate} />
+          <Info label="Related helicopter" value={item.relatedHelicopter || "Fleet"} />
+          <Info label="Related component" value={components.find((component) => component.id === item.relatedComponentId)?.componentName ?? "None"} />
+        </div>
+        <p className="mt-5 text-sm leading-6 text-ink-subtle">{item.applicability}</p>
+        <p className="mt-3 text-sm leading-6 text-ink-subtle">{item.notes}</p>
+        <p className="mt-3 text-sm font-medium text-ink">Attachment placeholder: {item.attachmentPlaceholder || "None"}</p>
+      </Panel>
+    );
+  }
+
+  function renderComplianceForm(id?: string) {
+    const item = complianceItems.find((record) => record.id === id);
+    return (
+      <FormShell onSubmit={saveComplianceItem}>
+        <Select name="authority" label="Authority/source" defaultValue={item?.authority ?? "Robinson"} options={["AAC Panama", "DGAC Ecuador", "FAA", "Robinson", "Other"]} />
+        <Select name="complianceType" label="Type" defaultValue={item?.complianceType ?? "SB"} options={["AD", "SB", "Service Letter", "Manual Revision", "Operational Requirement", "Life Limit"]} />
+        <Field name="referenceNumber" label="Reference number" defaultValue={item?.referenceNumber} />
+        <Field name="title" label="Title" defaultValue={item?.title} />
+        <Field name="effectiveDate" label="Effective date" defaultValue={item?.effectiveDate} />
+        <Field name="dueDate" label="Due date" defaultValue={item?.dueDate} />
+        <Select name="relatedHelicopter" label="Related helicopter" defaultValue={item?.relatedHelicopter ?? ""} options={["", ...helicopters.map((record) => record.registration)]} />
+        <Select name="relatedComponentId" label="Related component" defaultValue={item?.relatedComponentId ?? ""} options={["", ...components.map((record) => record.id)]} />
+        <Select name="status" label="Status" defaultValue={item?.status ?? "Not reviewed"} options={["Not reviewed", "Applicable", "Not applicable", "In progress", "Complied", "Overdue"]} />
+        <Field name="attachmentPlaceholder" label="Attachment placeholder" defaultValue={item?.attachmentPlaceholder} />
+        <TextArea name="applicability" label="Applicability" defaultValue={item?.applicability} />
+        <TextArea name="notes" label="Notes" defaultValue={item?.notes} />
+      </FormShell>
+    );
+  }
+
+  function renderComplianceAlerts() {
+    const alerts = store.complianceAlerts.filter((alert) => alert.status !== "Resolved");
+    return (
+      <Panel>
+        <h2 className="mb-4 text-lg font-semibold text-ink">Compliance Alerts</h2>
+        <div className="grid gap-3">
+          {alerts.map((alert) => {
+            const item = store.complianceItems.find((record) => record.id === alert.complianceItemId);
+            return (
+              <div key={alert.id} className="rounded-lg border border-line bg-canvas-muted/58 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill tone={alert.severity === "Critical" ? "red" : alert.severity === "Monitor" ? "amber" : "blue"}>{alert.severity}</StatusPill>
+                  <StatusPill tone="neutral">{alert.relatedHelicopter || "Fleet"}</StatusPill>
+                  <SourcePill source={alert.source} />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-ink">{item?.referenceNumber ?? "Compliance alert"} / {item?.title}</p>
+                <p className="mt-2 text-sm leading-6 text-ink-subtle">{alert.description}</p>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+    );
+  }
+
+  function campaignFlightHours(campaignId?: string) {
+    const campaign = campaigns.find((item) => item.id === campaignId);
+    if (!campaign) return 0;
+    return store.flightLogs
+      .filter((log) => log.campaign === campaign.name || log.campaign === campaign.code || log.helicopterRegistration === campaign.helicopterRegistration)
+      .reduce((sum, log) => sum + log.flightHours, 0);
+  }
+}
+
+function getHeader(view: OperationsView, mode: string) {
+  const common = { status: "HSV OS 0.3 / localStorage MVP" };
+  if (view.includes("campaign")) return { eyebrow: "Campaigns", title: mode === "edit" ? "Edit campaign." : view === "campaign-form" ? "Create campaign." : "Manage helicopter deployments within tuna-vessel campaigns.", description: "Campaigns connect client, vessel, contract, helicopter, crew, maintenance, inventory, purchasing, records, compliance, and future profitability.", icon: CalendarRange, ...common };
+  if (view.includes("digital")) return { eyebrow: "Digital Twin", title: "Helicopter operational truth profile.", description: "Digital twins summarize status, components, alerts, campaign history, records, compliance, forecast, and timeline from local state.", icon: GitBranch, ...common };
+  if (view.includes("technical")) return { eyebrow: "Technical Records", title: mode === "edit" ? "Edit technical record." : view === "technical-record-form" ? "Create technical record." : "Manage linked aviation evidence.", description: "Records link to helicopters, components, maintenance events, campaigns, purchases, and future compliance proof.", icon: FileText, ...common };
+  if (view === "compliance-alerts") return { eyebrow: "Compliance Alerts", title: "Review compliance exposure by aircraft and operation.", description: "Alerts are local decision-support placeholders until backend compliance workflows are implemented.", icon: ShieldCheck, ...common };
+  return { eyebrow: "Compliance", title: mode === "edit" ? "Edit compliance item." : view === "compliance-form" ? "Create compliance item." : "Track regulatory and manufacturer requirements.", description: "AAC Panama, DGAC Ecuador, FAA references, Robinson bulletins, manual revisions, and life-limit compliance are modeled as operational readiness inputs.", icon: ShieldCheck, ...common };
+}
+
+function emptyCampaign(): Campaign {
+  return {
+    id: "",
+    code: "",
+    name: "",
+    clientFleetOwner: "",
+    vesselId: "",
+    vesselName: "",
+    helicopterRegistration: "",
+    pilot: "",
+    mechanic: "",
+    startDate: "",
+    endDate: "",
+    operationArea: "",
+    contractReference: "",
+    status: "Draft",
+    notes: ""
+  };
+}
+
+function emptyComplianceItem(): ComplianceItem {
+  return {
+    id: "",
+    authority: "Other",
+    complianceType: "Operational Requirement",
+    referenceNumber: "",
+    title: "",
+    effectiveDate: "",
+    dueDate: "",
+    applicability: "",
+    status: "Not reviewed",
+    notes: "",
+    attachmentPlaceholder: ""
+  };
+}
+
+function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
+  return (
+    <Panel>
+      <StatusPill tone={tone}>{label}</StatusPill>
+      <p className="mt-4 text-3xl font-semibold text-ink">{value}</p>
+      <p className="mt-2 text-sm text-ink-subtle">{detail}</p>
+    </Panel>
+  );
+}
+
+function ListHeader({ title, href, action }: { title: string; href: string; action: string }) {
+  return (
+    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+        <p className="mt-1 text-sm text-ink-subtle">{demoDataPolicy}</p>
+      </div>
+      <Link className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href={href}>
+        {action}
+      </Link>
+    </div>
+  );
+}
+
+function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-line">
+      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+        <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{header}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function Cell({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
+  return <td className={["px-4 py-3", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
+}
+
+function Actions({ edit, onArchive }: { edit: string; onArchive: () => void }) {
+  return (
+    <div className="flex gap-3">
+      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>Edit</Link>
+      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">Archive</button>
+    </div>
+  );
+}
+
+function FormShell({ children, onSubmit }: { children: React.ReactNode; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <Panel>
+      <form onSubmit={onSubmit}>
+        <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+        <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-ink-subtle">Frontend-only localStorage save. No backend, auth, database, or external service is connected.</p>
+          <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
+            Save locally
+          </button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+function Field({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | number }) {
+  return (
+    <label className="grid gap-2 text-sm font-medium text-ink">
+      {label}
+      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} />
+    </label>
+  );
+}
+
+function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string }) {
+  return (
+    <label className="grid gap-2 text-sm font-medium text-ink sm:col-span-2">
+      {label}
+      <textarea className={textareaClass} name={name} defaultValue={defaultValue ?? ""} />
+    </label>
+  );
+}
+
+function Select({ name, label, options, defaultValue }: { name: string; label: string; options: string[]; defaultValue?: string }) {
+  return (
+    <label className="grid gap-2 text-sm font-medium text-ink">
+      {label}
+      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""}>
+        {options.map((option) => <option key={option} value={option}>{option || "None"}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-line bg-canvas-muted/58 p-4">
+      <p className="text-xs font-semibold uppercase text-ink-muted">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-ink">{value || "None"}</p>
+    </div>
+  );
+}
+
+function SourcePill({ source }: { source?: "Demo" | "User" }) {
+  return <StatusPill tone={source === "User" ? "green" : "amber"}>{source ?? "Demo"}</StatusPill>;
+}
+
+function RelatedList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <Panel>
+      <h2 className="mb-4 text-lg font-semibold text-ink">{title}</h2>
+      {items.length ? (
+        <div className="grid gap-2">
+          {items.map((item) => <p key={item} className="rounded-lg border border-line bg-canvas-muted/58 px-3 py-2 text-sm text-ink-subtle">{item}</p>)}
+        </div>
+      ) : <p className="text-sm text-ink-subtle">No local records linked yet.</p>}
+    </Panel>
+  );
+}
+
+function TimelinePreview({ events }: { events: MaintenanceTimelineEvent[] }) {
+  return (
+    <Panel>
+      <h2 className="mb-4 text-lg font-semibold text-ink">Maintenance Timeline Preview</h2>
+      <div className="grid gap-3">
+        {events.slice(0, 8).map((event) => (
+          <div key={event.id} className="rounded-lg border border-line bg-canvas-muted/58 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={event.severity === "Critical" ? "red" : event.severity === "Monitor" ? "amber" : "blue"}>{event.eventType}</StatusPill>
+              {event.forecasted ? <StatusPill tone="neutral">Forecasted</StatusPill> : null}
+              <SourcePill source={event.source} />
+            </div>
+            <p className="mt-3 text-sm font-semibold text-ink">{event.eventDate} / {event.title}</p>
+            <p className="mt-2 text-sm leading-6 text-ink-subtle">{event.description}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function Empty({ title }: { title: string }) {
+  return (
+    <Panel>
+      <p className="text-sm font-semibold text-ink">{title}</p>
+      <p className="mt-2 text-sm text-ink-subtle">The local record was not found. It may have been archived or removed from localStorage.</p>
+    </Panel>
+  );
+}
