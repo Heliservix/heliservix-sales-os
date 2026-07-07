@@ -4,7 +4,7 @@
 
 Build a modular SaaS platform that can start as a focused HeliServiX commercial system and grow into a multi-operation commercial intelligence product for helicopter companies across Latin America.
 
-The architecture should keep the commercial domain, aviation operations context, intelligence workflows, automation, and AI assistant separated enough to evolve independently while sharing one governed data model.
+The architecture should keep the commercial domain, fleet and maintenance operations, intelligence workflows, automation, and AI assistant separated enough to evolve independently while sharing one governed data model.
 
 ## Recommended Repository Architecture
 
@@ -28,7 +28,7 @@ No application framework is selected yet. The foundation should remain technolog
 
 ### Web Application
 
-The web application will serve authenticated users through role-based navigation. It should provide commercial workspace views, account intelligence, opportunity boards, contract records, aircraft readiness summaries, document management, campaign approvals, assistant chat, dashboards, and report exports.
+The web application will serve authenticated users through role-based navigation. It should provide commercial workspace views, account intelligence, opportunity boards, contract records, multi-helicopter fleet readiness, component-control views, maintenance forecasts, document management, campaign approvals, assistant chat, dashboards, and report exports.
 
 ### API Application
 
@@ -36,11 +36,11 @@ The API owns authentication enforcement, tenant isolation, domain validation, wo
 
 ### Database
 
-The database is the system of record for tenants, users, companies, owners, vessels, contacts, opportunities, contracts, helicopters, maintenance events, documents, intelligence items, campaigns, assistant sessions, audit logs, dashboards, and reports.
+The database is the system of record for tenants, users, companies, owners, vessels, contacts, opportunities, contracts, helicopters, components, flight logs, maintenance events, maintenance alerts, replacement history, overhaul plans, reserve plans, documents, intelligence items, campaigns, assistant sessions, audit logs, dashboards, and reports.
 
 ### Background Workers
 
-Background workers should handle email sending, scheduled follow-ups, intelligence ingestion, document processing, report generation, AI summarization jobs, and integration retries. These jobs must be idempotent and auditable.
+Background workers should handle email sending, scheduled follow-ups, intelligence ingestion, document processing, report generation, AI summarization jobs, flight-hour recalculation, maintenance alert generation, maintenance forecast refreshes, reserve accrual updates, and integration retries. These jobs must be idempotent and auditable.
 
 ### Integration Layer
 
@@ -62,9 +62,9 @@ Manages tenants, operations, users, roles, permissions, invitations, sessions, a
 
 Manages companies, fleet owners, contacts, vessels, opportunities, interactions, tasks, and contracts.
 
-### Aviation Operations Context
+### Fleet & Maintenance Operations
 
-Manages helicopters, availability windows, maintenance status, operational constraints, pilot/mechanic assignment references, and document readiness.
+Manages multiple helicopters, aircraft registry, current Hobbs/hourmeter, component control, TSN, TSO, life limits, calendar limits, status calculation, flight-hour logging by campaign, maintenance alerts, maintenance forecast, component replacement history, overhaul planning, maintenance reserve planning, operational constraints, pilot/mechanic assignment references, and document readiness.
 
 ### Market Intelligence
 
@@ -94,6 +94,9 @@ Manages saved dashboard definitions, metrics, exports, scheduled reports, and ex
 - Email sends require approved templates, approved recipients, and suppression checks.
 - Contract updates must preserve history and audit metadata.
 - Operational feasibility signals must be derived from aircraft and maintenance records, not typed casually into opportunity notes.
+- Flight logs are authoritative operating events. Approved flight logs must recalculate helicopter totals, component remaining hours, component status, maintenance alerts, reserve accrual, and campaign feasibility.
+- Component status must be derived from hour and calendar rules. Manual status overrides require reason, approval, expiration, and audit history.
+- Workbook imports must separate opening balances from ongoing flight-ledger events. Imported TSN, TSO, life limits, calendar limits, and status criteria initialize the aircraft/component state; future changes come from approved flight logs, replacements, inspections, and maintenance events.
 
 ## Multi-Tenant Strategy
 
@@ -106,12 +109,13 @@ Recommended baseline:
 - Tenant-aware background jobs.
 - Tenant-specific email identities and templates.
 - Tenant-scoped document storage prefixes.
+- Tenant-scoped helicopter registries, component ledgers, maintenance thresholds, reserve assumptions, and forecast rules.
 
 ## API Design Principles
 
 - Resource APIs should be predictable and versioned.
 - Mutations should validate domain rules server-side.
-- High-risk actions require explicit commands: send campaign, approve draft, update contract status, archive intelligence, generate proposal.
+- High-risk actions require explicit commands: send campaign, approve draft, update contract status, archive intelligence, generate proposal, approve flight log, replace component, override maintenance status, and publish maintenance forecast.
 - Bulk imports must run through preview, validation, approval, and commit phases.
 - Every important mutation must write an audit event.
 
@@ -128,5 +132,6 @@ Production must include structured logs, request IDs, job IDs, audit events, met
 - File storage provider.
 - Email provider.
 - AI provider and retrieval architecture.
+- Maintenance threshold policy, flight-hour posting rules, and component import mapping from `Control Maestro`, `Resumen Ejecutivo`, and `Leyenda` in the component-control workbook.
 - Hosting platform and deployment strategy.
 - Analytics and observability stack.

@@ -10,6 +10,7 @@ The CRM must answer four questions for every account:
 2. Which vessels and ports matter commercially?
 3. What helicopter service opportunity exists?
 4. Can HeliServiX deliver the service safely, profitably, and on time?
+5. Which helicopter or helicopters can support the campaign without violating component-life, calendar-life, maintenance, or reserve constraints?
 
 ## Core Records
 
@@ -93,6 +94,10 @@ Required fields:
 - Next action and due date.
 - Commercial owner.
 - Operational feasibility status.
+- Candidate helicopter or fleet assignment.
+- Required campaign hours.
+- Maintenance forecast impact.
+- Maintenance reserve estimate.
 - Linked intelligence.
 
 ### Contracts
@@ -108,6 +113,9 @@ Required capabilities:
 - Tiered rate model.
 - Exclusions for fuel, oils, port fees, special logistics, and other pass-through costs.
 - Aircraft and crew assumptions.
+- Selected helicopter or fleet pool.
+- Maintenance feasibility approval.
+- Reserve cost assumption.
 - Status and renewal signal.
 - Document versions.
 
@@ -125,6 +133,8 @@ Suggested factors:
 - Contract timing.
 - Relationship strength.
 - Operational feasibility.
+- Helicopter availability and component-life constraints.
+- Maintenance reserve exposure.
 - Expected value.
 - Probability of response.
 
@@ -170,3 +180,5 @@ Timeline events must be filterable by type and visible from company, contact, ve
 - Lost opportunities require a loss reason.
 - Won opportunities should create or link a contract.
 - Operational review is required before marking a high-value opportunity ready for contract.
+- Opportunities that consume helicopter hours must request a Fleet & Maintenance Operations feasibility signal before proposal release.
+- Commercial users should see clear OK, Monitor, Critical, or Expired-derived feasibility guidance without being able to alter technical component records.

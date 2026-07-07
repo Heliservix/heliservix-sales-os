@@ -2,7 +2,7 @@
 
 ## Security Objective
 
-Protect commercial relationships, contact data, contracts, aircraft records, documents, AI context, and tenant separation. The platform will handle sensitive business information even when it does not process regulated financial or medical data.
+Protect commercial relationships, contact data, contracts, aircraft records, component-control records, flight logs, maintenance forecasts, reserve assumptions, documents, AI context, and tenant separation. The platform will handle sensitive business information even when it does not process regulated financial or medical data.
 
 ## Security Principles
 
@@ -37,6 +37,7 @@ Role-based access control should cover:
 - Sales user.
 - Operations manager.
 - Maintenance coordinator.
+- Maintenance approver.
 - Analyst.
 - Document manager.
 - Read-only viewer.
@@ -49,6 +50,10 @@ Sensitive permissions:
 - Approve AI-generated external text.
 - Modify contracts.
 - Modify aircraft or maintenance records.
+- Approve flight logs.
+- Replace controlled components.
+- Override computed maintenance status.
+- View maintenance reserve assumptions.
 - View confidential documents.
 - Delete or archive records.
 - Configure integrations.
@@ -75,6 +80,9 @@ Data categories:
 - Commercial pipeline data.
 - Contract and pricing data.
 - Aircraft and maintenance data.
+- Component serial numbers, life limits, and replacement history.
+- Flight logs and campaign-hour ledgers.
+- Maintenance reserve assumptions.
 - Documents.
 - AI conversation data.
 - Audit logs.
@@ -122,6 +130,11 @@ Audit events should include:
 - Permission changes.
 - Record creation, update, archive, and restore.
 - Contract status changes.
+- Helicopter meter-reading changes.
+- Flight-log creation, approval, correction, and reversal.
+- Component installation, removal, replacement, and overhaul status changes.
+- Maintenance alert acknowledgement, override, and resolution.
+- Maintenance reserve policy changes.
 - Document upload, download, and version changes.
 - Email approval and send events.
 - AI-generated draft approval and application.
@@ -176,6 +189,9 @@ Minimum incident process:
 - Dependency scanning.
 - Email suppression tests.
 - AI context isolation tests.
+- Flight-log approval and correction tests.
+- Component status override tests.
+- Cross-tenant fleet-maintenance isolation tests.
 - Document access tests.
 - Audit event verification.
 - Backup and restore validation.

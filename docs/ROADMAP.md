@@ -15,7 +15,7 @@ Deliverables:
 - Domain architecture documentation.
 - Initial database design.
 - CRM schema and workbook alignment.
-- Security, deployment, AI, and email automation strategy.
+- Security, deployment, AI, fleet-maintenance, and email automation strategy.
 
 Exit criteria:
 
@@ -41,23 +41,36 @@ Exit criteria:
 - A commercial director can manage active accounts and opportunities without relying on the spreadsheet as the primary system.
 - Every opportunity has a linked company, contact, vessel context when available, stage, value estimate, and next action.
 
-## Phase 2: Helicopter Operations Context
+## Phase 2: Fleet & Maintenance Operations Foundation
 
-Goal: connect commercial promises to aircraft readiness and operating constraints.
+Goal: make the platform multi-helicopter from day one and connect commercial promises to aircraft readiness, component life, maintenance forecast, and reserve planning.
 
 Deliverables:
 
 - Helicopter registry.
+- Current Hobbs and hourmeter tracking.
+- Component-control model per helicopter.
+- Component part number, serial number, position, installation date, TSN, TSO, life-limit hours, remaining hours, calendar life limit, and remaining calendar time.
+- Status calculation for OK, Monitor, Critical, and Expired, starting from the workbook's OK/MONITOREAR/CRÍTICO criteria.
+- Import mapping for `Control Maestro`, `Resumen Ejecutivo`, and `Leyenda` from the component-control workbook.
+- Flight-hour logging by helicopter and campaign.
+- Automatic remaining-hour recalculation after approved flight logs.
+- Maintenance alerts by hours and calendar.
+- Maintenance forecast.
+- Component replacement history.
+- Overhaul planning.
+- Maintenance reserve planning.
 - Availability windows.
-- Maintenance event tracking.
 - Aircraft document readiness.
 - Contract operational feasibility indicators.
 - Alerts for conflicts between sales commitments and aircraft availability.
 
 Exit criteria:
 
+- Operations users can maintain multiple helicopter records and component ledgers.
+- Maintenance users can see hour-based and calendar-based component status without spreadsheet recalculation.
 - Commercial users can see whether a proposed campaign is operationally feasible before committing.
-- Leadership can distinguish high-value opportunities from deliverable opportunities.
+- Leadership can distinguish high-value opportunities from deliverable opportunities and understand maintenance reserve exposure.
 
 ## Phase 3: Market Intelligence System
 
@@ -123,7 +136,7 @@ Deliverables:
 - Proposal and contract document generation.
 - Versioned document metadata.
 - Scheduled reports.
-- Executive dashboards for pipeline, contract exposure, aircraft commitment, campaign performance, and intelligence alerts.
+- Executive dashboards for pipeline, contract exposure, fleet commitment, component constraints, maintenance reserve exposure, campaign performance, and intelligence alerts.
 
 Exit criteria:
 
@@ -137,11 +150,11 @@ Goal: support multiple helicopter operations across Latin America.
 Deliverables:
 
 - Tenant administration.
-- Operation-specific branding, email identities, templates, and aircraft records.
+- Operation-specific branding, email identities, templates, aircraft records, component thresholds, maintenance reserve policies, and forecast rules.
 - Fine-grained role permissions.
 - Cross-operation platform administration.
 - Scalable billing and subscription support if commercialized externally.
-- Regional reporting by country, operation, fleet category, and aircraft type.
+- Regional reporting by country, operation, fleet category, aircraft type, campaign hours, maintenance exposure, and aircraft availability.
 
 Exit criteria:
 

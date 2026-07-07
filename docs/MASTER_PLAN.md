@@ -8,7 +8,7 @@ The platform is built around a narrow, high-value operating model: commercial te
 
 ## Strategic Objective
 
-Create a commercial operating system that helps helicopter operators identify the best tuna fleet opportunities, manage relationships, prepare compliant proposals, track contracts, understand market movement, and coordinate commercial commitments with helicopter availability and maintenance reality.
+Create a commercial operating system that helps helicopter operators identify the best tuna fleet opportunities, manage relationships, prepare compliant proposals, track contracts, understand market movement, and coordinate commercial commitments with multi-helicopter fleet availability and maintenance reality.
 
 The first business line is HeliServiX support for tuna purse seine vessels in Latin America. The architecture must allow future helicopter operations, territories, aircraft, and commercial teams to run from the same platform with strict data separation.
 
@@ -27,9 +27,9 @@ The first business line is HeliServiX support for tuna purse seine vessels in La
 
 The platform maintains structured records for companies, fleet owners, vessels, contacts, opportunities, contracts, and interactions. It must support ownership chains, operating companies, vessel-level metadata, market events, and commercial priority scoring.
 
-### Helicopter Operations Context
+### Fleet & Maintenance Operations
 
-Commercial workflows must understand helicopter inventory, maintenance status, availability windows, operating limitations, document readiness, and assigned personnel. A contract cannot be evaluated only as a sales opportunity; it must be evaluated as a delivery commitment.
+Commercial workflows must understand a fleet of helicopters from day one, not only HP1804. The platform must manage helicopter registry records, model and serial data, current Hobbs or hourmeter, component control, TSN, TSO, life limits, remaining hours, calendar limits, maintenance alerts, flight-hour logging by campaign, replacement history, overhaul planning, maintenance reserve planning, operating limitations, document readiness, and assigned personnel. A contract cannot be evaluated only as a sales opportunity; it must be evaluated as a delivery commitment against real aircraft and component constraints.
 
 ### Market Intelligence
 
@@ -49,7 +49,7 @@ Dashboards must serve executives, commercial teams, operations, and analysts. Re
 
 ## Product Boundaries
 
-The first product should not become a full aviation maintenance management system, accounting platform, payroll platform, or vessel tracking platform. It should integrate with specialized systems when needed and maintain enough operational context to protect commercial decision quality.
+The first product should not become a certified maintenance record system, accounting platform, payroll platform, or vessel tracking platform. It should integrate with specialized systems when needed and maintain enough fleet, component, and maintenance-planning context to protect commercial decision quality.
 
 The platform should not scrape or store sensitive personal data without a lawful business purpose. Public intelligence must remain source-based and reviewable.
 
@@ -63,7 +63,8 @@ The recommended model is multi-tenant at the application layer with strong tenan
 
 - Commercial users can identify and prioritize high-value fleet owners and vessels.
 - Every opportunity has a clear company, owner, vessel, contact, stage, value estimate, next action, and operational feasibility signal.
-- Contract proposals reflect aircraft availability, included hours, campaign type, and excluded cost assumptions.
+- Contract proposals reflect aircraft availability, component-life constraints, maintenance forecast, included hours, campaign type, maintenance reserve assumptions, and excluded cost assumptions.
+- Operations users can track multiple helicopters, component status, flight hours, maintenance alerts, replacement history, overhaul planning, and forecasted downtime.
 - Market intelligence can trigger account updates and opportunity recommendations without becoming unverified rumor.
 - Email campaigns are personalized, approved, compliant, and fully traceable.
 - AI outputs cite internal records or source references and remain human-approved for external communication.
@@ -72,7 +73,9 @@ The recommended model is multi-tenant at the application layer with strong tenan
 ## Near-Term Foundation Decisions
 
 - Keep the product domain centered on helicopter-enabled tuna fleet services.
-- Treat companies, fleet owners, vessels, contacts, opportunities, contracts, helicopters, maintenance, documents, market intelligence, campaigns, AI interactions, dashboards, and reports as first-class domains.
+- Treat companies, fleet owners, vessels, contacts, opportunities, contracts, fleet and maintenance operations, documents, market intelligence, campaigns, AI interactions, dashboards, and reports as first-class domains.
+- Design the helicopter model for multiple aircraft on day one, with HP1804 represented as one aircraft record rather than a system-wide assumption.
+- Treat the current component-control workbook as a migration/reference model: aircraft header becomes helicopter registry data, component rows become installed component records, workbook formulas become governed application rules, and the executive summary becomes a computed dashboard.
 - Build an auditable data model before building user interface screens.
 - Design every workflow around future multi-operation support.
 - Require human approval for outbound messages, contract changes, and AI-assisted commercial recommendations.

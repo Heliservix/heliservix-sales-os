@@ -2,7 +2,7 @@
 
 ## Database Objective
 
-The database must represent the commercial and operational reality of helicopter-supported tuna fleet services. It should be normalized enough to prevent duplicate records, flexible enough to support imperfect market data, and auditable enough for contract, campaign, AI, and document workflows.
+The database must represent the commercial and operational reality of helicopter-supported tuna fleet services. It should be normalized enough to prevent duplicate records, flexible enough to support imperfect market data, and auditable enough for contract, campaign, fleet-maintenance, AI, and document workflows.
 
 ## Core Design Principles
 
@@ -11,6 +11,7 @@ The database must represent the commercial and operational reality of helicopter
 - Destructive deletes should be rare; use archive states for business records.
 - Market intelligence and AI output remain traceable to sources.
 - Contracts and documents require version history.
+- Helicopter component life, flight logs, maintenance alerts, replacements, overhauls, and reserve calculations require audit history.
 - Email and assistant actions require immutable event logs.
 - External identifiers are stored separately from internal primary keys.
 
@@ -99,16 +100,80 @@ The database must represent the commercial and operational reality of helicopter
 
 - Structured pricing and delivery terms, including tiered tuna tonnage rates, included hours, excluded fuel/oil costs, crew assumptions, and billing rules.
 
-### Helicopter Operations
+### Fleet & Maintenance Operations
 
 `helicopters`
 
 - Aircraft records by tenant.
-- Fields include registration, model, serial number, base location, status, operating notes, and ownership/lease status.
+- Fields include registration, internal fleet code, manufacturer, model, serial number, current Hobbs, current hourmeter, total time since new, base location, current country, operational status, operating notes, and ownership/lease status.
+
+`helicopter_meter_readings`
+
+- Immutable readings for Hobbs, hourmeter, total time, and reading source.
+- Supports corrections, inspections, imports, and reconciliations without silently rewriting aircraft totals.
+
+`component_catalog`
+
+- Reusable component definitions by model or operation.
+- Fields include reference number, component category, component name, eligible aircraft model, default part number, default life-limit hours, default calendar limit, source workbook/sheet reference, and planning notes.
+
+`helicopter_components`
+
+- Installed component instances per helicopter.
+- Fields include helicopter, component catalog reference, component name, part number, serial number, position, installation date, installation meter reading, TSN, TSO, life-limit hours, remaining hours, calendar life limit, calendar expiration date, remaining calendar time, status, and notes.
+
+`component_life_rules`
+
+- Tenant and component-class rules for OK, Monitor, Critical, and Expired status.
+- Supports hour thresholds, percent-remaining thresholds, calendar thresholds, severity, grounding rules, and alert routing.
+- Baseline workbook-derived thresholds are Critical below 20% remaining by hours, Monitor from 20% to 35% remaining by hours or one year calendar remaining, OK when no alert applies, and production Expired when the hour or calendar limit is reached or passed.
+
+`flight_logs`
+
+- Approved operating-hour records by helicopter and campaign.
+- Fields include helicopter, campaign, contract, vessel, company, country, departure location, arrival location, flight date, start Hobbs/hourmeter, end Hobbs/hourmeter, calculated flight hours, pilot, mechanic, approval status, and notes.
+
+`component_life_ledger`
+
+- Immutable life-consumption ledger produced by flight logs, corrections, replacements, inspections, and imports.
+- Supports recalculating remaining hours from authoritative events.
+
+`maintenance_alerts`
+
+- Hour-based and calendar-based alerts for component status, overhaul planning, aircraft availability conflicts, and reserve exposure changes.
+- Fields include helicopter, component, alert type, severity, status, due hours, due date, assigned user, acknowledged_at, resolved_at, and source event.
 
 `maintenance_events`
 
 - Scheduled and completed maintenance, inspections, service windows, component constraints, and return-to-service status.
+
+`component_replacements`
+
+- Replacement history linking removed component, installed component, maintenance event, removal reason, removal date, installation date, meter readings, approving user, and supporting documents.
+
+`overhaul_plans`
+
+- Planned overhauls by component or helicopter.
+- Fields include due basis, due hours, due date, vendor, lead time, estimated cost, planned downtime, reserve policy, campaign conflicts, and status.
+
+`maintenance_reserve_policies`
+
+- Reserve assumptions by tenant, helicopter, model, component class, or contract type.
+- Fields include reserve rate per flight hour, currency, effective dates, and calculation basis.
+
+`maintenance_reserve_ledger`
+
+- Reserve accrual and consumption records linked to flight logs, campaigns, contracts, components, and maintenance events.
+
+`maintenance_forecasts`
+
+- Forecast snapshots over a selected horizon.
+- Stores generated_at, forecast inputs, expected component constraints, aircraft availability risk, planned maintenance windows, reserve exposure, and campaign conflicts.
+
+`fleet_maintenance_summaries`
+
+- Computed summary snapshots comparable to the workbook's `Resumen Ejecutivo`.
+- Stores aircraft identity, review date, total controlled components, critical component count, missing calendar-limit count, normalized reference count, next limiting components, and fleet readiness status.
 
 `availability_windows`
 
@@ -226,7 +291,10 @@ The database must represent the commercial and operational reality of helicopter
 - A vessel can have changing owner/operator relationships over time.
 - An opportunity can link to a company, contact, fleet owner, vessel, helicopter feasibility view, campaign, documents, and intelligence.
 - A contract should trace back to the opportunity that created it when applicable.
-- A helicopter can be linked to maintenance events, availability windows, documents, and contract assignments.
+- A helicopter can be linked to components, meter readings, flight logs, maintenance events, maintenance alerts, availability windows, documents, and contract assignments.
+- A component can be installed on only one active helicopter position at a time, while replacement history preserves prior installations.
+- A flight log can consume component life for all active installed components on the helicopter.
+- A maintenance forecast can link to opportunities and contracts when forecasted component limits affect campaign feasibility.
 - Intelligence should never exist as unlinked text if a relevant company, vessel, owner, or country can be identified.
 
 ## Initial Migration Source
@@ -242,6 +310,18 @@ Important mapping notes:
 - `Correos` maps into `interactions` and later `email_events`.
 - `Inteligencia` maps into `intelligence_items`.
 
+The component-control workbook `Heliservix_Control_Componentes_FINAL_PRO.xlsx` should map into:
+
+- `Control Maestro` aircraft header into `helicopters` and `helicopter_meter_readings`.
+- `Control Maestro` component rows into `component_catalog`, `helicopter_components`, and opening `component_life_ledger` balances.
+- `Control Maestro (2)` into an alternate import profile or reconciliation source for component-control data.
+- `Resumen Ejecutivo` into computed `fleet_maintenance_summaries`.
+- `Leyenda` into `component_life_rules`, data dictionary documentation, and user-facing help text.
+- Flight-hour sheets into `flight_logs` and `component_life_ledger`.
+- Alert/status formulas into `component_life_rules` and `maintenance_alerts`.
+- Replacement or overhaul sheets into `component_replacements` and `overhaul_plans`.
+- Reserve or cost planning sheets into `maintenance_reserve_policies` and `maintenance_reserve_ledger`.
+
 ## Data Quality Rules
 
 - Company names require normalization and duplicate checks.
@@ -250,3 +330,6 @@ Important mapping notes:
 - Market intelligence must include source and access date.
 - AI-generated fields must be marked as generated until reviewed.
 - Contract values must separate estimated, proposed, signed, invoiced, and realized amounts.
+- Component status must be computed from current life rules and authoritative flight/component ledgers.
+- Flight-log corrections must preserve original values, correction reason, approver, and recalculated downstream effects.
+- Expired components must block aircraft availability unless an authorized maintenance override exists with expiration and audit trail.

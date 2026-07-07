@@ -40,6 +40,7 @@ Core commercial model:
 - [Roadmap](docs/ROADMAP.md): phased delivery plan from foundation to multi-operation SaaS.
 - [Database](docs/DATABASE.md): production data model and entity relationships.
 - [CRM](docs/CRM.md): commercial operating model for companies, fleet owners, contacts, opportunities, and contracts.
+- [Fleet & Maintenance Operations](docs/FLEET_MAINTENANCE.md): multi-helicopter registry, component control, flight-hour logging, alerts, forecast, overhaul, and reserve planning.
 - [Market Intelligence](docs/MARKET_INTELLIGENCE.md): intelligence ingestion, verification, scoring, and workflows.
 - [AI](docs/AI.md): AI assistant roles, guardrails, context strategy, and approval boundaries.
 - [Email Automation](docs/EMAIL_AUTOMATION.md): campaign, approval, SMTP, unsubscribe, and tracking architecture.
