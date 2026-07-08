@@ -585,6 +585,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             {[
+              ["HeliServiX Copilot", "/copilot"],
               ["Campaigns", "/campaigns"],
               ["Aircraft Operations Center", "/digital-twin"],
               ["Fleet CRUD", "/helicopters"],

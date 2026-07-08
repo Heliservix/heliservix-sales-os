@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Anchor,
+  Bot,
   Boxes,
   CalendarRange,
   ClipboardCheck,
@@ -29,6 +30,7 @@ export type NavigationItem = {
 
 export const primaryNavigation: NavigationItem[] = [
   { label: "Dashboard", labelKey: "nav.dashboard", href: "/", icon: LayoutDashboard, status: "ready" },
+  { label: "HeliServiX Copilot", labelKey: "nav.copilot", href: "/copilot", icon: Bot, status: "ready" },
   { label: "Campaigns", labelKey: "nav.campaigns", href: "/campaigns", icon: CalendarRange, status: "ready" },
   { label: "Aircraft Operations Center", labelKey: "nav.aircraftOperationsCenter", href: "/digital-twin", icon: GitBranch, status: "ready" },
   { label: "Helicopters", labelKey: "nav.helicopters", href: "/helicopters", icon: Plane, status: "ready" },
