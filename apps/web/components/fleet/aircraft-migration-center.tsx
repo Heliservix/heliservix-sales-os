@@ -25,6 +25,7 @@ type AircraftMigrationCenterProps = {
   onApply: (updater: (current: FleetStore) => FleetStore, success: string) => void;
   preselectedRegistration?: string;
   compact?: boolean;
+  defaultOpen?: boolean;
 };
 
 type ParsedWorkbookSheet = {
@@ -60,9 +61,10 @@ const importModes: Array<{ value: ComponentImportMode; label: string; descriptio
   }
 ];
 
-export function AircraftMigrationCenter({ store, onApply, preselectedRegistration, compact = false }: AircraftMigrationCenterProps) {
+export function AircraftMigrationCenter({ store, onApply, preselectedRegistration, compact = false, defaultOpen = false }: AircraftMigrationCenterProps) {
   const { tx } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [step, setStep] = useState(1);
   const [preview, setPreview] = useState<ComponentImportPreview>();
   const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
@@ -106,6 +108,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
     setSelectedRegistrations([]);
     setStep(1);
     if (!file) return;
+    setIsOpen(true);
     if (!file.name.toLowerCase().endsWith(".xlsx")) {
       setError(tx("Please upload an .xlsx workbook."));
       return;
@@ -244,9 +247,10 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
               <Plane className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-ink">{tx("Aircraft Migration Center")}</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-aviation-blue">{tx("AURA Aircraft Migration Flow")}</p>
+              <h2 className="mt-1 text-lg font-semibold text-ink">{tx("Migrate Aircraft Components")}</h2>
               <p className="mt-1 text-sm text-ink-subtle">
-                {tx("AURA reviews the workbook like a maintenance manager and migrates complete aircraft into HeliServiX OS.")}
+                {tx("Import the whole aircraft component-control Excel workbook instead of creating components one by one.")}
               </p>
             </div>
           </div>
@@ -264,19 +268,54 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) => void parseFile(event.target.files?.[0])}
           />
+          {!isOpen ? (
+            <button
+              className="hsv-secondary-button"
+              type="button"
+              onClick={() => setIsOpen(true)}
+            >
+              {tx("Import from Excel")}
+            </button>
+          ) : null}
           <button
             className="hsv-primary-button"
             type="button"
             onClick={() => inputRef.current?.click()}
           >
             <Upload className="h-4 w-4" aria-hidden="true" />
-            {tx("Select Excel")}
+            {tx("Upload Component Control Workbook")}
           </button>
           <StatusPill tone="green">{tx("Imported Excel records are real user data")}</StatusPill>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-2 md:grid-cols-5">
+      {!isOpen ? (
+        <div className="mt-5 rounded-xl border border-brand-blue/20 bg-brand-lightBlue/35 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-ink">{tx("Import from Excel")}</h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-subtle">
+                {tx("Upload Component Control Workbook")} <span className="font-semibold text-ink">{officialWorkbookName}</span>. {tx("AURA detects aircraft metadata, previews components, validates issues, and reconciles the workbook against current local aircraft configuration.")}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusPill tone="blue">{tx("Configuration reconciliation")}</StatusPill>
+                <StatusPill tone="amber">{tx("No backend connected")}</StatusPill>
+                <StatusPill tone="green">{tx("Observations optional")}</StatusPill>
+              </div>
+            </div>
+            <button
+              className="hsv-primary-button"
+              type="button"
+              onClick={() => inputRef.current?.click()}
+            >
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              {tx("Upload Component Control Workbook")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isOpen ? <div className="mt-5 grid gap-2 md:grid-cols-5">
         {steps.map((label, index) => {
           const number = index + 1;
           const active = number === step;
@@ -299,18 +338,18 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             </button>
           );
         })}
-      </div>
+      </div> : null}
 
       {message ? <p className="hsv-success-banner mt-4 mb-0">{message}</p> : null}
       {error ? <p className="hsv-error-banner mt-4 mb-0">{error}</p> : null}
 
-      <div className="mt-5">
+      {isOpen ? <div className="mt-5">
         {step === 1 ? renderSelectStep() : null}
         {preview && step === 2 ? renderDetectStep(preview) : null}
         {preview && step === 3 ? renderPreviewStep() : null}
         {preview && step === 4 ? renderValidateStep(preview) : null}
         {preview && step === 5 ? renderImportStep(preview) : null}
-      </div>
+      </div> : null}
     </Panel>
   );
 
@@ -330,7 +369,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             onClick={() => inputRef.current?.click()}
           >
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-            {tx("Choose workbook")}
+            {tx("Upload Component Control Workbook")}
           </button>
         </div>
       </div>
@@ -344,6 +383,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Worksheets detected" value={String(currentPreview.worksheetNames.length)} />
           <MigrationStat label="Helicopters detected" value={String(currentPreview.detectedHelicopters.length)} />
           <MigrationStat label="Component Count" value={String(currentPreview.records.length)} />
+          <MigrationStat label="Valid components" value={String(currentPreview.records.filter((record) => !record.issues.some((issue) => issue.severity === "error")).length)} tone="green" />
           <MigrationStat label="Confidence" value={`${currentPreview.aircraftMetadata.confidence}%`} tone={currentPreview.aircraftMetadata.confidence >= 85 ? "green" : currentPreview.aircraftMetadata.confidence >= 70 ? "amber" : "red"} />
           <MigrationStat label="Warnings" value={String(currentPreview.issues.filter((issue) => issue.severity === "warning").length)} tone="amber" />
           <MigrationStat label="Errors" value={String(currentPreview.issues.filter((issue) => issue.severity === "error").length)} tone={currentPreview.issues.some((issue) => issue.severity === "error") ? "red" : "green"} />
@@ -420,6 +460,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Selected helicopters" value={String(selectedRegistrations.length)} />
           <MigrationStat label="Component Count" value={String(summary.componentCount)} />
           <MigrationStat label="Matched Components" value={String(summary.matchedComponents)} tone={summary.matchedComponents ? "blue" : "neutral"} />
+          <MigrationStat label="Update Candidates" value={String(summary.updatedComponents)} tone={summary.updatedComponents ? "blue" : "neutral"} />
           <MigrationStat label="Replacement Candidates" value={String(summary.replacementCandidates)} tone={summary.replacementCandidates ? "amber" : "green"} />
           <MigrationStat label="Confidence" value={`${summary.confidence}%`} tone={summary.confidence >= 85 ? "green" : summary.confidence >= 70 ? "amber" : "red"} />
         </section>
@@ -477,11 +518,11 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <div className="mt-4 grid gap-3">
             <label className="flex items-start gap-3 text-sm text-ink-muted">
               <input className="mt-1" type="checkbox" checked={createHelicopter} onChange={(event) => setCreateHelicopter(event.target.checked)} />
-              <span>{tx("Create helicopter")}</span>
+              <span>{tx("Create aircraft from workbook metadata")}</span>
             </label>
             <label className="flex items-start gap-3 text-sm text-ink-muted">
               <input className="mt-1" type="checkbox" checked={updateHelicopter} onChange={(event) => setUpdateHelicopter(event.target.checked)} />
-              <span>{tx("Update helicopter")}</span>
+              <span>{tx("Update aircraft metadata")}</span>
             </label>
             <label className="flex items-start gap-3 text-sm text-ink-muted">
               <input className="mt-1" type="checkbox" checked={forceValidRowsOnly} onChange={(event) => setForceValidRowsOnly(event.target.checked)} />
@@ -518,6 +559,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             <MiniStat label="Warnings" value={String(summary.warnings)} />
             <MiniStat label="Errors" value={String(summary.errors)} />
             <MiniStat label="Matched Components" value={String(summary.matchedComponents)} />
+            <MiniStat label="Update Candidates" value={String(summary.updatedComponents)} />
             <MiniStat label="New Components" value={String(summary.newComponents)} />
             <MiniStat label="Replacement Candidates" value={String(summary.replacementCandidates)} />
             <MiniStat label="Missing data" value={String(summary.missingData)} />
@@ -738,6 +780,7 @@ function ComponentPreviewTable({
         <tbody className="hsv-table-body">
           {visibleRecords.map((record) => {
             const key = importRecordKey(record);
+            const classification = getAuraClassification(record);
             return (
             <tr key={key}>
               <td className="px-4 py-3 text-ink-muted">{record.worksheetName}</td>
@@ -758,8 +801,8 @@ function ComponentPreviewTable({
                 </StatusPill>
               </td>
               <td className="hsv-table-cell">
-                <StatusPill tone={record.matchType === "new" ? "green" : record.matchType === "probable-replacement" ? "amber" : record.matchType === "low-confidence-review" ? "red" : "blue"}>
-                  {tx(record.matchType)}
+                <StatusPill tone={classification.tone}>
+                  {tx(classification.label)}
                 </StatusPill>
               </td>
               <td className="hsv-table-cell">
@@ -778,6 +821,17 @@ function ComponentPreviewTable({
       </table>
     </div>
   );
+}
+
+function getAuraClassification(record: ComponentImportPreview["records"][number]): { label: string; tone: "green" | "amber" | "blue" | "red" } {
+  if (record.issues.some((issue) => issue.severity === "error")) return { label: "Error", tone: "red" };
+  if (record.duplicateInWorkbook) return { label: "Possible duplicate", tone: "amber" };
+  if (record.matchType === "new") return { label: "New component", tone: "green" };
+  if (record.matchType === "exact-update" && !record.differences.length) return { label: "Exact match", tone: "blue" };
+  if (record.matchType === "exact-update") return { label: "Update existing", tone: "blue" };
+  if (record.matchType === "probable-replacement") return { label: "Probable replacement", tone: "amber" };
+  if (record.matchType === "probable-match") return { label: "Possible duplicate", tone: "amber" };
+  return { label: "Manual review required", tone: "red" };
 }
 
 function ComponentComparisonPanel({

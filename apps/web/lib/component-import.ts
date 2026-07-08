@@ -78,6 +78,7 @@ export type ComponentImportRecord = {
   status: ComponentStatus;
   notes: string;
   issues: ImportIssue[];
+  fingerprint: string;
   duplicateKey: string;
   duplicateInWorkbook: boolean;
   duplicateInStore: boolean;
@@ -165,6 +166,7 @@ export type ComponentImportFieldKey =
   | "lifeLimitHours"
   | "remainingHours"
   | "calendarLimitDate"
+  | "remainingCalendarDays"
   | "remainingPercentage"
   | "status"
   | "notes";
@@ -214,7 +216,8 @@ const fieldAliases: Record<ComponentImportFieldKey, string[]> = {
   tsoHours: ["tso", "tso hrs", "tso hours", "tso (hrs)"],
   lifeLimitHours: ["life limit hours", "life limit", "life limit hrs", "limit hours", "limite vida horas", "limite vida hrs", "limite vida (hrs)", "límite vida (hrs)", "limite de vida horas"],
   remainingHours: ["remaining hours", "hours remaining", "life remaining", "remaining life", "remanente hrs", "remanente horas", "remanente (hrs)", "horas remanentes", "vida remanente"],
-  calendarLimitDate: ["calendar limit date", "calendar limit", "calendar", "expiration", "expiration date", "expiry", "expiry date", "expires", "limite calendario", "límite calendario", "vencimiento", "fecha vencimiento", "expiracion", "expiración", "remanente calendario", "remanente calendario (anos)", "remanente calendario (años)"],
+  calendarLimitDate: ["calendar limit date", "calendar limit", "calendar", "expiration", "expiration date", "expiry", "expiry date", "expires", "limite calendario", "límite calendario", "vencimiento", "fecha vencimiento", "expiracion", "expiración"],
+  remainingCalendarDays: ["remaining calendar", "remaining calendar days", "calendar remaining", "calendar life remaining", "days remaining", "remaining days", "remanente calendario", "remanente calendario dias", "remanente calendario días", "dias remanentes", "días remanentes", "remanente calendario (anos)", "remanente calendario (años)"],
   remainingPercentage: ["remaining percentage", "remaining %", "% remaining", "% remanente", "% remanente horas", "porcentaje remanente"],
   status: ["status", "estado"],
   notes: ["notes", "observations", "observaciones", "notas"]
@@ -236,6 +239,7 @@ const fieldLabels: Record<ComponentImportFieldKey, string> = {
   lifeLimitHours: "Life limit hours",
   remainingHours: "Remaining hours",
   calendarLimitDate: "Calendar limit date",
+  remainingCalendarDays: "Remaining calendar days",
   remainingPercentage: "Remaining percentage",
   status: "Status",
   notes: "Notes"
@@ -288,14 +292,14 @@ export function buildComponentImportPreview(input: {
 
   const duplicateCounts = new Map<string, number>();
   records.forEach((record) => {
-    duplicateCounts.set(record.duplicateKey, (duplicateCounts.get(record.duplicateKey) ?? 0) + 1);
+    duplicateCounts.set(record.fingerprint, (duplicateCounts.get(record.fingerprint) ?? 0) + 1);
   });
 
   const recordsWithDuplicateFlags = records.map((record) => ({
     ...record,
-    duplicateInWorkbook: (duplicateCounts.get(record.duplicateKey) ?? 0) > 1,
-    issues: (duplicateCounts.get(record.duplicateKey) ?? 0) > 1
-      ? [...record.issues, issue(record.rowNumber, "Duplicate", "warning", "Duplicate component match inside workbook preview.", record.duplicateKey, "Review duplicate component identity.", record.worksheetName, record.helicopterRegistration)]
+    duplicateInWorkbook: (duplicateCounts.get(record.fingerprint) ?? 0) > 1,
+    issues: (duplicateCounts.get(record.fingerprint) ?? 0) > 1
+      ? [...record.issues, issue(record.rowNumber, "Duplicate", "warning", "Duplicate component fingerprint inside workbook preview.", record.fingerprint, "Review duplicate component identity.", record.worksheetName, record.helicopterRegistration)]
       : record.issues
   }));
 
@@ -600,6 +604,7 @@ function scoreComponentHeader(mappedFields: ComponentImportColumnMapping[], mapp
     "lifeLimitHours",
     "remainingHours",
     "calendarLimitDate",
+    "remainingCalendarDays",
     "status",
     "notes"
   ];
@@ -931,7 +936,8 @@ function rowToRecord(input: {
   const remainingHours = parseNumber(raw("remainingHours"));
   const calendarLimitRaw = normalizeCell(raw("calendarLimitDate"));
   const calendarLimitDate = parseDate(raw("calendarLimitDate"));
-  const remainingCalendarDays = calendarLimitDate ? Math.ceil((new Date(calendarLimitDate).getTime() - Date.now()) / 86400000) : 0;
+  const importedRemainingCalendarDays = parseNumber(raw("remainingCalendarDays"));
+  const remainingCalendarDays = calendarLimitDate ? Math.ceil((new Date(calendarLimitDate).getTime() - Date.now()) / 86400000) : importedRemainingCalendarDays;
   const remainingPercentage = normalizePercentage(parseNumber(get("remainingPercentage")) || calculateRemainingPercentage(remainingHours, lifeLimitHours));
   const recalculatedStatus = calculateComponentStatus({ remainingHours, remainingCalendarDays, remainingPercentage });
   const workbookStatus = get("status");
@@ -965,6 +971,7 @@ function rowToRecord(input: {
     status: recalculatedStatus,
     notes: get("notes"),
     issues: [],
+    fingerprint: "",
     duplicateKey: "",
     duplicateInWorkbook: false,
     duplicateInStore: false,
@@ -976,6 +983,7 @@ function rowToRecord(input: {
   };
 
   record.duplicateKey = recordMatchKey(record);
+  record.fingerprint = recordFingerprint(record);
   const match = evaluateComponentMatch(record, input.store.components);
   record.duplicateInStore = match.matchType !== "new";
   record.matchType = match.matchType;
@@ -1183,6 +1191,21 @@ function recordMatchKey(record: ComponentImportRecord) {
     record.partNumber,
     record.serialNumber,
     record.position
+  ].map(normalizeHeader).join("|");
+}
+
+function recordFingerprint(record: ComponentImportRecord) {
+  return [
+    record.helicopterRegistration,
+    record.componentName,
+    record.partNumber,
+    record.serialNumber,
+    record.position,
+    record.installationDate,
+    record.tsnHours,
+    record.tsoHours,
+    record.lifeLimitHours,
+    record.remainingHours
   ].map(normalizeHeader).join("|");
 }
 
