@@ -67,6 +67,7 @@ Before any release candidate:
 - Verify Fleet & Maintenance screens.
 - Verify helicopter detail and Aircraft Operations Center views.
 - Verify component status calculations.
+- Verify Aircraft Migration Center using `HSV-IMPORT-COMPONENTS-v1.xlsx`, including `Control Maestro`, metadata rows 4 and 5, component header row 7, component data rows 8+, optional Observaciones, manual metadata correction, and manual column confirmation.
 - Verify flight-hour logging and local recalculation.
 - Verify maintenance alerts.
 - Verify vessel, inventory, and purchasing screens.

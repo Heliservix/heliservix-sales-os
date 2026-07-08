@@ -193,6 +193,8 @@ HSV OS supports a frontend Aircraft Migration Center so HeliServiX users can mig
 Reference workbook:
 
 - `HSV-IMPORT-COMPONENTS-v1.xlsx`.
+- Official parser profile: `HSV_IMPORT_COMPONENTS_V1`.
+- Official sheet of record: `Control Maestro`.
 - Legacy workbook structures such as `Control Maestro`, `Control Maestro (2)`, `Resumen Ejecutivo`, and `Leyenda` remain supported as migration source patterns.
 - The wizard must automatically detect worksheets and helicopter registrations.
 - Users choose which detected helicopters to import before committing local data.
@@ -203,12 +205,17 @@ The Aircraft Migration Center must accept `.xlsx` files and parse them client-si
 
 Supported workbook fields:
 
-- Registration / Matrícula.
-- Model / Modelo.
-- Aircraft Serial Number / Serial aeronave.
-- Current Hourmeter / Horómetro.
+- Aircraft metadata from Row 4 headers and Row 5 values:
+  - Matrícula maps to helicopter registration.
+  - Modelo maps to helicopter model.
+  - Fecha Fabricación maps to helicopter manufacture date.
+  - S/N Aeronave maps to helicopter serial number.
+  - Fecha Revisión maps to last review date.
+  - Horómetro maps to current hourmeter.
+- Component header row: Row 7.
+- Component data rows: Row 8 and below.
 - Component name / Componente.
-- Component category / Categoría.
+- Reference / Ref. #.
 - Part Number / P/N.
 - Serial Number / S/N.
 - Position / Posición.
@@ -222,9 +229,19 @@ Supported workbook fields:
 - Status / Estado.
 - Notes / Observaciones.
 
+`Observaciones` is optional. Observations must never be treated as required, must not affect import validation, and must not block import.
+
 ### Smart Column Mapping
 
 The importer must detect English and Spanish headers even when labels vary slightly. It must not depend on fixed column positions. The mapping engine should normalize case, accents, punctuation, common abbreviations, and workbook-specific header formats such as `TSN (HRS)`, `TSO (HRS)`, `Límite vida (HRS)`, `Remanente (HRS)`, `% remanente horas`, and `Observaciones`.
+
+For the official `HSV_IMPORT_COMPONENTS_V1` parser, aircraft metadata and component columns are intentionally separate:
+
+- Aircraft metadata must be read only from Row 4 headers and Row 5 values.
+- Aircraft metadata must not be inferred from component rows, component names, notes, or observations.
+- `S/N Aeronave` must map to aircraft serial number, not component serial number.
+- Component `S/N` must map only from the component table.
+- `Control Maestro` must be preferred over `Control Maestro (2)` unless the user manually selects another sheet.
 
 The mapping engine must use fuzzy matching for similar names and operational abbreviations. Supported examples include:
 
@@ -237,7 +254,7 @@ The mapping engine must use fuzzy matching for similar names and operational abb
 
 The wizard must display a confidence score for each mapped field before import. Low-confidence mappings must remain visible to the user and must be correctable through a manual column selector. Manual corrections rebuild the detected helicopter preview, component preview, validation findings, duplicate analysis, and import summary before records can be saved.
 
-Aircraft metadata may be read from a metadata block above the component table. Row-level values override metadata only when a row explicitly provides a value.
+The wizard must include manual metadata correction for registration, model, aircraft serial number, manufacture date, review date, and current hourmeter before final import.
 
 ### Wizard Steps
 
@@ -266,6 +283,9 @@ Before saving, users must review the wizard output showing:
 - Mapped workbook columns.
 - Mapping confidence scores.
 - Manual mapping corrections, when needed.
+- Aircraft metadata panel with registration, model, aircraft serial number, manufacture date, review date, and current hourmeter.
+- Row-level result status: Valid, Warning, or Error.
+- Clean issues table with row number, field, issue type, current value, and suggested fix.
 - A sample component row preview.
 
 The wizard must make clear that imported Excel records are real user data and must not be marked as demo data.
@@ -275,21 +295,22 @@ The wizard must make clear that imported Excel records are real user data and mu
 Blocking validation:
 
 - Helicopter registration is required.
+- Aircraft hourmeter is required and must parse to a valid number.
 - Component name is required.
-- Life limit hours or calendar limit date is required when the component is controlled.
+- At least one of Part Number or Serial Number is required for component import.
+- At least one component limit is required: life limit hours, remaining hours, or calendar limit.
 - Dates must parse into valid ISO dates.
 - Hour values must not be negative.
 
 Warning validation:
 
-- Part number or serial number is recommended for traceability.
-- Category is missing.
 - Position is missing.
-- Notes are missing.
+- Installation date is missing.
+- TSN, TSO, status, or remaining percentage are missing or inconsistent.
 - Duplicate match exists in the workbook or current local data.
 - Workbook status differs from recalculated status.
 
-Warnings do not block import, but they must be visible before save.
+Warnings do not block import, but they must be visible before save. Row errors block affected rows. The wizard may allow “Force import valid rows only” when aircraft metadata is valid; invalid rows remain skipped.
 
 ### Duplicate Handling
 
@@ -1542,9 +1563,9 @@ Workbook sheets:
 
 1. User uploads or selects workbook.
 2. System identifies workbook sheets.
-3. System reads helicopter metadata from the workbook header.
-4. System reads component rows from `Control Maestro`.
-5. System maps workbook columns to database fields.
+3. System prefers `Control Maestro` and allows manual worksheet selection.
+4. System reads helicopter metadata from Row 4 headers and Row 5 values.
+5. System reads component headers from Row 7 and component rows from Row 8 and below.
 6. System validates missing data.
 7. System calculates system status from imported values.
 8. System flags incomplete records.
@@ -1579,26 +1600,27 @@ Component table:
 - `Límite calendario (AÑOS)` and calendar date fields map to `calendar_limit_date` or calculated calendar fields.
 - `Remanente calendario (AÑOS)` maps to source calendar remaining value.
 - `% remanente horas` maps to `remaining_percentage`.
-- `Estado` maps to `source_status`.
-- `Observaciones` maps to `notes`.
+- `Estado` maps to imported/source status for reference only; HeliServiX OS recalculates operational status.
+- `Observaciones` maps to notes when present, but it is optional and never affects validation.
 
 ## Import Validation
 
 Validation checks:
 
-- Missing registration.
-- Duplicate helicopter registration.
+- Missing or invalid aircraft registration from metadata.
+- Missing or invalid aircraft hourmeter from metadata.
+- Missing aircraft model or serial number as warnings.
+- Duplicate helicopter registration or duplicate component match.
 - Missing component name.
-- Missing part number.
-- Missing serial number.
-- Missing life limit hours.
-- Missing TSN or TSO.
-- Missing calendar limit date.
+- Missing both part number and serial number.
+- Missing all component limit fields: life limit hours, remaining hours, and calendar limit.
+- Missing position, installation date, TSN, TSO, status, or remaining percentage as warnings.
 - Remaining hours mismatch.
 - Remaining percentage mismatch.
 - Status mismatch between workbook and system rules.
 - Invalid date format.
 - Non-numeric hour fields.
+- Observations/notes must not be validated as required.
 
 Import preview must show:
 

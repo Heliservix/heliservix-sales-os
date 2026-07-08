@@ -10,6 +10,8 @@ import {
   applyComponentImport,
   hasBlockingImportIssues,
   buildComponentImportPreview,
+  HSV_IMPORT_COMPONENTS_V1,
+  type AircraftImportMetadataOverride,
   type ComponentImportColumnOverride,
   type ComponentImportFieldKey,
   type ComponentImportMode,
@@ -66,9 +68,12 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [workbookSheets, setWorkbookSheets] = useState<ParsedWorkbookSheet[]>([]);
+  const [selectedSheetName, setSelectedSheetName] = useState("");
   const [mappingOverrides, setMappingOverrides] = useState<ComponentImportColumnOverride>({});
+  const [metadataOverrides, setMetadataOverrides] = useState<AircraftImportMetadataOverride>({});
   const [createHelicopter, setCreateHelicopter] = useState(true);
   const [updateHelicopter, setUpdateHelicopter] = useState(true);
+  const [forceValidRowsOnly, setForceValidRowsOnly] = useState(true);
   const [mode, setMode] = useState<ComponentImportMode>("merge-components");
 
   const selectedRecords = useMemo(() => {
@@ -77,14 +82,15 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   }, [preview, selectedRegistrations]);
 
   const selectedIssues = useMemo(() => selectedRecords.flatMap((record) => record.issues), [selectedRecords]);
+  const visibleIssues = useMemo(() => [...(preview?.aircraftMetadata.issues ?? []), ...selectedIssues], [preview?.aircraftMetadata.issues, selectedIssues]);
 
   const summary = useMemo(() => ({
     componentCount: selectedRecords.length,
-    warnings: selectedIssues.filter((issue) => issue.severity === "warning").length,
-    errors: selectedIssues.filter((issue) => issue.severity === "error").length,
+    warnings: visibleIssues.filter((issue) => issue.severity === "warning").length,
+    errors: visibleIssues.filter((issue) => issue.severity === "error").length,
     duplicates: selectedRecords.filter((record) => record.duplicateInStore || record.duplicateInWorkbook).length,
-    missingData: selectedIssues.filter((issue) => ["Registration", "Component name", "P/N or S/N", "Life limit", "Category", "Position", "Notes"].includes(issue.field)).length
-  }), [selectedIssues, selectedRecords]);
+    missingData: visibleIssues.filter((issue) => ["Registration", "Component name", "P/N or S/N", "Life limit", "Position", "Installation date", "Current Hourmeter"].includes(issue.field)).length
+  }), [visibleIssues, selectedRecords]);
 
   async function parseFile(file?: File) {
     setError("");
@@ -110,8 +116,14 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         })
       }));
       setWorkbookSheets(sheets);
+      const initialSheetName = sheets.find((sheet) => sheet.name === HSV_IMPORT_COMPONENTS_V1.preferredSheetName)?.name
+        ?? sheets.find((sheet) => sheet.name.startsWith(HSV_IMPORT_COMPONENTS_V1.preferredSheetName))?.name
+        ?? sheets[0]?.name
+        ?? "";
+      setSelectedSheetName(initialSheetName);
       setMappingOverrides({});
-      rebuildPreview(file.name, sheets, {}, []);
+      setMetadataOverrides({});
+      rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
       setStep(2);
       setMessage(tx("Workbook parsed. Review detected helicopters before import."));
     } catch {
@@ -127,13 +139,22 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
     );
   }
 
-  function rebuildPreview(fileName: string, sheets: ParsedWorkbookSheet[], overrides: ComponentImportColumnOverride, preferredSelection = selectedRegistrations) {
+  function rebuildPreview(
+    fileName: string,
+    sheets: ParsedWorkbookSheet[],
+    overrides: ComponentImportColumnOverride,
+    preferredSelection = selectedRegistrations,
+    nextMetadataOverrides = metadataOverrides,
+    nextSheetName = selectedSheetName
+  ) {
     const nextPreview = buildComponentImportPreview({
       fileName,
       sheets,
       store,
       preselectedRegistration,
-      mappingOverrides: overrides
+      mappingOverrides: overrides,
+      metadataOverrides: nextMetadataOverrides,
+      selectedSheetName: nextSheetName
     });
     const detected = nextPreview.detectedHelicopters.map((item) => item.registration);
     const nextSelected = preselectedRegistration
@@ -143,6 +164,25 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         : detected;
     setPreview(nextPreview);
     setSelectedRegistrations(nextSelected);
+  }
+
+  function updateSheet(name: string) {
+    if (!preview) return;
+    setSelectedSheetName(name);
+    rebuildPreview(preview.fileName, workbookSheets, mappingOverrides, [], metadataOverrides, name);
+    setMessage(tx("Worksheet selection updated. Review metadata and validation before import."));
+  }
+
+  function updateMetadata(field: keyof AircraftImportMetadataOverride, value: string) {
+    if (!preview) return;
+    const nextMetadataOverrides: AircraftImportMetadataOverride = {
+      ...metadataOverrides,
+      [field]: field === "currentHourmeter" ? Number(value) : value,
+      manuallyConfirmed: true
+    };
+    setMetadataOverrides(nextMetadataOverrides);
+    rebuildPreview(preview.fileName, workbookSheets, mappingOverrides, selectedRegistrations, nextMetadataOverrides, selectedSheetName);
+    setMessage(tx("Aircraft metadata updated. Review detected helicopters and validation before import."));
   }
 
   function updateMapping(field: ComponentImportFieldKey, value: string) {
@@ -161,7 +201,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   }
 
   function applyImport() {
-    if (!preview || hasBlockingImportIssues(preview, selectedRegistrations)) return;
+    if (!preview || hasBlockingImportIssues(preview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly })) return;
     const result = applyComponentImport(store, preview, {
       createHelicopter,
       updateHelicopter,
@@ -287,14 +327,25 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         </section>
 
         <section className="rounded-lg border border-line bg-white p-4">
-          <h3 className="text-sm font-semibold text-ink">{tx("Detected worksheets")}</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {currentPreview.worksheetNames.map((name) => (
-              <span key={name} className="rounded-md border border-line bg-canvas-muted/52 px-2.5 py-1 text-xs font-medium text-ink-muted">{name}</span>
-            ))}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">{tx("Detected worksheets")}</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {currentPreview.worksheetNames.map((name) => (
+                  <span key={name} className={["rounded-md border px-2.5 py-1 text-xs font-medium", name === currentPreview.activeWorksheetName ? "border-brand-blue bg-brand-lightBlue text-aviation-blue" : "border-line bg-canvas-muted/52 text-ink-muted"].join(" ")}>{name}</span>
+                ))}
+              </div>
+            </div>
+            <label className="grid min-w-64 gap-2 text-sm font-semibold text-ink">
+              {tx("Active worksheet")}
+              <select className="h-10 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control" value={selectedSheetName} onChange={(event) => updateSheet(event.target.value)}>
+                {workbookSheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name}</option>)}
+              </select>
+            </label>
           </div>
         </section>
 
+        <AircraftMetadataPanel preview={currentPreview} onChange={updateMetadata} />
         <MappingConfidencePanel preview={currentPreview} onChange={updateMapping} />
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -348,6 +399,10 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Missing data" value={String(summary.missingData)} tone={summary.missingData ? "amber" : "green"} />
           <MigrationStat label="Errors" value={String(summary.errors)} tone={summary.errors ? "red" : "green"} />
         </section>
+        {preview ? <AircraftMetadataPanel preview={preview} onChange={updateMetadata} /> : null}
+        <p className="rounded-lg border border-brand-blue/15 bg-brand-lightBlue/45 px-4 py-3 text-sm font-medium text-aviation-blue">
+          {tx("Observations are optional and will not affect import validation.")}
+        </p>
         <ComponentPreviewTable records={selectedRecords} compact={compact} />
         <WizardActions canContinue={selectedRegistrations.length > 0} onNext={() => setStep(4)} onBack={() => setStep(2)} />
       </div>
@@ -355,7 +410,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   }
 
   function renderValidateStep(currentPreview: ComponentImportPreview) {
-    const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations);
+    const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
     return (
       <div className="grid gap-5">
         <section className="grid gap-3 md:grid-cols-5">
@@ -368,24 +423,27 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         <div className="rounded-lg border border-line bg-white p-4">
           <h3 className="text-sm font-semibold text-ink">{tx("Validation findings")}</h3>
           <div className="mt-3 max-h-80 overflow-auto rounded-md border border-line">
-            {selectedIssues.length ? selectedIssues.slice(0, 40).map((item, index) => (
-              <div key={`${item.worksheetName}-${item.rowNumber}-${item.field}-${index}`} className="grid gap-2 border-b border-line px-3 py-2 text-sm last:border-b-0 md:grid-cols-[120px_160px_1fr]">
+            {visibleIssues.length ? visibleIssues.slice(0, 80).map((item, index) => (
+              <div key={`${item.worksheetName}-${item.rowNumber}-${item.field}-${index}`} className="grid gap-2 border-b border-line px-3 py-2 text-sm last:border-b-0 lg:grid-cols-[90px_80px_150px_1fr_160px_180px]">
                 <StatusPill tone={item.severity === "error" ? "red" : "amber"}>{item.severity}</StatusPill>
-                <span className="font-medium text-ink-muted">{item.helicopterRegistration || item.worksheetName || tx("Workbook")}</span>
-                <p className="text-ink-muted">{item.rowNumber ? `${tx("Row")} ${item.rowNumber}: ` : ""}{tx(item.message)}</p>
+                <span className="font-medium text-ink-muted">{item.rowNumber ? `${tx("Row")} ${item.rowNumber}` : tx("Workbook")}</span>
+                <span className="font-medium text-ink-muted">{tx(item.field)}</span>
+                <p className="text-ink-muted">{tx(item.message)}</p>
+                <span className="text-ink-subtle">{item.currentValue || "N/A"}</span>
+                <span className="text-ink-subtle">{item.suggestedFix ? tx(item.suggestedFix) : "N/A"}</span>
               </div>
             )) : (
               <p className="px-3 py-3 text-sm text-ink-subtle">{tx("No blocking validation issues detected.")}</p>
             )}
           </div>
         </div>
-        <WizardActions canContinue={!blocking && selectedRegistrations.length > 0} onNext={() => setStep(5)} onBack={() => setStep(3)} />
+        <WizardActions canContinue={!blocking && selectedRegistrations.length > 0 && selectedRecords.some((record) => !record.issues.some((issue) => issue.severity === "error"))} onNext={() => setStep(5)} onBack={() => setStep(3)} />
       </div>
     );
   }
 
   function renderImportStep(currentPreview: ComponentImportPreview) {
-    const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations);
+    const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
     return (
       <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
         <section className="rounded-lg border border-line bg-white p-4">
@@ -398,6 +456,10 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             <label className="flex items-start gap-3 text-sm text-ink-muted">
               <input className="mt-1" type="checkbox" checked={updateHelicopter} onChange={(event) => setUpdateHelicopter(event.target.checked)} />
               <span>{tx("Update helicopter")}</span>
+            </label>
+            <label className="flex items-start gap-3 text-sm text-ink-muted">
+              <input className="mt-1" type="checkbox" checked={forceValidRowsOnly} onChange={(event) => setForceValidRowsOnly(event.target.checked)} />
+              <span>{tx("Force import valid rows only")}</span>
             </label>
           </div>
           <div className="mt-4 grid gap-2">
@@ -467,6 +529,62 @@ function WizardActions({ canContinue, onNext, onBack }: { canContinue: boolean; 
         </button>
       ) : <span />}
     </div>
+  );
+}
+
+function AircraftMetadataPanel({
+  preview,
+  onChange
+}: {
+  preview: ComponentImportPreview;
+  onChange: (field: keyof AircraftImportMetadataOverride, value: string) => void;
+}) {
+  const { tx } = useI18n();
+  const metadata = preview.aircraftMetadata;
+  const fields: Array<{ key: keyof AircraftImportMetadataOverride; label: string; type?: string; value: string | number }> = [
+    { key: "registration", label: "Registration / Matrícula", value: metadata.registration },
+    { key: "model", label: "Model / Modelo", value: metadata.model },
+    { key: "aircraftSerialNumber", label: "Aircraft Serial Number / S/N Aeronave", value: metadata.aircraftSerialNumber },
+    { key: "manufactureDate", label: "Manufacture Date / Fecha Fabricación", type: "date", value: metadata.manufactureDate },
+    { key: "reviewDate", label: "Review Date / Fecha Revisión", type: "date", value: metadata.reviewDate },
+    { key: "currentHourmeter", label: "Current Hourmeter / Horómetro", type: "number", value: metadata.currentHourmeter || "" }
+  ];
+  return (
+    <section className="rounded-lg border border-line bg-white p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{tx("Aircraft Metadata")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("Metadata is read from Row 4 headers and Row 5 values in Control Maestro.")}</p>
+        </div>
+        <StatusPill tone={metadata.issues.some((issue) => issue.severity === "error") ? "red" : metadata.issues.length ? "amber" : "green"}>
+          {metadata.manuallyConfirmed ? tx("Manual") : metadata.detected ? tx("Detected") : tx("Needs review")}
+        </StatusPill>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {fields.map((field) => (
+          <label key={field.key} className="grid gap-2 text-sm font-semibold text-ink">
+            {tx(field.label)}
+            <input
+              className="h-10 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control"
+              type={field.type ?? "text"}
+              value={field.value}
+              min={field.type === "number" ? 0 : undefined}
+              step={field.type === "number" ? "any" : undefined}
+              onChange={(event) => onChange(field.key, event.target.value)}
+            />
+          </label>
+        ))}
+      </div>
+      {metadata.issues.length ? (
+        <div className="mt-4 grid gap-2">
+          {metadata.issues.map((issue, index) => (
+            <p key={`${issue.field}-${index}`} className="rounded-md border border-aviation-amber/20 bg-aviation-amber/10 px-3 py-2 text-sm text-ink-muted">
+              <span className="font-semibold text-ink">{tx(issue.field)}:</span> {tx(issue.message)}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -548,7 +666,7 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
       <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
         <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
           <tr>
-            {["Worksheet", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Warnings", "Errors"].map((header) => (
+            {["Worksheet", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Result", "Warnings", "Errors"].map((header) => (
               <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>
             ))}
           </tr>
@@ -567,6 +685,11 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
               <td className="px-4 py-3 text-ink-muted">{record.calendarLimitDate || "N/A"}</td>
               <td className="px-4 py-3">
                 <StatusPill tone={record.status === "OK" ? "green" : record.status === "Monitor" ? "amber" : "red"}>{record.status}</StatusPill>
+              </td>
+              <td className="px-4 py-3">
+                <StatusPill tone={record.issues.some((issue) => issue.severity === "error") ? "red" : record.issues.some((issue) => issue.severity === "warning") ? "amber" : "green"}>
+                  {record.issues.some((issue) => issue.severity === "error") ? tx("Error") : record.issues.some((issue) => issue.severity === "warning") ? tx("Warning") : tx("Valid")}
+                </StatusPill>
               </td>
               <td className="px-4 py-3 text-ink-muted">{record.issues.filter((issue) => issue.severity === "warning").length}</td>
               <td className="px-4 py-3 text-ink-muted">{record.issues.filter((issue) => issue.severity === "error").length}</td>

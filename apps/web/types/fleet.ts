@@ -103,6 +103,8 @@ export type Helicopter = {
   model: string;
   serialNumber: string;
   manufactureYear: string;
+  manufactureDate?: string;
+  lastReviewDate?: string;
   currentHourmeter: number;
   status: HelicopterStatus;
   ownerCompany: string;

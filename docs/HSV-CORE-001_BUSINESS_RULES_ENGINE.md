@@ -44,14 +44,24 @@ Rules:
 
 - Aircraft Migration Center initializes or updates component-control state from approved HeliServiX Excel workbooks.
 - The approved MVP workbook is `HSV-IMPORT-COMPONENTS-v1.xlsx`.
+- The official MVP parser profile is `HSV_IMPORT_COMPONENTS_V1`.
+- The official sheet of record is `Control Maestro`; it is preferred over `Control Maestro (2)` unless the user manually selects another worksheet.
+- Aircraft metadata is read from Row 4 headers and Row 5 values only: Matrícula, Modelo, Fecha Fabricación, S/N Aeronave, Fecha Revisión, and Horómetro.
+- Aircraft metadata must not be inferred from component rows, component names, notes, or observations.
+- `S/N Aeronave` maps to helicopter serial number; component `S/N` maps only to component serial number.
+- Component headers are read from Row 7, and component data starts at Row 8.
 - Imported records are real user data and must not be marked as demo data.
 - Supported headers must include English and Spanish variants for aircraft metadata, component identity, part number, serial number, position, installation date, TSN, TSO, life limit, remaining hours, calendar limit, remaining percentage, status, and observations.
 - Smart mapping may infer likely column matches, but the migration wizard must show mapped columns before save.
+- The wizard must show aircraft metadata and allow manual correction before import.
 - The wizard must automatically detect worksheets and helicopter registrations.
 - Users must select which detected helicopters to import.
 - The validation step must surface missing required fields, duplicate matches, invalid dates, invalid hour values, and status inconsistencies.
-- Blocking validation prevents saving rows without helicopter registration, component name, or an applicable life/calendar limit.
-- Warnings such as missing notes, missing category, missing position, or duplicate matches do not block import.
+- Blocking metadata validation prevents import when aircraft registration or hourmeter is missing or invalid.
+- Blocking row validation prevents saving affected component rows without component name, P/N or S/N, or at least one component limit: life limit hours, remaining hours, or calendar limit.
+- Warnings such as missing position, missing installation date, missing TSN/TSO, status inconsistency, or duplicate matches do not block import.
+- `Observaciones` is optional and must never affect import validation.
+- The wizard may force import of valid rows only when aircraft metadata is valid; invalid rows remain skipped.
 - Component matching uses helicopter registration, component name, part number, serial number, and position.
 - Replace components mode archives existing component records for selected helicopters before importing approved workbook rows.
 - Merge components mode updates matching components and adds clean new rows.
