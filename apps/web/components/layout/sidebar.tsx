@@ -11,12 +11,12 @@ export function Sidebar() {
   const { t } = useI18n();
 
   return (
-    <aside className="hidden w-80 shrink-0 border-r border-brand-blue/20 bg-brand-navy px-4 py-5 text-white shadow-2xl shadow-brand-navy/18 lg:flex lg:flex-col">
-      <div className="mb-8 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+    <aside className="hidden h-screen w-80 shrink-0 border-r border-brand-blue/20 bg-brand-navy px-4 py-5 text-white shadow-2xl shadow-brand-navy/18 lg:sticky lg:top-0 lg:flex lg:flex-col">
+      <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.05] p-3 shadow-control">
         <BrandLockup variant="sidebar" />
       </div>
 
-      <nav className="flex-1 space-y-1" aria-label={t("shell.module")}>
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1" aria-label={t("shell.module")}>
         {primaryNavigation.map((item) => {
           const Icon = item.icon;
           const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -26,7 +26,7 @@ export function Sidebar() {
               key={item.label}
               href={item.href}
               className={[
-                "group flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition",
+                "group flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition",
                 isActive
                   ? "bg-brand-blue text-white shadow-control"
                   : "text-white/70 hover:bg-white/[0.08] hover:text-white"
@@ -42,7 +42,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.05] p-4 shadow-control">
         <StatusPill tone="teal">{t("shell.mvp")}</StatusPill>
         <p className="mt-3 text-sm font-medium text-white">{t("shell.active")}</p>
         <p className="mt-1 text-xs leading-5 text-white/62">

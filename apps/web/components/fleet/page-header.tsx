@@ -15,7 +15,9 @@ type PageHeaderProps = {
 export function PageHeader({ eyebrow, title, description, icon: Icon, status }: PageHeaderProps) {
   const { tx } = useI18n();
   return (
-    <section className="mb-6 rounded-xl border border-line bg-white p-6 shadow-panel backdrop-blur-xl dark:bg-canvas-muted/72 lg:p-7">
+    <section className="mb-6 overflow-hidden rounded-xl border border-line bg-white shadow-panel backdrop-blur-xl dark:bg-canvas-muted/72">
+      <div className="h-1 bg-gradient-to-r from-brand-blue via-brand-blue/70 to-brand-lightBlue" />
+      <div className="p-5 sm:p-6 lg:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
@@ -35,6 +37,7 @@ export function PageHeader({ eyebrow, title, description, icon: Icon, status }: 
             <p className="mt-1 text-sm font-semibold text-ink">{tx(status)}</p>
           </div>
         ) : null}
+      </div>
       </div>
     </section>
   );

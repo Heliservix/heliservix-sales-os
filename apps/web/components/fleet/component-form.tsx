@@ -22,7 +22,7 @@ export function ComponentForm({ mode, component }: ComponentFormProps) {
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-ink">
           Helicopter registration
-          <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={component?.helicopterRegistration ?? "HP1804"}>
+          <select className="hsv-control" defaultValue={component?.helicopterRegistration ?? "HP1804"}>
             {helicopters.map((helicopter) => (
               <option key={helicopter.registration}>{helicopter.registration}</option>
             ))}
@@ -30,7 +30,7 @@ export function ComponentForm({ mode, component }: ComponentFormProps) {
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Category
-          <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={component?.category ?? "Engine"}>
+          <select className="hsv-control" defaultValue={component?.category ?? "Engine"}>
             {componentCategories.map((category) => (
               <option key={category.id}>{category.name}</option>
             ))}
@@ -49,12 +49,12 @@ export function ComponentForm({ mode, component }: ComponentFormProps) {
         ].map(([label, value]) => (
           <label key={label} className="grid gap-2 text-sm font-medium text-ink">
             {label}
-            <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={value} />
+            <input className="hsv-control" defaultValue={value} />
           </label>
         ))}
         <label className="grid gap-2 text-sm font-medium text-ink sm:col-span-2">
           Notes
-          <textarea className="min-h-28 rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={component?.notes ?? ""} />
+          <textarea className="hsv-textarea" defaultValue={component?.notes ?? ""} />
         </label>
       </div>
       <MockFormActions submitLabel={mode === "create" ? "Simulate component create" : "Simulate component update"} />

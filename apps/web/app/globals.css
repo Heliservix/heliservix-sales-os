@@ -74,3 +74,104 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
+
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgb(var(--color-brand-primary-blue));
+    outline-offset: 2px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--color-ink-subtle));
+  }
+}
+
+@layer components {
+  .hsv-panel {
+    @apply min-w-0 rounded-xl border border-line bg-white p-5 shadow-panel backdrop-blur-xl dark:bg-canvas-muted;
+  }
+
+  .hsv-control {
+    @apply h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-medium text-ink shadow-control outline-none transition duration-150 placeholder:text-ink-subtle hover:border-aviation-blue/30 focus:border-aviation-blue focus:ring-4 focus:ring-aviation-blue/10 disabled:cursor-not-allowed disabled:bg-canvas-muted disabled:text-ink-subtle dark:bg-canvas-muted;
+  }
+
+  .hsv-textarea {
+    @apply min-h-32 w-full resize-y rounded-md border border-line bg-white px-3 py-3 text-sm font-medium leading-6 text-ink shadow-control outline-none transition duration-150 placeholder:text-ink-subtle hover:border-aviation-blue/30 focus:border-aviation-blue focus:ring-4 focus:ring-aviation-blue/10 disabled:cursor-not-allowed disabled:bg-canvas-muted disabled:text-ink-subtle dark:bg-canvas-muted;
+  }
+
+  .hsv-primary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-4 text-sm font-semibold text-white shadow-control transition duration-150 hover:bg-brand-blue active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-ink dark:hover:bg-brand-lightBlue;
+  }
+
+  .hsv-secondary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink-muted shadow-control transition duration-150 hover:border-aviation-blue/30 hover:text-ink active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 dark:bg-canvas-muted;
+  }
+
+  .hsv-ghost-button {
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5 text-sm font-semibold text-ink-muted transition duration-150 hover:bg-canvas-muted hover:text-ink;
+  }
+
+  .hsv-danger-button {
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5 text-sm font-semibold text-aviation-red transition duration-150 hover:bg-aviation-red/10;
+  }
+
+  .hsv-table-wrap {
+    @apply overflow-x-auto rounded-lg border border-line bg-white shadow-control dark:bg-canvas-muted;
+  }
+
+  .hsv-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .hsv-table-head {
+    @apply sticky top-0 z-10 border-b border-line bg-canvas-muted/95 text-[11px] uppercase tracking-wide text-ink-subtle backdrop-blur;
+  }
+
+  .hsv-table-th {
+    @apply whitespace-nowrap px-4 py-3 font-semibold;
+  }
+
+  .hsv-table-body {
+    @apply divide-y divide-line bg-white/70 dark:bg-canvas-muted;
+  }
+
+  .hsv-table-body tr {
+    @apply transition duration-150 hover:bg-brand-lightBlue/40;
+  }
+
+  .hsv-table-row {
+    @apply transition duration-150 hover:bg-brand-lightBlue/40;
+  }
+
+  .hsv-table-cell {
+    @apply px-4 py-3 align-middle;
+  }
+
+  .hsv-empty-state {
+    @apply rounded-lg border border-dashed border-line bg-canvas-muted/40 px-5 py-8 text-center text-sm text-ink-subtle;
+  }
+
+  .hsv-success-banner {
+    @apply mb-5 rounded-lg border border-aviation-green/25 bg-aviation-green/10 px-4 py-3 text-sm font-semibold text-aviation-green shadow-control;
+  }
+
+  .hsv-error-banner {
+    @apply mb-5 rounded-lg border border-aviation-red/25 bg-aviation-red/10 px-4 py-3 text-sm font-semibold text-aviation-red shadow-control;
+  }
+
+  .hsv-skeleton-line {
+    @apply animate-pulse rounded bg-canvas-muted;
+  }
+}

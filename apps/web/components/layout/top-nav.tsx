@@ -15,19 +15,19 @@ export function TopNav() {
     primaryNavigation.find((item) => item.href !== "/" && pathname.startsWith(item.href))?.href ?? "/";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-white/92 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-20 border-b border-line bg-white/94 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="flex items-center gap-2 sm:gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="block">
+          <div className="min-w-0">
             <BrandLockup variant="compact" />
           </div>
-          <div className="hidden md:block lg:hidden">
+          <div className="hidden min-w-[13rem] md:block lg:hidden">
             <label htmlFor="mobile-module" className="sr-only">
               {t("shell.module")}
             </label>
             <select
               id="mobile-module"
-              className="h-10 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink shadow-control outline-none dark:bg-canvas-muted"
+              className="hsv-control"
               value={activeHref}
               onChange={(event) => router.push(event.target.value)}
             >
@@ -39,7 +39,7 @@ export function TopNav() {
             </select>
           </div>
 
-          <div className="hidden h-10 min-w-0 flex-1 max-w-xl items-center gap-3 rounded-md border border-line bg-white px-3 shadow-control dark:bg-canvas-muted md:flex">
+          <div className="hidden h-10 min-w-0 flex-1 max-w-xl items-center gap-3 rounded-md border border-line bg-white px-3 shadow-control transition hover:border-aviation-blue/30 dark:bg-canvas-muted xl:flex">
             <Search className="h-4 w-4 text-ink-subtle" aria-hidden="true" />
             <span className="truncate text-sm text-ink-subtle">
               {t("shell.search")}
@@ -56,7 +56,7 @@ export function TopNav() {
             return (
               <button
                 key={action.label}
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink-muted shadow-control transition hover:text-ink dark:bg-canvas-muted"
+                className="hsv-secondary-button px-3"
                 type="button"
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
@@ -69,7 +69,7 @@ export function TopNav() {
         <label className="sr-only" htmlFor="language-select">{t("shell.language")}</label>
         <select
           id="language-select"
-          className="h-10 rounded-md border border-line bg-white px-2 text-sm font-medium text-ink-muted shadow-control outline-none transition hover:text-ink dark:bg-canvas-muted"
+          className="h-10 rounded-md border border-line bg-white px-2 text-sm font-semibold text-ink-muted shadow-control outline-none transition hover:border-aviation-blue/35 hover:text-ink focus:border-aviation-blue focus:ring-4 focus:ring-aviation-blue/10 dark:bg-canvas-muted"
           value={language}
           onChange={(event) => setLanguage(event.target.value === "es" ? "es" : "en")}
         >
@@ -79,14 +79,14 @@ export function TopNav() {
         </select>
 
         <button
-          className="grid h-10 w-10 place-items-center rounded-md border border-line bg-white text-ink-muted shadow-control transition hover:text-ink dark:bg-canvas-muted"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-line bg-white text-ink-muted shadow-control transition hover:border-aviation-blue/35 hover:text-ink dark:bg-canvas-muted"
           type="button"
           aria-label={t("shell.darkMode")}
         >
           <Moon className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
-          className="grid h-10 w-10 place-items-center rounded-md border border-line bg-white text-ink-muted shadow-control transition hover:text-ink dark:bg-canvas-muted"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-line bg-white text-ink-muted shadow-control transition hover:border-aviation-blue/35 hover:text-ink dark:bg-canvas-muted"
           type="button"
           aria-label={t("shell.notifications")}
         >

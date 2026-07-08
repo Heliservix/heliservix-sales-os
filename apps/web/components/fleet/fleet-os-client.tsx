@@ -5,11 +5,16 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Anchor,
+  Archive,
+  ArrowDownUp,
   Boxes,
   ClipboardList,
   Gauge,
+  Pencil,
   Plane,
+  Plus,
   ShoppingCart,
+  Trash2,
   UserRoundCog,
   Wrench
 } from "lucide-react";
@@ -76,9 +81,9 @@ type FleetOSClientProps = {
 };
 
 const inputClass =
-  "h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted";
+  "hsv-control";
 const textareaClass =
-  "min-h-28 rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted";
+  "hsv-textarea";
 
 const active = <T extends { archived?: boolean }>(records: T[]) => records.filter((record) => !record.archived);
 const num = (value: FormDataEntryValue | null) => Number(value || 0);
@@ -524,7 +529,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       <div className="mx-auto max-w-[1500px]">
         <PageHeader {...header} />
         {message ? (
-          <div className="mb-5 rounded-lg border border-aviation-green/25 bg-aviation-green/10 px-4 py-3 text-sm font-medium text-aviation-green">
+          <div className="hsv-success-banner">
             {message}
           </div>
         ) : null}
@@ -1286,10 +1291,10 @@ function prepareCrudRows<T>(rows: T[], config: {
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
   const { tx } = useI18n();
   return (
-    <Panel>
+    <Panel className="transition duration-150 hover:-translate-y-0.5 hover:border-aviation-blue/25">
       <StatusPill tone={tone}>{tx(label)}</StatusPill>
-      <p className="mt-4 text-3xl font-semibold text-ink">{value}</p>
-      <p className="mt-2 text-sm text-ink-subtle">{tx(detail)}</p>
+      <p className="mt-4 text-3xl font-semibold leading-none text-ink">{value}</p>
+      <p className="mt-3 text-sm leading-6 text-ink-subtle">{tx(detail)}</p>
     </Panel>
   );
 }
@@ -1299,7 +1304,8 @@ function ListHeader({ title, href, action }: { title: string; href: string; acti
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h2 className="text-lg font-semibold text-ink">{tx(title)}</h2>
-      <Link className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href={href}>
+      <Link className="hsv-primary-button w-full sm:w-auto" href={href}>
+        <Plus className="h-4 w-4" aria-hidden="true" />
         {tx(action)}
       </Link>
     </div>
@@ -1333,8 +1339,8 @@ function ListControls({
 }) {
   const { tx } = useI18n();
   return (
-    <div className="mb-4 grid gap-3 rounded-lg border border-line bg-canvas-muted/44 p-3 lg:grid-cols-[1fr_180px_180px_120px_auto] lg:items-center">
-      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+    <div className="mb-4 grid gap-3 rounded-lg border border-line bg-canvas-muted/44 p-3 shadow-control lg:grid-cols-[minmax(220px,1fr)_180px_180px_136px_auto] lg:items-end">
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
         {tx("Search")}
         <input
           className={inputClass}
@@ -1343,26 +1349,27 @@ function ListControls({
           onChange={(event) => onQueryChange(event.target.value)}
         />
       </label>
-      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
         {tx("Filter")}
         <select className={inputClass} value={filter} onChange={(event) => onFilterChange(event.target.value)}>
           {[...new Set(filters)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
         </select>
       </label>
-      <label className="grid gap-1 text-xs font-semibold uppercase text-ink-subtle">
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
         {tx("Sort")}
         <select className={inputClass} value={sortKey} onChange={(event) => onSortKeyChange(event.target.value)}>
           {sortOptions.map(([value, label]) => <option key={value} value={value}>{tx(label)}</option>)}
         </select>
       </label>
       <button
-        className="h-11 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink shadow-control"
+        className="hsv-secondary-button h-11"
         type="button"
         onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
       >
+        <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
         {sortDirection === "asc" ? tx("Ascending") : tx("Descending")}
       </button>
-      <p className="text-sm font-semibold text-ink-muted">{resultCount} {tx("records")}</p>
+      <p className="rounded-md border border-line bg-white px-3 py-2 text-center text-sm font-semibold text-ink-muted shadow-control dark:bg-canvas-muted">{resultCount} {tx("records")}</p>
     </div>
   );
 }
@@ -1370,28 +1377,28 @@ function ListControls({
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   const { tx } = useI18n();
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
-      <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-        <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
-          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>)}</tr>
+    <div className="hsv-table-wrap">
+      <table className="hsv-table min-w-[920px]">
+        <thead className="hsv-table-head">
+          <tr>{headers.map((header) => <th key={header} className="hsv-table-th">{tx(header)}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">{children}</tbody>
+        <tbody className="hsv-table-body">{children}</tbody>
       </table>
     </div>
   );
 }
 
 function Cell({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
-  return <td className={["px-4 py-3", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
+  return <td className={["hsv-table-cell", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
 }
 
 function Actions({ edit, onArchive, onDelete }: { edit: string; onArchive: () => void; onDelete: () => void }) {
   const { tx } = useI18n();
   return (
-    <div className="flex flex-wrap gap-3">
-      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>{tx("Edit")}</Link>
-      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">{tx("Archive")}</button>
-      <button className="font-semibold text-ink-muted hover:text-aviation-red" onClick={onDelete} type="button">{tx("Delete")}</button>
+    <div className="flex flex-wrap gap-1.5">
+      <Link className="hsv-ghost-button text-aviation-teal" href={edit}><Pencil className="h-4 w-4" aria-hidden="true" />{tx("Edit")}</Link>
+      <button className="hsv-ghost-button" onClick={onArchive} type="button"><Archive className="h-4 w-4" aria-hidden="true" />{tx("Archive")}</button>
+      <button className="hsv-danger-button" onClick={onDelete} type="button"><Trash2 className="h-4 w-4" aria-hidden="true" />{tx("Delete")}</button>
     </div>
   );
 }
@@ -1399,10 +1406,10 @@ function Actions({ edit, onArchive, onDelete }: { edit: string; onArchive: () =>
 function InlineActions({ onEdit, onArchive, onDelete }: { onEdit: () => void; onArchive: () => void; onDelete: () => void }) {
   const { tx } = useI18n();
   return (
-    <div className="flex flex-wrap gap-3">
-      <button className="font-semibold text-aviation-teal" onClick={onEdit} type="button">{tx("Edit")}</button>
-      <button className="font-semibold text-aviation-red" onClick={onArchive} type="button">{tx("Archive")}</button>
-      <button className="font-semibold text-ink-muted hover:text-aviation-red" onClick={onDelete} type="button">{tx("Delete")}</button>
+    <div className="flex flex-wrap gap-1.5">
+      <button className="hsv-ghost-button text-aviation-teal" onClick={onEdit} type="button"><Pencil className="h-4 w-4" aria-hidden="true" />{tx("Edit")}</button>
+      <button className="hsv-ghost-button" onClick={onArchive} type="button"><Archive className="h-4 w-4" aria-hidden="true" />{tx("Archive")}</button>
+      <button className="hsv-danger-button" onClick={onDelete} type="button"><Trash2 className="h-4 w-4" aria-hidden="true" />{tx("Delete")}</button>
     </div>
   );
 }
@@ -1435,7 +1442,7 @@ function FormShell({ children, onSubmit, title }: { children: React.ReactNode; o
           <p className="text-sm text-ink-subtle">{tx(dirty ? "Unsaved changes" : "Frontend-only localStorage save. No backend or database is connected.")}</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
-              className="h-10 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink-muted shadow-control transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
+              className="hsv-secondary-button"
               type="reset"
               disabled={!dirty}
               onClick={(event) => {
@@ -1445,7 +1452,7 @@ function FormShell({ children, onSubmit, title }: { children: React.ReactNode; o
             >
               {tx("Discard")}
             </button>
-            <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
+            <button className="hsv-primary-button" type="submit">
               {tx("Save locally")}
             </button>
           </div>
@@ -1502,8 +1509,11 @@ function EmptyTableRow({ colSpan }: { colSpan: number }) {
   const { tx } = useI18n();
   return (
     <tr>
-      <td className="px-4 py-8 text-center text-sm text-ink-subtle" colSpan={colSpan}>
-        {tx("No records match the current search or filter.")}
+      <td className="px-4 py-8" colSpan={colSpan}>
+        <div className="hsv-empty-state">
+          <p className="font-semibold text-ink">{tx("No records match the current search or filter.")}</p>
+          <p className="mt-1 text-xs text-ink-subtle">{tx("Adjust search, filters, or create a new local record.")}</p>
+        </div>
       </td>
     </tr>
   );
@@ -1511,16 +1521,29 @@ function EmptyTableRow({ colSpan }: { colSpan: number }) {
 
 function EmptyInlineState() {
   const { tx } = useI18n();
-  return <p className="rounded-lg border border-dashed border-line bg-canvas-muted/44 px-4 py-6 text-center text-sm text-ink-subtle">{tx("No records match the current search or filter.")}</p>;
+  return (
+    <div className="hsv-empty-state">
+      <p className="font-semibold text-ink">{tx("No records match the current search or filter.")}</p>
+      <p className="mt-1 text-xs text-ink-subtle">{tx("Adjust search, filters, or create a new local record.")}</p>
+    </div>
+  );
 }
 
 function LoadingState() {
   const { tx } = useI18n();
   return (
-    <Panel>
-      <div className="h-3 w-36 animate-pulse rounded bg-canvas-muted" />
-      <div className="mt-4 h-20 animate-pulse rounded-lg bg-canvas-muted/70" />
-      <p className="mt-4 text-sm text-ink-subtle">{tx("Loading local records...")}</p>
+    <Panel className="overflow-hidden">
+      <div className="flex items-center justify-between gap-4">
+        <div className="hsv-skeleton-line h-3 w-36" />
+        <div className="hsv-skeleton-line h-8 w-24" />
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="hsv-skeleton-line h-24" />
+        <div className="hsv-skeleton-line h-24" />
+        <div className="hsv-skeleton-line h-24" />
+      </div>
+      <div className="mt-4 h-28 animate-pulse rounded-lg border border-line bg-canvas-muted/60" />
+      <p className="mt-4 text-sm font-medium text-ink-subtle">{tx("Loading local records...")}</p>
     </Panel>
   );
 }

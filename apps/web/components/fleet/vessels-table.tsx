@@ -7,39 +7,39 @@ type VesselsTableProps = {
 
 export function VesselsTable({ vessels }: VesselsTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
-      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-        <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+    <div className="hsv-table-wrap">
+      <table className="hsv-table min-w-[980px]">
+        <thead className="hsv-table-head">
           <tr>
-            <th className="px-4 py-3 font-semibold">Vessel</th>
-            <th className="px-4 py-3 font-semibold">Owner</th>
-            <th className="px-4 py-3 font-semibold">Country</th>
-            <th className="px-4 py-3 font-semibold">Home Port</th>
-            <th className="px-4 py-3 font-semibold">Capacity</th>
-            <th className="px-4 py-3 font-semibold">Campaign</th>
-            <th className="px-4 py-3 font-semibold">Assigned Helicopter</th>
-            <th className="px-4 py-3 font-semibold">Status</th>
-            <th className="px-4 py-3 font-semibold">Actions</th>
+            <th className="hsv-table-th">Vessel</th>
+            <th className="hsv-table-th">Owner</th>
+            <th className="hsv-table-th">Country</th>
+            <th className="hsv-table-th">Home Port</th>
+            <th className="hsv-table-th">Capacity</th>
+            <th className="hsv-table-th">Campaign</th>
+            <th className="hsv-table-th">Assigned Helicopter</th>
+            <th className="hsv-table-th">Status</th>
+            <th className="hsv-table-th">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">
+        <tbody className="hsv-table-body">
           {vessels.map((vessel) => (
             <tr key={vessel.id}>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell">
                 <a className="font-semibold text-ink hover:text-aviation-teal" href={`/vessels/${vessel.id}`}>
                   {vessel.name}
                 </a>
               </td>
-              <td className="px-4 py-3 text-ink-muted">{vessel.owner}</td>
-              <td className="px-4 py-3 text-ink-muted">{vessel.country}</td>
-              <td className="px-4 py-3 text-ink-muted">{vessel.homePort}</td>
-              <td className="px-4 py-3 font-medium text-ink">{vessel.capacityTons.toLocaleString()} tons</td>
-              <td className="px-4 py-3 text-ink-muted">{vessel.campaign}</td>
-              <td className="px-4 py-3 text-ink-muted">{vessel.assignedHelicopter ?? "Unassigned"}</td>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell text-ink-muted">{vessel.owner}</td>
+              <td className="hsv-table-cell text-ink-muted">{vessel.country}</td>
+              <td className="hsv-table-cell text-ink-muted">{vessel.homePort}</td>
+              <td className="hsv-table-cell font-medium text-ink">{vessel.capacityTons.toLocaleString()} tons</td>
+              <td className="hsv-table-cell text-ink-muted">{vessel.campaign}</td>
+              <td className="hsv-table-cell text-ink-muted">{vessel.assignedHelicopter ?? "Unassigned"}</td>
+              <td className="hsv-table-cell">
                 <StatusPill tone="amber">{vessel.status}</StatusPill>
               </td>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell">
                 <a className="font-semibold text-aviation-teal hover:text-ink" href={`/vessels/${vessel.id}/edit`}>
                   Edit
                 </a>

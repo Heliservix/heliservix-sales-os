@@ -243,7 +243,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             onChange={(event) => void parseFile(event.target.files?.[0])}
           />
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-blue px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92"
+            className="hsv-primary-button"
             type="button"
             onClick={() => inputRef.current?.click()}
           >
@@ -279,8 +279,8 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         })}
       </div>
 
-      {message ? <p className="mt-4 rounded-lg border border-aviation-green/20 bg-aviation-green/10 px-4 py-3 text-sm font-medium text-aviation-green">{message}</p> : null}
-      {error ? <p className="mt-4 rounded-lg border border-aviation-red/20 bg-aviation-red/10 px-4 py-3 text-sm font-medium text-aviation-red">{error}</p> : null}
+      {message ? <p className="hsv-success-banner mt-4 mb-0">{message}</p> : null}
+      {error ? <p className="hsv-error-banner mt-4 mb-0">{error}</p> : null}
 
       <div className="mt-5">
         {step === 1 ? renderSelectStep() : null}
@@ -303,7 +303,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             </p>
           </div>
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92"
+            className="hsv-primary-button"
             type="button"
             onClick={() => inputRef.current?.click()}
           >
@@ -326,7 +326,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Errors" value={String(currentPreview.issues.filter((issue) => issue.severity === "error").length)} tone={currentPreview.issues.some((issue) => issue.severity === "error") ? "red" : "green"} />
         </section>
 
-        <section className="rounded-lg border border-line bg-white p-4">
+        <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h3 className="text-sm font-semibold text-ink">{tx("Detected worksheets")}</h3>
@@ -338,7 +338,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             </div>
             <label className="grid min-w-64 gap-2 text-sm font-semibold text-ink">
               {tx("Active worksheet")}
-              <select className="h-10 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control" value={selectedSheetName} onChange={(event) => updateSheet(event.target.value)}>
+              <select className="hsv-control h-10" value={selectedSheetName} onChange={(event) => updateSheet(event.target.value)}>
                 {workbookSheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name}</option>)}
               </select>
             </label>
@@ -420,7 +420,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Missing data" value={String(summary.missingData)} tone={summary.missingData ? "amber" : "green"} />
           <MigrationStat label="Validation status" value={blocking ? tx("Blocked") : tx("Ready")} tone={blocking ? "red" : "green"} />
         </section>
-        <div className="rounded-lg border border-line bg-white p-4">
+        <div className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
           <h3 className="text-sm font-semibold text-ink">{tx("Validation findings")}</h3>
           <div className="mt-3 max-h-80 overflow-auto rounded-md border border-line">
             {visibleIssues.length ? visibleIssues.slice(0, 80).map((item, index) => (
@@ -446,7 +446,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
     const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
     return (
       <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-        <section className="rounded-lg border border-line bg-white p-4">
+        <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
           <h3 className="text-sm font-semibold text-ink">{tx("Import options")}</h3>
           <div className="mt-4 grid gap-3">
             <label className="flex items-start gap-3 text-sm text-ink-muted">
@@ -474,7 +474,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             ))}
           </div>
           <button
-            className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-45"
+            className="hsv-primary-button mt-5"
             type="button"
             disabled={blocking || selectedRegistrations.length === 0}
             onClick={applyImport}
@@ -484,7 +484,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           </button>
         </section>
 
-        <section className="rounded-lg border border-line bg-white p-4">
+        <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
           <h3 className="text-sm font-semibold text-ink">{tx("Migration summary")}</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <MiniStat label="Selected helicopters" value={selectedRegistrations.join(", ") || tx("None")} />
@@ -511,7 +511,7 @@ function WizardActions({ canContinue, onNext, onBack }: { canContinue: boolean; 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
       <button
-        className="h-10 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink-muted shadow-control transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+        className="hsv-secondary-button"
         type="button"
         disabled={!onBack}
         onClick={onBack}
@@ -520,7 +520,7 @@ function WizardActions({ canContinue, onNext, onBack }: { canContinue: boolean; 
       </button>
       {onNext ? (
         <button
-          className="h-10 rounded-md bg-brand-blue px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-45"
+          className="hsv-primary-button"
           type="button"
           disabled={!canContinue}
           onClick={onNext}
@@ -550,7 +550,7 @@ function AircraftMetadataPanel({
     { key: "currentHourmeter", label: "Current Hourmeter / Horómetro", type: "number", value: metadata.currentHourmeter || "" }
   ];
   return (
-    <section className="rounded-lg border border-line bg-white p-4">
+    <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">{tx("Aircraft Metadata")}</h3>
@@ -565,7 +565,7 @@ function AircraftMetadataPanel({
           <label key={field.key} className="grid gap-2 text-sm font-semibold text-ink">
             {tx(field.label)}
             <input
-              className="h-10 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control"
+              className="hsv-control h-10"
               type={field.type ?? "text"}
               value={field.value}
               min={field.type === "number" ? 0 : undefined}
@@ -597,7 +597,7 @@ function MappingConfidencePanel({
 }) {
   const { tx } = useI18n();
   return (
-    <section className="rounded-lg border border-line bg-white p-4">
+    <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">{tx("Column mapping confidence")}</h3>
@@ -607,16 +607,16 @@ function MappingConfidencePanel({
           {tx("Fuzzy matching active")}
         </StatusPill>
       </div>
-      <div className="mt-4 overflow-x-auto rounded-lg border border-line">
-        <table className="w-full min-w-[860px] border-collapse text-left text-sm">
-          <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+      <div className="hsv-table-wrap mt-4">
+        <table className="hsv-table min-w-[860px]">
+          <thead className="hsv-table-head">
             <tr>
               {["Field", "Detected header", "Confidence", "Correction"].map((header) => (
-                <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>
+                <th key={header} className="hsv-table-th">{tx(header)}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-line bg-white">
+          <tbody className="hsv-table-body">
             {preview.mappedFields.map((field) => (
               <tr key={field.field}>
                 <td className="px-4 py-3 font-semibold text-ink">{tx(field.label)}</td>
@@ -624,14 +624,14 @@ function MappingConfidencePanel({
                   {field.header || tx("No column mapped")}
                   {field.manuallyMapped ? <span className="ml-2 text-xs font-semibold text-aviation-blue">{tx("Manual")}</span> : null}
                 </td>
-                <td className="px-4 py-3">
+                <td className="hsv-table-cell">
                   <StatusPill tone={field.confidence >= 90 ? "green" : field.confidence >= 75 ? "blue" : field.confidence >= 58 ? "amber" : "red"}>
                     {field.confidence}%
                   </StatusPill>
                 </td>
-                <td className="px-4 py-3">
+                <td className="hsv-table-cell">
                   <select
-                    className="h-10 w-full rounded-md border border-line bg-white px-3 text-sm font-medium text-ink shadow-control outline-none transition focus:border-brand-blue"
+                    className="hsv-control h-10"
                     value={field.manuallyMapped ? field.columnIndex === undefined ? "ignore" : String(field.columnIndex) : "auto"}
                     onChange={(event) => onChange(field.field, event.target.value)}
                   >
@@ -662,16 +662,16 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
   const { tx } = useI18n();
   const visibleRecords = records.slice(0, compact ? 8 : 24);
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
-      <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
-        <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+    <div className="hsv-table-wrap">
+      <table className="hsv-table min-w-[1120px]">
+        <thead className="hsv-table-head">
           <tr>
             {["Worksheet", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Result", "Warnings", "Errors"].map((header) => (
-              <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>
+              <th key={header} className="hsv-table-th">{tx(header)}</th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line bg-white">
+        <tbody className="hsv-table-body">
           {visibleRecords.map((record) => (
             <tr key={`${record.worksheetName}-${record.rowNumber}-${record.duplicateKey}`}>
               <td className="px-4 py-3 text-ink-muted">{record.worksheetName}</td>
@@ -683,10 +683,10 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
               <td className="px-4 py-3 text-ink">{record.remainingHours.toFixed(1)} hrs</td>
               <td className="px-4 py-3 text-ink">{record.remainingPercentage.toFixed(1)}%</td>
               <td className="px-4 py-3 text-ink-muted">{record.calendarLimitDate || "N/A"}</td>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell">
                 <StatusPill tone={record.status === "OK" ? "green" : record.status === "Monitor" ? "amber" : "red"}>{record.status}</StatusPill>
               </td>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell">
                 <StatusPill tone={record.issues.some((issue) => issue.severity === "error") ? "red" : record.issues.some((issue) => issue.severity === "warning") ? "amber" : "green"}>
                   {record.issues.some((issue) => issue.severity === "error") ? tx("Error") : record.issues.some((issue) => issue.severity === "warning") ? tx("Warning") : tx("Valid")}
                 </StatusPill>
@@ -704,7 +704,7 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
 function MigrationStat({ label, value, tone = "blue" }: { label: string; value: string; tone?: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
   const { tx } = useI18n();
   return (
-    <div className="rounded-lg border border-line bg-white p-3 shadow-control">
+    <div className="rounded-lg border border-line bg-white/84 p-3 shadow-control dark:bg-canvas-muted/70">
       <StatusPill tone={tone}>{tx(label)}</StatusPill>
       <p className="mt-3 truncate text-xl font-semibold text-ink">{value}</p>
     </div>

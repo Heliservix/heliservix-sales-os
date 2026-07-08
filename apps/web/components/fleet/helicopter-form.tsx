@@ -32,12 +32,12 @@ export function HelicopterForm({ mode, helicopter }: HelicopterFormProps) {
         ].map(([label, value]) => (
           <label key={label} className="grid gap-2 text-sm font-medium text-ink">
             {label}
-            <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={value} />
+            <input className="hsv-control" defaultValue={value} />
           </label>
         ))}
         <label className="grid gap-2 text-sm font-medium text-ink">
           Status
-          <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={helicopter?.status ?? "Available"}>
+          <select className="hsv-control" defaultValue={helicopter?.status ?? "Available"}>
             <option>Available</option>
             <option>Assigned</option>
             <option>In Campaign</option>
@@ -48,7 +48,7 @@ export function HelicopterForm({ mode, helicopter }: HelicopterFormProps) {
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Assigned vessel
-          <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={helicopter?.assignedVessel ?? "Unassigned"}>
+          <select className="hsv-control" defaultValue={helicopter?.assignedVessel ?? "Unassigned"}>
             <option>Unassigned</option>
             {vessels.map((vessel) => (
               <option key={vessel.id}>{vessel.name}</option>
@@ -57,7 +57,7 @@ export function HelicopterForm({ mode, helicopter }: HelicopterFormProps) {
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink sm:col-span-2">
           Notes
-          <textarea className="min-h-28 rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={helicopter?.notes ?? ""} />
+          <textarea className="hsv-textarea" defaultValue={helicopter?.notes ?? ""} />
         </label>
       </div>
       <MockFormActions submitLabel={mode === "create" ? "Simulate helicopter create" : "Simulate helicopter update"} />
