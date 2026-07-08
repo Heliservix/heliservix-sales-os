@@ -29,6 +29,9 @@ export type AircraftImportMetadata = {
   operator: string;
   currentHourmeter: number;
   detected: boolean;
+  metadataRowDetected: boolean;
+  metadataRowNumber: number;
+  missingFields: string[];
   manuallyConfirmed: boolean;
   confidence: number;
   issues: ImportIssue[];
@@ -140,6 +143,14 @@ export type ComponentImportDiagnostics = {
   selectedSheet: string;
   metadataDetected: boolean;
   metadataRowDetected: boolean;
+  metadataRowNumber: number;
+  metadataFields: {
+    registration: string;
+    model: string;
+    aircraftSerialNumber: string;
+    currentHourmeter: string;
+    missingFields: string[];
+  };
   componentHeaderRowDetected: boolean;
   componentHeaderRow: number;
   componentRowsDetected: number;
@@ -507,7 +518,15 @@ function buildDiagnostics(input: {
     sheetsFound: input.sheets.map((sheet) => sheet.name),
     selectedSheet: input.selectedSheet,
     metadataDetected: input.metadata.detected,
-    metadataRowDetected: input.metadata.detected,
+    metadataRowDetected: input.metadata.metadataRowDetected,
+    metadataRowNumber: input.metadata.metadataRowNumber,
+    metadataFields: {
+      registration: input.metadata.registration,
+      model: input.metadata.model,
+      aircraftSerialNumber: input.metadata.aircraftSerialNumber,
+      currentHourmeter: input.metadata.currentHourmeter > 0 ? input.metadata.currentHourmeter.toFixed(1) : "",
+      missingFields: input.metadata.missingFields
+    },
     componentHeaderRowDetected: input.componentHeaderRowDetected,
     componentHeaderRow: input.componentHeaderRow,
     componentRowsDetected: input.records.length,
@@ -808,34 +827,49 @@ function scoreOfficialComponentHeader(row: RawRow) {
   return Math.max(score(expectedWithRef), score(expectedWithoutRef));
 }
 
+const officialMetadataFields = [
+  { key: "registration", label: "Registration", aliases: ["matricula", "registration", "aircraft registration", "helicopter registration"] },
+  { key: "model", label: "Model", aliases: ["modelo", "model", "aircraft model", "helicopter model"] },
+  { key: "manufactureDate", label: "Manufacture Date", aliases: ["fecha fabricacion", "manufacture date", "manufacturing date", "year manufacture"] },
+  { key: "aircraftSerialNumber", label: "Aircraft Serial Number", aliases: ["s n aeronave", "sn aeronave", "serial aeronave", "aircraft serial number", "aircraft serial"] },
+  { key: "reviewDate", label: "Review Date", aliases: ["fecha revision", "fecha inspeccion", "review date", "inspection date"] },
+  { key: "currentHourmeter", label: "Current Hourmeter", aliases: ["horometro", "current hourmeter", "hourmeter", "hobbs"] }
+] as const;
+
+type OfficialMetadataKey = typeof officialMetadataFields[number]["key"];
+type OfficialMetadataDetection = {
+  values: Record<OfficialMetadataKey, unknown>;
+  rowDetected: boolean;
+  rowNumber: number;
+  confidence: number;
+};
+
 function extractOfficialWorkbookMetadata(rows: RawRow[], worksheetName: string, overrides?: AircraftImportMetadataOverride): AircraftImportMetadata {
-  const headerRow = rows[HSV_IMPORT_COMPONENTS_V1.metadataHeaderRowIndex] ?? [];
-  const valueRow = rows[HSV_IMPORT_COMPONENTS_V1.metadataValueRowIndex] ?? [];
-  const headerMap = new Map<string, unknown>();
-  headerRow.forEach((header, index) => {
-    headerMap.set(normalizeHeader(header), valueRow[index]);
-  });
-  const detected = {
-    registration: headerMap.get("matricula") ?? "",
-    model: headerMap.get("modelo") ?? "",
-    manufactureDate: headerMap.get("fecha fabricacion") ?? "",
-    aircraftSerialNumber: headerMap.get("s n aeronave") ?? "",
-    reviewDate: headerMap.get("fecha revision") ?? "",
-    currentHourmeter: headerMap.get("horometro") ?? ""
+  const detected = detectOfficialWorkbookMetadata(rows);
+  const normalized = {
+    registration: normalizeRegistration(detected.values.registration),
+    model: normalizeCell(detected.values.model),
+    manufactureDate: parseDate(detected.values.manufactureDate, { allowYear: true }),
+    aircraftSerialNumber: normalizeCell(detected.values.aircraftSerialNumber),
+    reviewDate: parseDate(detected.values.reviewDate, { allowYear: false }),
+    currentHourmeter: parseNumber(detected.values.currentHourmeter)
   };
-  const rowDetected = Boolean(normalizeCell(detected.registration) || normalizeCell(detected.model) || normalizeCell(detected.aircraftSerialNumber) || normalizeCell(detected.currentHourmeter));
+  const missingFields = missingOfficialMetadataFields(normalized);
   const base: AircraftImportMetadata = {
-    registration: normalizeRegistration(detected.registration),
-    model: normalizeCell(detected.model),
-    aircraftSerialNumber: normalizeCell(detected.aircraftSerialNumber),
-    manufactureDate: parseDate(detected.manufactureDate, { allowYear: true }),
-    reviewDate: parseDate(detected.reviewDate, { allowYear: false }),
+    registration: normalized.registration,
+    model: normalized.model,
+    aircraftSerialNumber: normalized.aircraftSerialNumber,
+    manufactureDate: normalized.manufactureDate,
+    reviewDate: normalized.reviewDate,
     owner: "",
     operator: "",
-    currentHourmeter: parseNumber(detected.currentHourmeter),
-    detected: rowDetected,
+    currentHourmeter: normalized.currentHourmeter,
+    detected: detected.rowDetected && missingFields.length < officialMetadataFields.length,
+    metadataRowDetected: detected.rowDetected,
+    metadataRowNumber: detected.rowNumber,
+    missingFields,
     manuallyConfirmed: false,
-    confidence: rowDetected ? Math.round((scoreOfficialMetadataHeader(headerRow) / 6) * 100) : 0,
+    confidence: detected.confidence,
     issues: []
   };
   const metadata: AircraftImportMetadata = {
@@ -849,11 +883,99 @@ function extractOfficialWorkbookMetadata(rows: RawRow[], worksheetName: string, 
     owner: normalizeCell(overrides?.owner ?? base.owner),
     operator: normalizeCell(overrides?.operator ?? base.operator),
     currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : base.currentHourmeter,
+    metadataRowDetected: base.metadataRowDetected,
+    metadataRowNumber: base.metadataRowNumber,
+    missingFields: missingOfficialMetadataFields({
+      registration: normalizeRegistration(overrides?.registration ?? base.registration),
+      model: normalizeCell(overrides?.model ?? base.model),
+      aircraftSerialNumber: normalizeCell(overrides?.aircraftSerialNumber ?? base.aircraftSerialNumber),
+      manufactureDate: parseDate(overrides?.manufactureDate ?? base.manufactureDate, { allowYear: true }),
+      reviewDate: parseDate(overrides?.reviewDate ?? base.reviewDate),
+      currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : base.currentHourmeter
+    }),
     manuallyConfirmed: Boolean(overrides?.manuallyConfirmed),
     confidence: overrides?.manuallyConfirmed ? 100 : base.confidence
   };
   metadata.issues = validateAircraftMetadata(metadata, worksheetName);
   return metadata;
+}
+
+function detectOfficialWorkbookMetadata(rows: RawRow[]): OfficialMetadataDetection {
+  const fixed = readOfficialMetadataPair(rows, HSV_IMPORT_COMPONENTS_V1.metadataHeaderRowIndex, HSV_IMPORT_COMPONENTS_V1.metadataValueRowIndex);
+  if (fixed.rowDetected) return fixed;
+
+  const scanLimit = Math.min(rows.length, 10);
+  const candidates = Array.from({ length: scanLimit }, (_, index) => readOfficialMetadataPair(rows, index, index + 1))
+    .filter((candidate) => candidate.rowDetected)
+    .sort((a, b) => b.confidence - a.confidence);
+
+  return candidates[0] ?? {
+    values: emptyOfficialMetadataValues(),
+    rowDetected: false,
+    rowNumber: 0,
+    confidence: 0
+  };
+}
+
+function readOfficialMetadataPair(rows: RawRow[], headerIndex: number, valueIndex: number): OfficialMetadataDetection {
+  const headerRow = rows[headerIndex] ?? [];
+  const valueRow = rows[valueIndex] ?? [];
+  const values = emptyOfficialMetadataValues();
+  let labelScore = 0;
+  let valueScore = 0;
+
+  officialMetadataFields.forEach((field) => {
+    const columnIndex = findOfficialMetadataColumn(headerRow, field.aliases);
+    if (columnIndex === undefined) return;
+    labelScore += 1;
+    const sameColumnValue = valueRow[columnIndex];
+    const adjacentValue = findMetadataValue(rows, headerIndex, columnIndex);
+    const value = normalizeCell(sameColumnValue) ? sameColumnValue : adjacentValue;
+    values[field.key] = value;
+    if (normalizeCell(value)) valueScore += 1;
+  });
+
+  const rowDetected = labelScore >= 3;
+  return {
+    values,
+    rowDetected,
+    rowNumber: rowDetected ? headerIndex + 1 : 0,
+    confidence: rowDetected ? Math.min(100, Math.round((labelScore / officialMetadataFields.length) * 60 + (valueScore / officialMetadataFields.length) * 40)) : 0
+  };
+}
+
+function findOfficialMetadataColumn(row: RawRow, aliases: readonly string[]) {
+  let best: { index: number; score: number } | undefined;
+  row.forEach((cell, index) => {
+    const label = normalizeHeader(cell);
+    if (!label) return;
+    const score = scoreMetadataLabel(label, aliases);
+    if (score < 72) return;
+    if (!best || score > best.score) best = { index, score };
+  });
+  return best?.index;
+}
+
+function emptyOfficialMetadataValues(): Record<OfficialMetadataKey, unknown> {
+  return {
+    registration: "",
+    model: "",
+    manufactureDate: "",
+    aircraftSerialNumber: "",
+    reviewDate: "",
+    currentHourmeter: ""
+  };
+}
+
+function missingOfficialMetadataFields(metadata: Pick<AircraftImportMetadata, "registration" | "model" | "aircraftSerialNumber" | "manufactureDate" | "reviewDate" | "currentHourmeter">) {
+  const missing: string[] = [];
+  if (!metadata.registration) missing.push("Registration / Matrícula");
+  if (!metadata.model) missing.push("Model / Modelo");
+  if (!metadata.manufactureDate) missing.push("Manufacture Date / Fecha Fabricación");
+  if (!metadata.aircraftSerialNumber) missing.push("Aircraft Serial Number / S/N Aeronave");
+  if (!metadata.reviewDate) missing.push("Review Date / Fecha Revisión");
+  if (!Number.isFinite(metadata.currentHourmeter) || metadata.currentHourmeter <= 0) missing.push("Current Hourmeter / Horómetro");
+  return missing;
 }
 
 function findOfficialComponentTable(rows: RawRow[], overrides?: ComponentImportColumnOverride) {
@@ -1144,6 +1266,9 @@ function extractOfficialMetadata(rows: RawRow[], worksheetName: string, override
     operator: normalizeCell(detected.operator),
     currentHourmeter: parseNumber(detected.currentHourmeter),
     detected: detected.confidence >= 40,
+    metadataRowDetected: detected.confidence >= 40,
+    metadataRowNumber: 0,
+    missingFields: [],
     manuallyConfirmed: false,
     confidence: detected.confidence,
     issues: []
@@ -1159,6 +1284,16 @@ function extractOfficialMetadata(rows: RawRow[], worksheetName: string, override
     owner: normalizeCell(overrides?.owner ?? base.owner),
     operator: normalizeCell(overrides?.operator ?? base.operator),
     currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : base.currentHourmeter,
+    metadataRowDetected: base.metadataRowDetected,
+    metadataRowNumber: base.metadataRowNumber,
+    missingFields: missingOfficialMetadataFields({
+      registration: normalizeRegistration(overrides?.registration ?? base.registration),
+      model: normalizeCell(overrides?.model ?? base.model),
+      aircraftSerialNumber: normalizeCell(overrides?.aircraftSerialNumber ?? base.aircraftSerialNumber),
+      manufactureDate: parseDate(overrides?.manufactureDate ?? base.manufactureDate, { allowYear: true }),
+      reviewDate: parseDate(overrides?.reviewDate ?? base.reviewDate),
+      currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : base.currentHourmeter
+    }),
     manuallyConfirmed: Boolean(overrides?.manuallyConfirmed),
     confidence: overrides?.manuallyConfirmed ? 100 : base.confidence
   };
@@ -1249,7 +1384,7 @@ function scoreMetadataLabel(label: string, aliases: readonly string[]) {
 }
 
 function buildEmptyMetadata(overrides: AircraftImportMetadataOverride | undefined, worksheetName: string): AircraftImportMetadata {
-  const metadata: AircraftImportMetadata = {
+  const metadataBase = {
     registration: normalizeRegistration(overrides?.registration ?? ""),
     model: overrides?.model ?? "",
     aircraftSerialNumber: overrides?.aircraftSerialNumber ?? "",
@@ -1257,8 +1392,14 @@ function buildEmptyMetadata(overrides: AircraftImportMetadataOverride | undefine
     reviewDate: overrides?.reviewDate ?? "",
     owner: overrides?.owner ?? "",
     operator: overrides?.operator ?? "",
-    currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : 0,
+    currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : 0
+  };
+  const metadata: AircraftImportMetadata = {
+    ...metadataBase,
     detected: false,
+    metadataRowDetected: false,
+    metadataRowNumber: 0,
+    missingFields: missingOfficialMetadataFields(metadataBase),
     manuallyConfirmed: Boolean(overrides?.manuallyConfirmed),
     confidence: overrides?.manuallyConfirmed ? 100 : 0,
     issues: []
@@ -1270,7 +1411,8 @@ function buildEmptyMetadata(overrides: AircraftImportMetadataOverride | undefine
 function validateAircraftMetadata(metadata: AircraftImportMetadata, worksheetName: string) {
   const issues: ImportIssue[] = [];
   if (!metadata.detected) {
-    issues.push(issue(0, "Aircraft metadata", "error", "Aircraft metadata was not detected. Please confirm registration, model, serial number and hourmeter before importing components.", "", "Enter metadata manually before import.", worksheetName));
+    const missing = metadata.missingFields.length ? ` Missing: ${metadata.missingFields.join(", ")}.` : "";
+    issues.push(issue(0, "Aircraft metadata", "error", `Aircraft metadata was not detected. Please confirm registration, model, serial number and hourmeter before importing components.${missing}`, "", "Enter metadata manually before import.", worksheetName));
   }
   if (!metadata.registration) {
     issues.push(issue(5, "Registration", "error", "Helicopter registration is required.", metadata.registration, "Enter Matrícula from the official workbook metadata row.", worksheetName));

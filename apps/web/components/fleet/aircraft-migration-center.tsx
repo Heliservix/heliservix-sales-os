@@ -665,6 +665,7 @@ function AircraftMetadataPanel({
 function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview }) {
   const { tx } = useI18n();
   const diagnostics = preview.diagnostics;
+  const missing = tx("Missing");
   return (
     <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -680,6 +681,11 @@ function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview
         <MiniStat label="Sheets found" value={diagnostics.sheetsFound.join(", ") || "N/A"} />
         <MiniStat label="Selected sheet" value={diagnostics.selectedSheet || "N/A"} />
         <MiniStat label="Metadata detected" value={diagnostics.metadataDetected ? tx("Yes") : tx("No")} />
+        <MiniStat label="Metadata row detected" value={diagnostics.metadataRowDetected ? `${tx("Yes")}${diagnostics.metadataRowNumber ? ` (${tx("Row")} ${diagnostics.metadataRowNumber})` : ""}` : tx("No")} />
+        <MiniStat label="Registration detected" value={diagnostics.metadataFields.registration || missing} />
+        <MiniStat label="Model detected" value={diagnostics.metadataFields.model || missing} />
+        <MiniStat label="Aircraft serial detected" value={diagnostics.metadataFields.aircraftSerialNumber || missing} />
+        <MiniStat label="Hourmeter detected" value={diagnostics.metadataFields.currentHourmeter || missing} />
         <MiniStat label="Component header row detected" value={diagnostics.componentHeaderRowDetected ? String(diagnostics.componentHeaderRow) : tx("No")} />
         <MiniStat label="Component rows detected" value={String(diagnostics.componentRowsDetected)} />
         <MiniStat label="Valid components" value={String(diagnostics.validComponents)} />
@@ -688,8 +694,8 @@ function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview
       </div>
       {diagnostics.errors.length || diagnostics.warnings.length ? (
         <div className="mt-4 grid gap-2">
-          {[...diagnostics.errors, ...diagnostics.warnings].slice(0, 6).map((item) => (
-            <p key={item} className="rounded-md border border-line bg-canvas-muted/45 px-3 py-2 text-sm text-ink-muted">{tx(item)}</p>
+          {[...diagnostics.errors, ...diagnostics.warnings].slice(0, 6).map((item, index) => (
+            <p key={`${item}-${index}`} className="rounded-md border border-line bg-canvas-muted/45 px-3 py-2 text-sm text-ink-muted">{tx(item)}</p>
           ))}
         </div>
       ) : null}

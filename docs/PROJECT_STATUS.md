@@ -63,6 +63,12 @@ The objective is to stabilize:
 - Bilingual UI in English and Spanish.
 - Demo data separation and localStorage persistence boundaries.
 
+## Repository Application Structure
+
+`apps/web` is the canonical HeliServiX OS frontend application for HSV OS 0.2 Foundation RC1 and the `redesign/operations-command-center` branch.
+
+Any historical `frontend` directory is legacy/pending cleanup and must not be treated as the active application unless a future cleanup task explicitly changes the repository structure.
+
 ## Definition of Done
 
 A change is done only when it satisfies all applicable rules below:

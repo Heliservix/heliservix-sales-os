@@ -10,7 +10,7 @@ export async function readXlsxWorkbook(file: File): Promise<ParsedWorkbookSheet[
     name,
     rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
       header: 1,
-      blankrows: false,
+      blankrows: true,
       defval: "",
       raw: true
     })
