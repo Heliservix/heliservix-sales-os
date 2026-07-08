@@ -135,16 +135,6 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       setMetadataOverrides({});
       setRecordActions({});
       const nextPreview = rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
-      if (process.env.NODE_ENV !== "production") {
-        console.log("parsedWorkbook", nextPreview);
-        console.info("HSV_OFFICIAL_COMPONENT_WORKBOOK_V1 diagnostics", {
-          workbookSheetNames: sheets.map((sheet) => sheet.name),
-          selectedSheet: nextPreview.diagnostics.selectedSheet,
-          metadataValuesFound: nextPreview.aircraftMetadata,
-          componentHeaderRowFound: nextPreview.diagnostics.componentHeaderRow,
-          componentRowCount: nextPreview.diagnostics.componentRowsDetected
-        });
-      }
       setStep(2);
       const firstError = nextPreview.diagnostics.errors[0];
       setMessage(tx("Workbook parsed. Review detected helicopters before import."));

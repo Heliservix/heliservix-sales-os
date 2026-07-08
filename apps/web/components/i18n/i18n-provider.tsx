@@ -20,16 +20,23 @@ type I18nContextValue = {
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window === "undefined") return defaultLanguage;
-    const saved = window.localStorage.getItem(languageStorageKey);
-    return saved === "es" || saved === "en" ? saved : defaultLanguage;
-  });
+  const [language, setLanguageState] = useState<Language>(defaultLanguage);
+  const [hasLoadedLanguage, setHasLoadedLanguage] = useState(false);
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const saved = window.localStorage.getItem(languageStorageKey);
+      if (saved === "es" || saved === "en") setLanguageState(saved);
+      setHasLoadedLanguage(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedLanguage) return;
     window.localStorage.setItem(languageStorageKey, language);
     document.documentElement.lang = language;
-  }, [language]);
+  }, [hasLoadedLanguage, language]);
 
   const value = useMemo<I18nContextValue>(() => ({
     language,

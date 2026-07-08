@@ -23,28 +23,42 @@ export function useDeferredLocalStorageState<T>(key: string, options: StorageSta
   const hasMountedRef = useRef(false);
   const latestStateRef = useRef<T | undefined>(undefined);
   const hasPendingWriteRef = useRef(false);
+  const optionsRef = useRef(options);
   const writeDelayMs = options.writeDelayMs ?? 180;
   const [isReady, setIsReady] = useState(false);
-  const [state, setState] = useState<T>(() => {
-    const fallback = options.initialValue();
-    if (typeof window === "undefined") return fallback;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) return fallback;
-      const parsed = JSON.parse(raw) as T;
-      return options.merge ? options.merge(parsed) : parsed;
-    } catch {
-      return fallback;
-    }
-  });
+  const [state, setState] = useState<T>(() => options.initialValue());
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setIsReady(true));
+    optionsRef.current = options;
+  }, [options]);
+
+  useEffect(() => {
+    const currentOptions = optionsRef.current;
+    let loadedState = currentOptions.initialValue();
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as T;
+        loadedState = currentOptions.merge ? currentOptions.merge(parsed) : parsed;
+      }
+    } catch {
+      loadedState = currentOptions.initialValue();
+    }
+
+    latestStateRef.current = loadedState;
+    lastSerializedRef.current = JSON.stringify(loadedState);
+    hasMountedRef.current = true;
+
+    const frame = window.requestAnimationFrame(() => {
+      setState(loadedState);
+      setIsReady(true);
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [key]);
 
   useEffect(() => {
     latestStateRef.current = state;
+    if (!isReady) return;
     if (!hasMountedRef.current) {
       hasMountedRef.current = true;
       lastSerializedRef.current ??= JSON.stringify(state);
@@ -56,7 +70,7 @@ export function useDeferredLocalStorageState<T>(key: string, options: StorageSta
       hasPendingWriteRef.current = false;
     }, writeDelayMs);
     return () => window.clearTimeout(timeout);
-  }, [key, state, writeDelayMs]);
+  }, [isReady, key, state, writeDelayMs]);
 
   useEffect(() => {
     const flushPendingWrite = () => {
