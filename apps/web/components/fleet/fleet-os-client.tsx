@@ -24,13 +24,17 @@ import { getTimeGreetingKey } from "@/lib/brand";
 import {
   calculateComponentStatus,
   calculateRemainingPercentage,
-  createAlertsForComponents,
-  deductFlightHoursFromComponents,
+  applyFlightLogRules,
+  applyPurchaseInventoryRules,
+  applyStockMovementRules,
   fleetStorageKey,
   generateId,
+  getForecastComponents,
   getLowStockStatus,
   initialFleetStore,
-  purchaseStatusTone
+  purchaseStatusTone,
+  recalculateComponent,
+  reconcileMaintenanceAlerts
 } from "@/lib/fleet-ops";
 import { componentCategories, demoDataPolicy } from "@/lib/fleet-data";
 import type {
@@ -261,7 +265,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         ...current,
         components:
           mode === "edit" ? current.components.map((item) => (item.id === id ? record : item)) : [...current.components, record],
-        maintenanceAlerts: [...current.maintenanceAlerts, ...createAlertsForComponents([record])]
+        maintenanceAlerts: reconcileMaintenanceAlerts(current.maintenanceAlerts, [record])
       }),
       tx("Component saved and status recalculated locally.")
     );
@@ -301,26 +305,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       source: "User"
     };
 
-    updateStore((current) => {
-      const previousLog = current.flightLogs.find((item) => item.id === id);
-      const hourDelta = previousLog ? flightHours - previousLog.flightHours : flightHours;
-      const recalculatedComponents = deductFlightHoursFromComponents(
-        current.components.filter((component) => component.helicopterRegistration === helicopterRegistration),
-        hourDelta
-      );
-      const recalculatedIds = new Set(recalculatedComponents.map((component) => component.id));
-      const nextComponents = current.components.map((component) => recalculatedIds.has(component.id) ? recalculatedComponents.find((item) => item.id === component.id)! : component);
-
-      return {
-        ...current,
-        flightLogs: mode === "edit" ? current.flightLogs.map((item) => (item.id === id ? log : item)) : [...current.flightLogs, log],
-        helicopters: current.helicopters.map((helicopter) =>
-          helicopter.registration === helicopterRegistration ? { ...helicopter, currentHourmeter: hobbsEnd } : helicopter
-        ),
-        components: nextComponents,
-        maintenanceAlerts: [...current.maintenanceAlerts, ...createAlertsForComponents(recalculatedComponents)]
-      };
-    }, tx("Flight log saved, hourmeter updated, components recalculated, and alerts refreshed."));
+    updateStore((current) => applyFlightLogRules(current, log, mode), tx("Flight log saved, hourmeter updated, components recalculated, and alerts refreshed."));
   }
 
   function saveMaintenanceLog(event: React.FormEvent<HTMLFormElement>) {
@@ -372,7 +357,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       notes: text(form, "notes"),
       source: "User"
     };
-    const installed: HelicopterComponent = {
+    const installed: HelicopterComponent = recalculateComponent({
       id: generateId("cmp"),
       helicopterRegistration,
       category: text(form, "category"),
@@ -392,36 +377,41 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       notes: change.notes,
       documents: change.supportingDocumentPlaceholder ? 1 : 0,
       source: "User"
-    };
+    });
 
-    updateStore((current) => ({
-      ...current,
-      componentChanges: [...current.componentChanges, change],
-      components: [
-        ...current.components.map((component) =>
-          component.id === removedComponentId ? { ...component, status: "Removed" as ComponentStatus, archived: true } : component
-        ),
-        installed
-      ],
-      replacementEvents: [
-        ...current.replacementEvents,
-        {
-          id: generateId("rep"),
-          helicopterRegistration,
-          removedComponent: change.removedComponentName,
-          installedComponent: `${installed.componentName} / ${installed.serialNumber}`,
-          removalDate: change.removalDate,
-          installationDate: change.installationDate,
-          removalHourmeter: 0,
-          installationHourmeter: 0,
-          reason: change.reason,
-          approvedBy: change.technician,
-          notes: change.supportingDocumentPlaceholder,
-          source: "User"
-        }
-      ],
-      maintenanceAlerts: [...current.maintenanceAlerts, ...createAlertsForComponents([installed])]
-    }), tx("Component change saved, replacement history updated, and alerts recalculated."));
+    updateStore((current) => {
+      const removedComponents = current.components
+        .filter((component) => component.id === removedComponentId)
+        .map((component) => ({ ...component, status: "Removed" as ComponentStatus, archived: true }));
+      return {
+        ...current,
+        componentChanges: [...current.componentChanges, change],
+        components: [
+          ...current.components.map((component) =>
+            component.id === removedComponentId ? { ...component, status: "Removed" as ComponentStatus, archived: true } : component
+          ),
+          installed
+        ],
+        replacementEvents: [
+          ...current.replacementEvents,
+          {
+            id: generateId("rep"),
+            helicopterRegistration,
+            removedComponent: change.removedComponentName,
+            installedComponent: `${installed.componentName} / ${installed.serialNumber}`,
+            removalDate: change.removalDate,
+            installationDate: change.installationDate,
+            removalHourmeter: 0,
+            installationHourmeter: 0,
+            reason: change.reason,
+            approvedBy: change.technician,
+            notes: change.supportingDocumentPlaceholder,
+            source: "User"
+          }
+        ],
+        maintenanceAlerts: reconcileMaintenanceAlerts(current.maintenanceAlerts, [...removedComponents, installed])
+      };
+    }, tx("Component change saved, replacement history updated, and alerts recalculated."));
   }
 
   function saveInventoryItem(event: React.FormEvent<HTMLFormElement>) {
@@ -483,13 +473,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       notes: text(form, "notes"),
       source: "User"
     };
-    const subtract = ["Used", "Installed", "Consumed", "Transferred"].includes(movementType);
     updateStore((current) => ({
       ...current,
       stockMovements: [...current.stockMovements, movement],
-      inventoryItems: current.inventoryItems.map((item) =>
-        item.id === itemId ? { ...item, quantity: subtract ? Math.max(0, item.quantity - quantity) : item.quantity + quantity } : item
-      )
+      inventoryItems: applyStockMovementRules(current.inventoryItems, movement)
     }), tx("Stock movement recorded and quantity updated locally."));
   }
 
@@ -524,8 +511,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     };
     updateStore((current) => ({
       ...current,
-      purchaseRequests: editingPurchaseId ? current.purchaseRequests.map((record) => record.id === id ? request : record) : [...current.purchaseRequests, request]
-    }), tx("Purchase request saved locally."));
+      purchaseRequests: editingPurchaseId ? current.purchaseRequests.map((record) => record.id === id ? request : record) : [...current.purchaseRequests, request],
+      inventoryItems: applyPurchaseInventoryRules(current, request)
+    }), tx("Purchase request saved and inventory readiness updated locally."));
     setEditingPurchaseId(undefined);
   }
 
@@ -1214,7 +1202,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderForecast() {
-    const rows = prepareCrudRows(components.filter((component) => component.status !== "OK"), {
+    const rows = prepareCrudRows(getForecastComponents(components), {
       query: listQuery,
       filter: listFilter,
       sortKey,

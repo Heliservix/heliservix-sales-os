@@ -157,15 +157,38 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
       source: "User"
     };
 
-    updateStore((current) => ({
-      ...current,
-      campaigns: mode === "edit" ? current.campaigns.map((item) => item.id === id ? record : item) : [...current.campaigns, record],
-      helicopters: current.helicopters.map((helicopter) =>
-        helicopter.registration === record.helicopterRegistration
-          ? { ...helicopter, assignedVessel: record.vesselName, status: record.status === "Active" ? "In Campaign" : helicopter.status }
-          : helicopter
-      )
-    }), tx("Campaign saved locally and helicopter assignment preview updated."));
+    updateStore((current) => {
+      const previous = current.campaigns.find((item) => item.id === id);
+      const nextCampaigns = mode === "edit" ? current.campaigns.map((item) => item.id === id ? record : item) : [...current.campaigns, record];
+      const affectedHelicopters = new Set([previous?.helicopterRegistration, record.helicopterRegistration].filter(Boolean));
+      return {
+        ...current,
+        campaigns: nextCampaigns,
+        helicopters: current.helicopters.map((helicopter) => {
+          if (!affectedHelicopters.has(helicopter.registration)) return helicopter;
+          if (helicopter.registration === record.helicopterRegistration) {
+            return {
+              ...helicopter,
+              assignedVessel: record.vesselName,
+              status: record.status === "Active" ? "In Campaign" : helicopter.status === "Grounded" ? helicopter.status : "Assigned"
+            };
+          }
+          const remainingActiveAssignment = nextCampaigns.find((campaign) =>
+            !campaign.archived &&
+            campaign.helicopterRegistration === helicopter.registration &&
+            ["Active", "Approved", "Readiness Review", "Planned"].includes(calculateCampaignStatus(campaign))
+          );
+          return remainingActiveAssignment
+            ? { ...helicopter, assignedVessel: remainingActiveAssignment.vesselName }
+            : { ...helicopter, assignedVessel: "", status: helicopter.status === "In Campaign" ? "Available" : helicopter.status };
+        }),
+        vessels: current.vessels.map((item) => {
+          if (item.id === record.vesselId) return { ...item, assignedHelicopter: record.helicopterRegistration, campaign: record.name };
+          if (previous && item.id === previous.vesselId && previous.vesselId !== record.vesselId) return { ...item, assignedHelicopter: "", campaign: "" };
+          return item;
+        })
+      };
+    }, tx("Campaign saved locally and helicopter assignment preview updated."));
   }
 
   function saveTechnicalRecord(event: React.FormEvent<HTMLFormElement>) {
