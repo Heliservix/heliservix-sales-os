@@ -10,10 +10,12 @@ import {
   hasBlockingImportIssues,
   buildComponentImportPreview,
   HSV_IMPORT_COMPONENTS_V1,
+  importRecordKey,
   type AircraftImportMetadataOverride,
   type ComponentImportColumnOverride,
   type ComponentImportFieldKey,
   type ComponentImportMode,
+  type ComponentMigrationAction,
   type ComponentImportPreview
 } from "@/lib/component-import";
 import type { FleetStore } from "@/types/fleet";
@@ -74,6 +76,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   const [updateHelicopter, setUpdateHelicopter] = useState(true);
   const [forceValidRowsOnly, setForceValidRowsOnly] = useState(true);
   const [mode, setMode] = useState<ComponentImportMode>("merge-components");
+  const [recordActions, setRecordActions] = useState<Record<string, ComponentMigrationAction>>({});
 
   const selectedRecords = useMemo(() => {
     const selected = new Set(selectedRegistrations);
@@ -88,7 +91,12 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
     warnings: visibleIssues.filter((issue) => issue.severity === "warning").length,
     errors: visibleIssues.filter((issue) => issue.severity === "error").length,
     duplicates: selectedRecords.filter((record) => record.duplicateInStore || record.duplicateInWorkbook).length,
-    missingData: visibleIssues.filter((issue) => ["Registration", "Component name", "P/N or S/N", "Life limit", "Position", "Installation date", "Current Hourmeter"].includes(issue.field)).length
+    missingData: visibleIssues.filter((issue) => ["Registration", "Component name", "P/N or S/N", "Life limit", "Position", "Installation date", "Current Hourmeter"].includes(issue.field)).length,
+    matchedComponents: selectedRecords.filter((record) => record.matchType !== "new").length,
+    updatedComponents: selectedRecords.filter((record) => record.recommendedAction === "update").length,
+    newComponents: selectedRecords.filter((record) => record.matchType === "new").length,
+    replacementCandidates: selectedRecords.filter((record) => record.matchType === "probable-replacement").length,
+    confidence: selectedRecords.length ? Math.round(selectedRecords.reduce((sum, record) => sum + record.confidence, 0) / selectedRecords.length) : 0
   }), [visibleIssues, selectedRecords]);
 
   async function parseFile(file?: File) {
@@ -123,6 +131,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       setSelectedSheetName(initialSheetName);
       setMappingOverrides({});
       setMetadataOverrides({});
+      setRecordActions({});
       rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
       setStep(2);
       setMessage(tx("Workbook parsed. Review detected helicopters before import."));
@@ -164,6 +173,14 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         : detected;
     setPreview(nextPreview);
     setSelectedRegistrations(nextSelected);
+    setRecordActions((current) => {
+      const next: Record<string, ComponentMigrationAction> = {};
+      nextPreview.records.forEach((record) => {
+        const key = importRecordKey(record);
+        next[key] = current[key] ?? record.recommendedAction;
+      });
+      return next;
+    });
   }
 
   function updateSheet(name: string) {
@@ -206,11 +223,16 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       createHelicopter,
       updateHelicopter,
       mode,
-      selectedRegistrations
+      selectedRegistrations,
+      recordActions
     });
     onApply(() => result.store, tx("Aircraft migration saved to localStorage as real user data."));
     setStep(5);
-    setMessage(tx(`Migration complete: ${result.summary.imported} components saved, ${result.summary.updated} updated, ${result.summary.skipped} skipped, ${result.summary.alerts} alerts generated.`));
+    setMessage(tx(`Migration complete: ${result.summary.imported} components saved, ${result.summary.updated} updated, ${result.summary.replaced} replaced, ${result.summary.skipped} skipped, ${result.summary.alerts} alerts generated.`));
+  }
+
+  function updateRecordAction(recordKey: string, action: ComponentMigrationAction) {
+    setRecordActions((current) => ({ ...current, [recordKey]: action }));
   }
 
   return (
@@ -224,7 +246,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             <div>
               <h2 className="text-lg font-semibold text-ink">{tx("Aircraft Migration Center")}</h2>
               <p className="mt-1 text-sm text-ink-subtle">
-                {tx("Use the approved HSV-IMPORT-COMPONENTS-v1.xlsx workbook to migrate aircraft component control data.")}
+                {tx("AURA reviews the workbook like a maintenance manager and migrates complete aircraft into HeliServiX OS.")}
               </p>
             </div>
           </div>
@@ -322,6 +344,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Worksheets detected" value={String(currentPreview.worksheetNames.length)} />
           <MigrationStat label="Helicopters detected" value={String(currentPreview.detectedHelicopters.length)} />
           <MigrationStat label="Component Count" value={String(currentPreview.records.length)} />
+          <MigrationStat label="Confidence" value={`${currentPreview.aircraftMetadata.confidence}%`} tone={currentPreview.aircraftMetadata.confidence >= 85 ? "green" : currentPreview.aircraftMetadata.confidence >= 70 ? "amber" : "red"} />
           <MigrationStat label="Warnings" value={String(currentPreview.issues.filter((issue) => issue.severity === "warning").length)} tone="amber" />
           <MigrationStat label="Errors" value={String(currentPreview.issues.filter((issue) => issue.severity === "error").length)} tone={currentPreview.issues.some((issue) => issue.severity === "error") ? "red" : "green"} />
         </section>
@@ -375,6 +398,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
                       <MiniStat label="Errors" value={String(helicopter.errors)} />
                       <MiniStat label="Duplicates" value={String(helicopter.duplicates)} />
                       <MiniStat label="Missing data" value={String(helicopter.missingData)} />
+                      <MiniStat label="Confidence" value={`${helicopter.confidence}%`} />
                       <MiniStat label="Worksheets" value={String(helicopter.worksheetNames.length)} />
                     </div>
                   </div>
@@ -395,15 +419,16 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         <section className="grid gap-3 md:grid-cols-5">
           <MigrationStat label="Selected helicopters" value={String(selectedRegistrations.length)} />
           <MigrationStat label="Component Count" value={String(summary.componentCount)} />
-          <MigrationStat label="Duplicates" value={String(summary.duplicates)} tone={summary.duplicates ? "amber" : "green"} />
-          <MigrationStat label="Missing data" value={String(summary.missingData)} tone={summary.missingData ? "amber" : "green"} />
-          <MigrationStat label="Errors" value={String(summary.errors)} tone={summary.errors ? "red" : "green"} />
+          <MigrationStat label="Matched Components" value={String(summary.matchedComponents)} tone={summary.matchedComponents ? "blue" : "neutral"} />
+          <MigrationStat label="Replacement Candidates" value={String(summary.replacementCandidates)} tone={summary.replacementCandidates ? "amber" : "green"} />
+          <MigrationStat label="Confidence" value={`${summary.confidence}%`} tone={summary.confidence >= 85 ? "green" : summary.confidence >= 70 ? "amber" : "red"} />
         </section>
         {preview ? <AircraftMetadataPanel preview={preview} onChange={updateMetadata} /> : null}
+        {preview ? <AuraRecommendations recommendations={preview.recommendations} migrationId={preview.migrationId} /> : null}
         <p className="rounded-lg border border-brand-blue/15 bg-brand-lightBlue/45 px-4 py-3 text-sm font-medium text-aviation-blue">
           {tx("Observations are optional and will not affect import validation.")}
         </p>
-        <ComponentPreviewTable records={selectedRecords} compact={compact} />
+        <ComponentPreviewTable records={selectedRecords} compact={compact} recordActions={recordActions} onActionChange={updateRecordAction} />
         <WizardActions canContinue={selectedRegistrations.length > 0} onNext={() => setStep(4)} onBack={() => setStep(2)} />
       </div>
     );
@@ -420,6 +445,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           <MigrationStat label="Missing data" value={String(summary.missingData)} tone={summary.missingData ? "amber" : "green"} />
           <MigrationStat label="Validation status" value={blocking ? tx("Blocked") : tx("Ready")} tone={blocking ? "red" : "green"} />
         </section>
+        {currentPreview ? <ComponentComparisonPanel records={selectedRecords} recordActions={recordActions} onActionChange={updateRecordAction} /> : null}
         <div className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
           <h3 className="text-sm font-semibold text-ink">{tx("Validation findings")}</h3>
           <div className="mt-3 max-h-80 overflow-auto rounded-md border border-line">
@@ -491,8 +517,12 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             <MiniStat label="Component Count" value={String(summary.componentCount)} />
             <MiniStat label="Warnings" value={String(summary.warnings)} />
             <MiniStat label="Errors" value={String(summary.errors)} />
-            <MiniStat label="Duplicates" value={String(summary.duplicates)} />
+            <MiniStat label="Matched Components" value={String(summary.matchedComponents)} />
+            <MiniStat label="New Components" value={String(summary.newComponents)} />
+            <MiniStat label="Replacement Candidates" value={String(summary.replacementCandidates)} />
             <MiniStat label="Missing data" value={String(summary.missingData)} />
+            <MiniStat label="Confidence" value={`${summary.confidence}%`} />
+            <MiniStat label="Migration ID" value={currentPreview.migrationId} />
           </div>
           <p className="mt-4 text-sm leading-6 text-ink-subtle">
             {tx("Imported records are stored in localStorage for now. No backend is connected.")}
@@ -547,6 +577,8 @@ function AircraftMetadataPanel({
     { key: "aircraftSerialNumber", label: "Aircraft Serial Number / S/N Aeronave", value: metadata.aircraftSerialNumber },
     { key: "manufactureDate", label: "Manufacture Date / Fecha Fabricación", type: "date", value: metadata.manufactureDate },
     { key: "reviewDate", label: "Review Date / Fecha Revisión", type: "date", value: metadata.reviewDate },
+    { key: "owner", label: "Owner", value: metadata.owner },
+    { key: "operator", label: "Operator", value: metadata.operator },
     { key: "currentHourmeter", label: "Current Hourmeter / Horómetro", type: "number", value: metadata.currentHourmeter || "" }
   ];
   return (
@@ -554,10 +586,10 @@ function AircraftMetadataPanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">{tx("Aircraft Metadata")}</h3>
-          <p className="mt-1 text-sm text-ink-subtle">{tx("Metadata is read from Row 4 headers and Row 5 values in Control Maestro.")}</p>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("AURA detects aircraft metadata from workbook labels, context, and technical record values.")}</p>
         </div>
         <StatusPill tone={metadata.issues.some((issue) => issue.severity === "error") ? "red" : metadata.issues.length ? "amber" : "green"}>
-          {metadata.manuallyConfirmed ? tx("Manual") : metadata.detected ? tx("Detected") : tx("Needs review")}
+          {metadata.manuallyConfirmed ? tx("Manual") : metadata.detected ? `${tx("Detected")} ${metadata.confidence}%` : tx("Needs review")}
         </StatusPill>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -658,7 +690,39 @@ function MappingConfidencePanel({
   );
 }
 
-function ComponentPreviewTable({ records, compact }: { records: ComponentImportPreview["records"]; compact?: boolean }) {
+function AuraRecommendations({ recommendations, migrationId }: { recommendations: string[]; migrationId: string }) {
+  const { tx } = useI18n();
+  return (
+    <section className="rounded-lg border border-brand-blue/20 bg-brand-lightBlue/40 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{tx("AURA Recommendations")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("Migration ID")}: {migrationId}</p>
+        </div>
+        <StatusPill tone="blue">{tx("Review before import")}</StatusPill>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {recommendations.map((recommendation) => (
+          <p key={recommendation} className="rounded-md border border-white/80 bg-white/75 px-3 py-2 text-sm text-ink-muted">
+            {tx(recommendation)}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ComponentPreviewTable({
+  records,
+  compact,
+  recordActions,
+  onActionChange
+}: {
+  records: ComponentImportPreview["records"];
+  compact?: boolean;
+  recordActions: Record<string, ComponentMigrationAction>;
+  onActionChange: (recordKey: string, action: ComponentMigrationAction) => void;
+}) {
   const { tx } = useI18n();
   const visibleRecords = records.slice(0, compact ? 8 : 24);
   return (
@@ -666,14 +730,16 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
       <table className="hsv-table min-w-[1120px]">
         <thead className="hsv-table-head">
           <tr>
-            {["Worksheet", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Result", "Warnings", "Errors"].map((header) => (
+            {["Worksheet", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Confidence", "AURA Decision", "Action"].map((header) => (
               <th key={header} className="hsv-table-th">{tx(header)}</th>
             ))}
           </tr>
         </thead>
         <tbody className="hsv-table-body">
-          {visibleRecords.map((record) => (
-            <tr key={`${record.worksheetName}-${record.rowNumber}-${record.duplicateKey}`}>
+          {visibleRecords.map((record) => {
+            const key = importRecordKey(record);
+            return (
+            <tr key={key}>
               <td className="px-4 py-3 text-ink-muted">{record.worksheetName}</td>
               <td className="px-4 py-3 font-medium text-ink">{record.helicopterRegistration}</td>
               <td className="px-4 py-3 font-semibold text-ink">{record.componentName || tx("Missing")}</td>
@@ -687,17 +753,97 @@ function ComponentPreviewTable({ records, compact }: { records: ComponentImportP
                 <StatusPill tone={record.status === "OK" ? "green" : record.status === "Monitor" ? "amber" : "red"}>{record.status}</StatusPill>
               </td>
               <td className="hsv-table-cell">
-                <StatusPill tone={record.issues.some((issue) => issue.severity === "error") ? "red" : record.issues.some((issue) => issue.severity === "warning") ? "amber" : "green"}>
-                  {record.issues.some((issue) => issue.severity === "error") ? tx("Error") : record.issues.some((issue) => issue.severity === "warning") ? tx("Warning") : tx("Valid")}
+                <StatusPill tone={record.confidence >= 90 ? "green" : record.confidence >= 75 ? "blue" : record.confidence >= 60 ? "amber" : "red"}>
+                  {record.confidence}%
                 </StatusPill>
               </td>
-              <td className="px-4 py-3 text-ink-muted">{record.issues.filter((issue) => issue.severity === "warning").length}</td>
-              <td className="px-4 py-3 text-ink-muted">{record.issues.filter((issue) => issue.severity === "error").length}</td>
+              <td className="hsv-table-cell">
+                <StatusPill tone={record.matchType === "new" ? "green" : record.matchType === "probable-replacement" ? "amber" : record.matchType === "low-confidence-review" ? "red" : "blue"}>
+                  {tx(record.matchType)}
+                </StatusPill>
+              </td>
+              <td className="hsv-table-cell">
+                <select className="hsv-control h-10" value={recordActions[key] ?? record.recommendedAction} onChange={(event) => onActionChange(key, event.target.value as ComponentMigrationAction)}>
+                  <option value="import">{tx("Import")}</option>
+                  <option value="update">{tx("Update")}</option>
+                  <option value="replace">{tx("Replace")}</option>
+                  <option value="ignore">{tx("Ignore")}</option>
+                  <option value="review">{tx("Review")}</option>
+                </select>
+              </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ComponentComparisonPanel({
+  records,
+  recordActions,
+  onActionChange
+}: {
+  records: ComponentImportPreview["records"];
+  recordActions: Record<string, ComponentMigrationAction>;
+  onActionChange: (recordKey: string, action: ComponentMigrationAction) => void;
+}) {
+  const { tx } = useI18n();
+  const comparisons = records.filter((record) => record.matchedComponent && record.differences.length).slice(0, 12);
+  if (!comparisons.length) return null;
+  return (
+    <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{tx("Component Comparison")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("AURA compares current HeliServiX OS data with imported workbook records before migration.")}</p>
+        </div>
+        <StatusPill tone="amber">{tx("Review Details")}</StatusPill>
+      </div>
+      <div className="mt-4 grid gap-3">
+        {comparisons.map((record) => {
+          const key = importRecordKey(record);
+          return (
+            <div key={key} className="rounded-lg border border-line bg-canvas-muted/35 p-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="font-semibold text-ink">{record.componentName} / {record.partNumber || "N/A"} / {record.position || "N/A"}</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{tx("Match confidence")}: {record.matchConfidence}% / {tx(record.matchType)}</p>
+                </div>
+                <select className="hsv-control h-10 lg:w-44" value={recordActions[key] ?? record.recommendedAction} onChange={(event) => onActionChange(key, event.target.value as ComponentMigrationAction)}>
+                  <option value="ignore">{tx("Ignore")}</option>
+                  <option value="update">{tx("Update")}</option>
+                  <option value="replace">{tx("Replace")}</option>
+                  <option value="review">{tx("Review")}</option>
+                </select>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <div className="rounded-md border border-line bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-ink-subtle">{tx("Current Component")}</p>
+                  <p className="mt-1 text-sm text-ink">{record.matchedComponent?.componentName}</p>
+                  <p className="text-xs text-ink-subtle">P/N {record.matchedComponent?.partNumber || "N/A"} / S/N {record.matchedComponent?.serialNumber || "N/A"}</p>
+                </div>
+                <div className="rounded-md border border-brand-blue/20 bg-brand-lightBlue/35 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-ink-subtle">{tx("Imported Component")}</p>
+                  <p className="mt-1 text-sm text-ink">{record.componentName}</p>
+                  <p className="text-xs text-ink-subtle">P/N {record.partNumber || "N/A"} / S/N {record.serialNumber || "N/A"}</p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {record.differences.slice(0, 6).map((difference) => (
+                  <div key={`${key}-${difference.field}`} className="grid gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm md:grid-cols-[160px_1fr_1fr]">
+                    <span className="font-semibold text-ink">{tx(difference.field)}</span>
+                    <span className="text-ink-subtle">{tx("Current")}: {difference.currentValue}</span>
+                    <span className="text-ink-subtle">{tx("Imported")}: {difference.importedValue}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

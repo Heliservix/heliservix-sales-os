@@ -390,6 +390,22 @@ export type MaintenanceTimelineEvent = {
   source?: DataSource;
 };
 
+export type AircraftMigrationLog = {
+  id: string;
+  migrationId: string;
+  migrationDate: string;
+  user: string;
+  workbook: string;
+  aircraft: string[];
+  componentsImported: number;
+  componentsUpdated: number;
+  componentsReplaced: number;
+  warnings: number;
+  errors: number;
+  durationMs: number;
+  source?: DataSource;
+};
+
 export type DigitalTwinSummary = {
   helicopter: Helicopter;
   activeCampaign?: Campaign;
@@ -421,6 +437,7 @@ export type FleetStore = {
   technicalRecords: TechnicalRecord[];
   complianceItems: ComplianceItem[];
   complianceAlerts: ComplianceAlert[];
+  migrationLogs: AircraftMigrationLog[];
 };
 
 export type DashboardMetric = {

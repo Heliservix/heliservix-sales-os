@@ -589,6 +589,7 @@ export function initialFleetStore(): FleetStore {
         description: "Demo compliance alert. Review applicability before campaign readiness approval.",
         source: "Demo"
       }
-    ]
+    ],
+    migrationLogs: []
   };
 }
