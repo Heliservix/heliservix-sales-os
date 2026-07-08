@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 
@@ -12,7 +13,7 @@ type CountryExposureProps = {
   rows: CountryExposure[];
 };
 
-export function CountryExposure({ rows }: CountryExposureProps) {
+function CountryExposureComponent({ rows }: CountryExposureProps) {
   return (
     <Panel>
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -48,3 +49,5 @@ export function CountryExposure({ rows }: CountryExposureProps) {
     </Panel>
   );
 }
+
+export const CountryExposure = memo(CountryExposureComponent);

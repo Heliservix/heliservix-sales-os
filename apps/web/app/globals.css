@@ -129,6 +129,8 @@ a {
 
   .hsv-table-wrap {
     @apply overflow-x-auto rounded-lg border border-line bg-white shadow-control dark:bg-canvas-muted;
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 520px;
   }
 
   .hsv-table {

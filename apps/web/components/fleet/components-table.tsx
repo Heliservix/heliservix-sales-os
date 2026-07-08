@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { HelicopterComponent } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
 import { componentTone } from "@/components/fleet/status-utils";
@@ -7,7 +8,7 @@ type ComponentsTableProps = {
   compact?: boolean;
 };
 
-export function ComponentsTable({ components, compact = false }: ComponentsTableProps) {
+function ComponentsTableComponent({ components, compact = false }: ComponentsTableProps) {
   return (
     <div className="hsv-table-wrap">
       <table className="hsv-table min-w-[1120px]">
@@ -64,3 +65,5 @@ export function ComponentsTable({ components, compact = false }: ComponentsTable
     </div>
   );
 }
+
+export const ComponentsTable = memo(ComponentsTableComponent);

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { MaintenanceForecast } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
 
@@ -5,7 +6,7 @@ type ForecastTableProps = {
   forecasts: MaintenanceForecast[];
 };
 
-export function ForecastTable({ forecasts }: ForecastTableProps) {
+function ForecastTableComponent({ forecasts }: ForecastTableProps) {
   return (
     <div className="hsv-table-wrap">
       <table className="hsv-table min-w-[960px]">
@@ -46,3 +47,5 @@ export function ForecastTable({ forecasts }: ForecastTableProps) {
     </div>
   );
 }
+
+export const ForecastTable = memo(ForecastTableComponent);

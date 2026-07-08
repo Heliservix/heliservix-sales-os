@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Archive,
@@ -24,6 +24,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { demoDataPolicy } from "@/lib/fleet-data";
+import { prepareStableCrudRows, useDeferredLocalStorageState } from "@/lib/performance";
 import {
   calculateCampaignStatus,
   calculateComplianceStatus,
@@ -77,26 +78,15 @@ const active = <T extends { archived?: boolean }>(records: T[]) => records.filte
 
 export function OperationsOSClient({ view, recordId, mode = "create" }: OperationsOSClientProps) {
   const { tx } = useI18n();
-  const [store, setStore] = useState<FleetStore>(() => {
-    if (typeof window === "undefined") return initialFleetStore();
-    const raw = window.localStorage.getItem(fleetStorageKey);
-    return raw ? { ...initialFleetStore(), ...JSON.parse(raw) } : initialFleetStore();
+  const [store, setStore, isReady] = useDeferredLocalStorageState<FleetStore>(fleetStorageKey, {
+    initialValue: initialFleetStore,
+    merge: (value) => ({ ...initialFleetStore(), ...value })
   });
   const [message, setMessage] = useState("");
-  const [isReady, setIsReady] = useState(false);
   const [listQuery, setListQuery] = useState("");
   const [listFilter, setListFilter] = useState("All");
   const [sortKey, setSortKey] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setIsReady(true));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(fleetStorageKey, JSON.stringify(store));
-  }, [store]);
 
   const helicopters = useMemo(() => active(store.helicopters), [store.helicopters]);
   const vessels = useMemo(() => active(store.vessels), [store.vessels]);
@@ -106,10 +96,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   const components = useMemo(() => active(store.components), [store.components]);
   const purchaseRequests = useMemo(() => active(store.purchaseRequests), [store.purchaseRequests]);
 
-  function updateStore(updater: (current: FleetStore) => FleetStore, success: string) {
+  const updateStore = useCallback((updater: (current: FleetStore) => FleetStore, success: string) => {
     setStore((current) => updater(current));
     setMessage(success);
-  }
+  }, [setStore]);
 
   function archiveRecord(collection: "campaigns" | "technicalRecords" | "complianceItems", id: string) {
     if (!window.confirm(tx("Archive this local record? It will be hidden but preserved in localStorage."))) return;
@@ -767,22 +757,7 @@ function prepareCrudRows<T>(rows: T[], config: {
   filterValue: (row: T) => Array<string | number | undefined>;
   sortValue: (row: T, key: string) => string | number | undefined;
 }) {
-  const query = config.query.trim().toLowerCase();
-  return [...rows]
-    .filter((row) => {
-      const haystack = config.searchable(row).join(" ").toLowerCase();
-      const matchesQuery = !query || haystack.includes(query);
-      const matchesFilter = config.filter === "All" || config.filterValue(row).map(String).includes(config.filter);
-      return matchesQuery && matchesFilter;
-    })
-    .sort((left, right) => {
-      const leftValue = config.sortValue(left, config.sortKey) ?? "";
-      const rightValue = config.sortValue(right, config.sortKey) ?? "";
-      const comparison = typeof leftValue === "number" && typeof rightValue === "number"
-        ? leftValue - rightValue
-        : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: "base" });
-      return config.sortDirection === "asc" ? comparison : -comparison;
-    });
+  return prepareStableCrudRows(rows, config);
 }
 
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {

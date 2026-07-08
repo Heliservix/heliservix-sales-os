@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ArrowUpRight, Gauge, MapPin, Ship } from "lucide-react";
 import type { Helicopter } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -7,7 +8,7 @@ type HelicopterCardProps = {
   helicopter: Helicopter;
 };
 
-export function HelicopterCard({ helicopter }: HelicopterCardProps) {
+function HelicopterCardComponent({ helicopter }: HelicopterCardProps) {
   return (
     <a
       href={`/helicopters/${helicopter.registration}`}
@@ -49,3 +50,5 @@ export function HelicopterCard({ helicopter }: HelicopterCardProps) {
     </a>
   );
 }
+
+export const HelicopterCard = memo(HelicopterCardComponent);

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n/i18n-provider";
 
@@ -18,7 +19,7 @@ const toneClasses = {
   neutral: "border-line bg-canvas-muted text-ink-muted"
 };
 
-export function StatusPill({ children, tone = "neutral", className }: StatusPillProps) {
+function StatusPillComponent({ children, tone = "neutral", className }: StatusPillProps) {
   const { tx } = useI18n();
   return (
     <span
@@ -33,3 +34,5 @@ export function StatusPill({ children, tone = "neutral", className }: StatusPill
     </span>
   );
 }
+
+export const StatusPill = memo(StatusPillComponent);

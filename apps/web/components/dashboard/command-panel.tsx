@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
 
@@ -8,7 +9,7 @@ type CommandPanelProps = {
   stats: string[][];
 };
 
-export function CommandPanel({ title, description, icon: Icon, stats }: CommandPanelProps) {
+function CommandPanelComponent({ title, description, icon: Icon, stats }: CommandPanelProps) {
   return (
     <Panel className="p-0">
       <div className="border-b border-line p-5">
@@ -33,3 +34,5 @@ export function CommandPanel({ title, description, icon: Icon, stats }: CommandP
     </Panel>
   );
 }
+
+export const CommandPanel = memo(CommandPanelComponent);

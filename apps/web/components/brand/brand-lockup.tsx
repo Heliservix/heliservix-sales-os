@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { brand } from "@/lib/brand";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -8,7 +9,7 @@ type BrandLockupProps = {
   variant?: "sidebar" | "topbar" | "hero" | "compact";
 };
 
-export function BrandLockup({ variant = "topbar" }: BrandLockupProps) {
+function BrandLockupComponent({ variant = "topbar" }: BrandLockupProps) {
   const { t } = useI18n();
   const isHero = variant === "hero";
   const isSidebar = variant === "sidebar";
@@ -53,3 +54,5 @@ export function BrandLockup({ variant = "topbar" }: BrandLockupProps) {
     </div>
   );
 }
+
+export const BrandLockup = memo(BrandLockupComponent);

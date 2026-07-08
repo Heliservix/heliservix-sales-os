@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Helicopter } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
 import { helicopterTone } from "@/components/fleet/status-utils";
@@ -6,7 +7,7 @@ type HelicoptersTableProps = {
   helicopters: Helicopter[];
 };
 
-export function HelicoptersTable({ helicopters }: HelicoptersTableProps) {
+function HelicoptersTableComponent({ helicopters }: HelicoptersTableProps) {
   return (
     <div className="hsv-table-wrap">
       <table className="hsv-table min-w-[920px]">
@@ -52,3 +53,5 @@ export function HelicoptersTable({ helicopters }: HelicoptersTableProps) {
     </div>
   );
 }
+
+export const HelicoptersTable = memo(HelicoptersTableComponent);

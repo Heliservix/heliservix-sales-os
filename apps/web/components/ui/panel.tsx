@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 type PanelProps = {
@@ -5,7 +6,7 @@ type PanelProps = {
   className?: string;
 };
 
-export function Panel({ children, className }: PanelProps) {
+function PanelComponent({ children, className }: PanelProps) {
   return (
     <section
       className={cn(
@@ -17,3 +18,5 @@ export function Panel({ children, className }: PanelProps) {
     </section>
   );
 }
+
+export const Panel = memo(PanelComponent);

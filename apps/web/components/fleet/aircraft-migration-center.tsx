@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, FileSpreadsheet, Plane, ShieldCheck, Upload } from "lucide-react";
-import * as XLSX from "xlsx";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -105,6 +104,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
     }
 
     try {
+      const XLSX = await import("xlsx");
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
       const sheets = workbook.SheetNames.map((name) => ({
         name,

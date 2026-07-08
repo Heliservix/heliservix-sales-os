@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Vessel } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
 
@@ -5,7 +6,7 @@ type VesselsTableProps = {
   vessels: Vessel[];
 };
 
-export function VesselsTable({ vessels }: VesselsTableProps) {
+function VesselsTableComponent({ vessels }: VesselsTableProps) {
   return (
     <div className="hsv-table-wrap">
       <table className="hsv-table min-w-[980px]">
@@ -51,3 +52,5 @@ export function VesselsTable({ vessels }: VesselsTableProps) {
     </div>
   );
 }
+
+export const VesselsTable = memo(VesselsTableComponent);
