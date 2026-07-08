@@ -2,17 +2,23 @@
 
 ## Current Version
 
-Current product version: HSV OS 0.2 Operational MVP.
+Current product: HeliServiX OS.
 
-Release candidate: HSV OS 0.2 RC1.
+Product positioning: Aircraft Operations Intelligence Platform.
 
-HSV OS 0.2 is the active baseline for stabilization. It includes the existing operational MVP scope for Fleet & Maintenance, helicopter registry, vessels, components, flight logs, maintenance alerts, maintenance crew workflows, vessel inventory, purchasing, campaign-oriented views, Aircraft Operations Center views, technical records, compliance views, bilingual UI foundations, and official HeliServiX OS branding that already exist in the repository.
+Current version: HSV OS 0.2 Foundation RC1.
+
+HSV OS 0.2 Foundation RC1 is the active stable-foundation release candidate before the HSV OS 0.3 Operations Command Center visual redesign. It includes the existing approved operational MVP scope for architecture, Fleet & Maintenance, helicopter registry, vessels, components, flight logs, maintenance alerts, Aircraft Migration / Importer, maintenance crew workflow surfaces, vessel inventory, purchasing, campaigns, Aircraft Operations Center views, technical records, compliance views, AURA / HeliServiX Copilot placeholder surfaces, bilingual UI foundations, and official HeliServiX OS branding already present in the repository.
 
 ## Feature Freeze Policy
 
 Feature Freeze is active.
 
-No new modules, product domains, architecture expansions, major workflow redesigns, or speculative capabilities may be added while the freeze is active.
+No new modules, product domains, architecture expansions, major workflow redesigns, speculative capabilities, or visual redesign work may be added while the freeze is active.
+
+No new modules may be started until HSV OS 0.2 Foundation RC1 is accepted.
+
+The visual redesign is deferred to HSV OS 0.3 Operations Command Center.
 
 Allowed work during freeze:
 
@@ -36,6 +42,25 @@ Disallowed work during freeze:
 - Rebranding or visual redesign beyond approved brand-system alignment.
 - Backend, database, authentication, or external service expansion unless explicitly requested by the user.
 - Placeholder features that imply future behavior not yet approved.
+
+## Stable Foundation Objective
+
+HSV OS 0.2 Foundation RC1 must make the existing approved product foundation reliable enough for review, backup, rollback, and future redesign work.
+
+The objective is to stabilize:
+
+- Architecture documentation.
+- Existing approved modules.
+- Aircraft Migration / Importer.
+- Fleet.
+- Inventory.
+- Purchasing.
+- Campaigns.
+- Technical Records.
+- Compliance.
+- AURA / HeliServiX Copilot placeholder.
+- Bilingual UI in English and Spanish.
+- Demo data separation and localStorage persistence boundaries.
 
 ## Definition of Done
 
