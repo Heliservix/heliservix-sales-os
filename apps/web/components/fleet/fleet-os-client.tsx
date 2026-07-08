@@ -1029,7 +1029,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       sortValue: (item, key) => key === "quantity" ? item.quantity : key === "status" ? getLowStockStatus(item) : item.itemName
     });
     return (
-      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid gap-5 2xl:grid-cols-[0.85fr_1.15fr]">
         <div className="grid gap-5">
           <FormShell key={editing?.id ?? "new-inventory-item"} onSubmit={saveInventoryItem} title={editing ? "Edit Inventory Item" : "Create Inventory Item"}>
             <Select name="vesselId" label="Vessel" defaultValue={editing?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} required />
@@ -1065,7 +1065,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             onQueryChange={setListQuery}
             filter={listFilter}
             onFilterChange={setListFilter}
-            filters={["All", "OK", "Low", "Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "User", "Demo"]}
+            filters={["All", "OK", "Low stock", "Out of stock", "Expiring soon", "Expired", "Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "User", "Demo"]}
             sortKey={sortKey}
             onSortKeyChange={setSortKey}
             sortOptions={[["name", "Item"], ["quantity", "Quantity"], ["status", "Status"]]}
@@ -1104,7 +1104,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       sortValue: (request, key) => key === "cost" ? request.unitCost : key === "status" ? request.status : request.itemName
     });
     return (
-      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid gap-5 2xl:grid-cols-[0.85fr_1.15fr]">
         <FormShell key={editing?.id ?? "new-purchase-request"} onSubmit={savePurchase} title={editing ? "Edit Purchase Request" : "Create Purchase Request"}>
           <Field name="supplier" label="Supplier" defaultValue={editing?.supplier} required />
           <Field name="itemName" label="Item name" defaultValue={editing?.itemName} required />
@@ -1127,7 +1127,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             onQueryChange={setListQuery}
             filter={listFilter}
             onFilterChange={setListFilter}
-            filters={["All", "Requested", "Quoted", "Approved", "Ordered", "Received", "Closed", "User", "Demo"]}
+            filters={["All", "Requested", "Quoted", "Approved", "Ordered", "Received", "Shipped to vessel", "Stored", "Installed", "Consumed", "Closed", "User", "Demo"]}
             sortKey={sortKey}
             onSortKeyChange={setSortKey}
             sortOptions={[["name", "Item"], ["cost", "Cost"], ["status", "Status"]]}
@@ -1171,7 +1171,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           onQueryChange={setListQuery}
           filter={listFilter}
           onFilterChange={setListFilter}
-          filters={["All", "Info", "Monitor", "Critical", "Open", "Resolved", "User", "Demo"]}
+          filters={["All", "Monitor", "Critical", "Grounding", "Open", "Resolved", "User", "Demo"]}
           sortKey={sortKey}
           onSortKeyChange={setSortKey}
           sortOptions={[["name", "Component"], ["severity", "Severity"]]}
