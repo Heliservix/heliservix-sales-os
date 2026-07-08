@@ -706,7 +706,8 @@ export function applyComponentImport(current: FleetStore, preview: ComponentImpo
 export function hasBlockingImportIssues(preview?: ComponentImportPreview, selectedRegistrations?: string[], options: BlockingImportOptions = {}) {
   if (!preview) return true;
   const selected = new Set(selectedRegistrations?.length ? selectedRegistrations : preview.detectedHelicopters.map((item) => item.registration));
-  if (preview.aircraftMetadata.issues.some((item) => item.severity === "error")) return true;
+  if (!preview.aircraftMetadata.registration) return true;
+  if (!Number.isFinite(preview.aircraftMetadata.currentHourmeter) || preview.aircraftMetadata.currentHourmeter <= 0) return true;
   return preview.issues.some((item) =>
     item.severity === "error" &&
     item.field !== "Aircraft metadata" &&

@@ -29,6 +29,19 @@ type AircraftMigrationCenterProps = {
   defaultOpen?: boolean;
 };
 
+type AuraAircraftMetadata = {
+  registration: string;
+  model: string;
+  serialNumber: string;
+  currentHourmeter: number;
+  manufactureDate: string;
+  lastReviewDate: string;
+  confidence: number;
+  evidence: string;
+  missingFields: string[];
+  canCorrectManually: boolean;
+};
+
 const officialWorkbookName = "HSV-IMPORT-COMPONENTS-v1.xlsx";
 
 const steps = [
@@ -378,12 +391,13 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
 
   function renderDetectStep(currentPreview: ComponentImportPreview) {
     const detectedAircraft = detectedAircraftForPreview(currentPreview);
+    const componentCount = auraComponentCountForPreview(currentPreview);
     return (
       <div className="grid gap-5">
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <MigrationStat label="Worksheets detected" value={String(currentPreview.worksheetNames.length)} />
           <MigrationStat label="Helicopters detected" value={String(detectedAircraft.length)} />
-          <MigrationStat label="Component Count" value={String(currentPreview.records.length)} />
+          <MigrationStat label="Component Count" value={String(componentCount)} />
           <MigrationStat label="Valid components" value={String(currentPreview.records.filter((record) => !record.issues.some((issue) => issue.severity === "error")).length)} tone="green" />
           <MigrationStat label="Confidence" value={`${currentPreview.aircraftMetadata.confidence}%`} tone={currentPreview.aircraftMetadata.confidence >= 85 ? "green" : currentPreview.aircraftMetadata.confidence >= 70 ? "amber" : "red"} />
           <MigrationStat label="Warnings" value={String(currentPreview.issues.filter((issue) => issue.severity === "warning").length)} tone="amber" />
@@ -435,7 +449,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
                     </div>
                     <p className="mt-2 text-sm text-ink-subtle">{helicopter.model || tx("Unknown model")} / {tx("Current Hourmeter")} {helicopter.currentHourmeter.toFixed(1)}</p>
                     <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                      <MiniStat label="Component Count" value={String(helicopter.componentCount)} />
+                      <MiniStat label="Component Count" value={String(componentCount)} />
                       <MiniStat label="Warnings" value={String(helicopter.warnings)} />
                       <MiniStat label="Errors" value={String(helicopter.errors)} />
                       <MiniStat label="Duplicates" value={String(helicopter.duplicates)} />
@@ -581,24 +595,64 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
 }
 
 function detectedAircraftForPreview(preview: ComponentImportPreview): ComponentImportPreview["detectedHelicopters"] {
-  if (preview.detectedHelicopters.length) return preview.detectedHelicopters;
+  const metadata = auraAircraftMetadataForPreview(preview);
+  const validRequiredMetadata = Boolean(metadata.registration && Number.isFinite(metadata.currentHourmeter) && metadata.currentHourmeter > 0);
+  const componentCount = auraComponentCountForPreview(preview);
 
-  const metadata = preview.aircraftMetadata;
-  if (!metadata.detected || !metadata.registration) return [];
+  if (preview.detectedHelicopters.length) {
+    return preview.detectedHelicopters.map((aircraft) => ({
+      ...aircraft,
+      registration: aircraft.registration || metadata.registration,
+      model: aircraft.model || metadata.model,
+      serialNumber: aircraft.serialNumber || metadata.serialNumber,
+      currentHourmeter: aircraft.currentHourmeter || metadata.currentHourmeter,
+      componentCount
+    }));
+  }
+
+  if (!validRequiredMetadata) return [];
 
   return [{
     registration: metadata.registration,
     model: metadata.model,
-    serialNumber: metadata.aircraftSerialNumber,
+    serialNumber: metadata.serialNumber,
     currentHourmeter: metadata.currentHourmeter,
     worksheetNames: preview.activeWorksheetName ? [preview.activeWorksheetName] : preview.worksheetNames,
-    componentCount: preview.records.length,
+    componentCount,
     warnings: preview.issues.filter((issue) => issue.severity === "warning").length,
     errors: preview.issues.filter((issue) => issue.severity === "error").length,
     duplicates: preview.records.filter((record) => record.duplicateInStore || record.duplicateInWorkbook).length,
     missingData: metadata.missingFields.length,
     confidence: metadata.confidence
   }];
+}
+
+function auraAircraftMetadataForPreview(preview: ComponentImportPreview): AuraAircraftMetadata {
+  const metadata = preview.aircraftMetadata;
+  const evidence = metadata.metadataRowDetected && metadata.metadataRowNumber
+    ? `Evidence: row ${metadata.metadataRowNumber} headers / row ${metadata.metadataRowNumber + 1} values`
+    : "Evidence: scanned first 10 rows for metadata labels and adjacent values";
+
+  return {
+    registration: metadata.registration,
+    model: metadata.model,
+    serialNumber: metadata.aircraftSerialNumber,
+    currentHourmeter: metadata.currentHourmeter,
+    manufactureDate: metadata.manufactureDate,
+    lastReviewDate: metadata.reviewDate,
+    confidence: metadata.confidence,
+    evidence,
+    missingFields: metadata.missingFields,
+    canCorrectManually: true
+  };
+}
+
+function auraComponentCountForPreview(preview: ComponentImportPreview) {
+  const numericReferenceNumbers = preview.records
+    .map((record) => Number(record.referenceNumber))
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  return numericReferenceNumbers.length ? Math.max(...numericReferenceNumbers) : preview.records.length;
 }
 
 function WizardActions({ canContinue, onNext, onBack }: { canContinue: boolean; onNext?: () => void; onBack?: () => void }) {
@@ -636,15 +690,16 @@ function AircraftMetadataPanel({
 }) {
   const { tx } = useI18n();
   const metadata = preview.aircraftMetadata;
+  const auraMetadata = auraAircraftMetadataForPreview(preview);
   const fields: Array<{ key: keyof AircraftImportMetadataOverride; label: string; type?: string; value: string | number }> = [
-    { key: "registration", label: "Registration / Matrícula", value: metadata.registration },
-    { key: "model", label: "Model / Modelo", value: metadata.model },
-    { key: "aircraftSerialNumber", label: "Aircraft Serial Number / S/N Aeronave", value: metadata.aircraftSerialNumber },
-    { key: "manufactureDate", label: "Manufacture Date / Fecha Fabricación", type: "date", value: metadata.manufactureDate },
-    { key: "reviewDate", label: "Review Date / Fecha Revisión", type: "date", value: metadata.reviewDate },
+    { key: "registration", label: "Registration / Matrícula", value: auraMetadata.registration },
+    { key: "model", label: "Model / Modelo", value: auraMetadata.model },
+    { key: "aircraftSerialNumber", label: "Aircraft Serial Number / S/N Aeronave", value: auraMetadata.serialNumber },
+    { key: "manufactureDate", label: "Manufacture Date / Fecha Fabricación", type: "date", value: auraMetadata.manufactureDate },
+    { key: "reviewDate", label: "Review Date / Fecha Revisión", type: "date", value: auraMetadata.lastReviewDate },
     { key: "owner", label: "Owner", value: metadata.owner },
     { key: "operator", label: "Operator", value: metadata.operator },
-    { key: "currentHourmeter", label: "Current Hourmeter / Horómetro", type: "number", value: metadata.currentHourmeter || "" }
+    { key: "currentHourmeter", label: "Current Hourmeter / Horómetro", type: "number", value: auraMetadata.currentHourmeter || "" }
   ];
   return (
     <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
@@ -654,7 +709,7 @@ function AircraftMetadataPanel({
           <p className="mt-1 text-sm text-ink-subtle">{tx("AURA detects aircraft metadata from workbook labels, context, and technical record values.")}</p>
         </div>
         <StatusPill tone={metadata.issues.some((issue) => issue.severity === "error") ? "red" : metadata.issues.length ? "amber" : "green"}>
-          {metadata.manuallyConfirmed ? tx("Manual") : metadata.detected ? `${tx("Detected")} ${metadata.confidence}%` : tx("Needs review")}
+          {metadata.manuallyConfirmed ? tx("Manual") : metadata.detected ? `${tx("Detected")} ${auraMetadata.confidence}%` : tx("Needs review")}
         </StatusPill>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -688,7 +743,9 @@ function AircraftMetadataPanel({
 function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview }) {
   const { tx } = useI18n();
   const diagnostics = preview.diagnostics;
+  const auraMetadata = auraAircraftMetadataForPreview(preview);
   const missing = tx("Missing");
+  const missingFields = auraMetadata.missingFields.length ? auraMetadata.missingFields.join(", ") : tx("None");
   return (
     <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -704,11 +761,14 @@ function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview
         <MiniStat label="Sheets found" value={diagnostics.sheetsFound.join(", ") || "N/A"} />
         <MiniStat label="Selected sheet" value={diagnostics.selectedSheet || "N/A"} />
         <MiniStat label="Metadata detected" value={diagnostics.metadataDetected ? tx("Yes") : tx("No")} />
+        <MiniStat label="Evidence" value={auraMetadata.evidence} />
         <MiniStat label="Metadata row detected" value={diagnostics.metadataRowDetected ? `${tx("Yes")}${diagnostics.metadataRowNumber ? ` (${tx("Row")} ${diagnostics.metadataRowNumber})` : ""}` : tx("No")} />
-        <MiniStat label="Registration detected" value={diagnostics.metadataFields.registration || missing} />
-        <MiniStat label="Model detected" value={diagnostics.metadataFields.model || missing} />
-        <MiniStat label="Aircraft serial detected" value={diagnostics.metadataFields.aircraftSerialNumber || missing} />
-        <MiniStat label="Hourmeter detected" value={diagnostics.metadataFields.currentHourmeter || missing} />
+        <MiniStat label="Registration detected" value={auraMetadata.registration || missing} />
+        <MiniStat label="Model detected" value={auraMetadata.model || missing} />
+        <MiniStat label="Aircraft serial detected" value={auraMetadata.serialNumber || missing} />
+        <MiniStat label="Hourmeter detected" value={auraMetadata.currentHourmeter > 0 ? auraMetadata.currentHourmeter.toFixed(1) : missing} />
+        <MiniStat label="Missing fields" value={missingFields} />
+        <MiniStat label="Manual correction" value={auraMetadata.canCorrectManually ? tx("Available") : tx("Not available")} />
         <MiniStat label="Component header row detected" value={diagnostics.componentHeaderRowDetected ? String(diagnostics.componentHeaderRow) : tx("No")} />
         <MiniStat label="Component rows detected" value={String(diagnostics.componentRowsDetected)} />
         <MiniStat label="Valid components" value={String(diagnostics.validComponents)} />
