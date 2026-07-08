@@ -4,6 +4,8 @@
 
 Current product version: HSV OS 0.2 Operational MVP.
 
+Release candidate: HSV OS 0.2 RC1.
+
 HSV OS 0.2 is the active baseline for stabilization. It includes the existing operational MVP scope for Fleet & Maintenance, helicopter registry, vessels, components, flight logs, maintenance alerts, maintenance crew workflows, vessel inventory, purchasing, campaign-oriented views, Aircraft Operations Center views, technical records, compliance views, bilingual UI foundations, and official HeliServiX OS branding that already exist in the repository.
 
 ## Feature Freeze Policy

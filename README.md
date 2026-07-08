@@ -8,6 +8,8 @@ This repository is the foundation for a production SaaS product. It is not a gen
 
 Current version: HSV OS 0.2 Operational MVP.
 
+Release candidate: HSV OS 0.2 RC1.
+
 Feature Freeze is active. From this point forward, work should make existing modules production-ready by improving stability, usability, performance, data integrity, business rules, and UX. Do not create new modules, expand architecture, or redesign approved workflows unless explicitly requested by the user.
 
 ## Operating Domain
@@ -42,6 +44,12 @@ Core commercial model:
 ## Documentation Map
 
 - [Project Status](docs/PROJECT_STATUS.md): current version, feature-freeze policy, definition of done, release checklist, and development rules.
+- [Release Notes](docs/RELEASE_NOTES.md): HSV OS 0.2 RC1 release summary, scope, verification, and constraints.
+- [Known Issues](docs/KNOWN_ISSUES.md): release-candidate constraints, operational cautions, and deferred fixes.
+- [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md): RC verification and deployment gate checklist.
+- [User Guide](docs/USER_GUIDE.md): operator-facing guide for navigation, records, import, inventory, purchasing, and Copilot.
+- [Administrator Guide](docs/ADMINISTRATOR_GUIDE.md): admin governance for local data, demo records, imports, and release review.
+- [Maintenance Guide](docs/MAINTENANCE_GUIDE.md): maintenance workflow guide for component status, flight logs, alerts, and evidence handling.
 - [Master Plan](docs/MASTER_PLAN.md): product vision, scope, domain model, and success criteria.
 - [Architecture](docs/ARCHITECTURE.md): system boundaries, application layers, integrations, and architectural principles.
 - [Roadmap](docs/ROADMAP.md): phased delivery plan from foundation to multi-operation SaaS.
