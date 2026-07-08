@@ -5,6 +5,7 @@ import { CheckCircle2, FileSpreadsheet, Plane, ShieldCheck, Upload } from "lucid
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
+import { readXlsxWorkbook, type ParsedWorkbookSheet } from "@/lib/workbook-reader";
 import {
   applyComponentImport,
   hasBlockingImportIssues,
@@ -26,11 +27,6 @@ type AircraftMigrationCenterProps = {
   preselectedRegistration?: string;
   compact?: boolean;
   defaultOpen?: boolean;
-};
-
-type ParsedWorkbookSheet = {
-  name: string;
-  rows: unknown[][];
 };
 
 const officialWorkbookName = "HSV-IMPORT-COMPONENTS-v1.xlsx";
@@ -115,17 +111,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
     }
 
     try {
-      const XLSX = await import("xlsx");
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-      const sheets = workbook.SheetNames.map((name) => ({
-        name,
-        rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
-          header: 1,
-          blankrows: false,
-          defval: "",
-          raw: true
-        })
-      }));
+      const sheets = await readXlsxWorkbook(file);
       setWorkbookSheets(sheets);
       const initialSheetName = sheets.find((sheet) => sheet.name === HSV_IMPORT_COMPONENTS_V1.preferredSheetName)?.name
         ?? sheets.find((sheet) => sheet.name.startsWith(HSV_IMPORT_COMPONENTS_V1.preferredSheetName))?.name
@@ -138,7 +124,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       const nextPreview = rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
       if (process.env.NODE_ENV !== "production") {
         console.info("HSV_OFFICIAL_COMPONENT_WORKBOOK_V1 diagnostics", {
-          workbookSheetNames: workbook.SheetNames,
+          workbookSheetNames: sheets.map((sheet) => sheet.name),
           selectedSheet: nextPreview.diagnostics.selectedSheet,
           metadataValuesFound: nextPreview.aircraftMetadata,
           componentHeaderRowFound: nextPreview.diagnostics.componentHeaderRow,

@@ -5,14 +5,14 @@ import { FileDown, FileSpreadsheet, PackageCheck, ShieldCheck, Upload } from "lu
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
+import { readXlsxWorkbook } from "@/lib/workbook-reader";
 import {
   applyInventoryImport,
   buildInventoryImportPreview,
   exportInventoryPdfDocument,
   type InventoryImportAction,
   type InventoryImportOptions,
-  type InventoryImportPreview,
-  type WorkbookSheet
+  type InventoryImportPreview
 } from "@/lib/inventory-report-import";
 import type { FleetStore } from "@/types/fleet";
 
@@ -68,17 +68,7 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
       return;
     }
     try {
-      const XLSX = await import("xlsx");
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-      const sheets: WorkbookSheet[] = workbook.SheetNames.map((name) => ({
-        name,
-        rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
-          header: 1,
-          blankrows: false,
-          defval: "",
-          raw: true
-        })
-      }));
+      const sheets = await readXlsxWorkbook(file);
       const nextPreview = buildInventoryImportPreview({ fileName: file.name, sheets, store, context });
       setPreview(nextPreview);
       setSelectedVesselId(nextPreview.detected.vesselId || context?.vesselId || store.vessels[0]?.id || "");

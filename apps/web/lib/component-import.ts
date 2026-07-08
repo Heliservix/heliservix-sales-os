@@ -799,11 +799,13 @@ function scoreOfficialMetadataHeader(row: RawRow) {
 }
 
 function scoreOfficialComponentHeader(row: RawRow) {
-  const expected = ["ref", "componente", "p n", "s n", "posicion", "fecha instalacion", "tsn hrs", "tso hrs", "limite vida hrs", "remanente hrs", "limite calendario anos", "remanente calendario anos", "limite de vida en anos", "remanente horas", "estado", "observaciones"];
-  return expected.filter((label, index) => {
+  const expectedWithRef = ["ref", "componente", "p n", "s n", "posicion", "fecha instalacion", "tsn hrs", "tso hrs", "limite vida hrs", "remanente hrs", "limite calendario anos", "remanente calendario anos", "limite de vida en anos", "remanente horas", "estado", "observaciones"];
+  const expectedWithoutRef = ["componente", "p n", "s n", "fecha instalacion", "tsn hrs", "tso hrs", "limite vida hrs", "remanente hrs", "limite calendario anos", "remanente calendario anos", "limite de vida en anos", "remanente horas", "estado", "observaciones"];
+  const score = (expected: string[]) => expected.filter((label, index) => {
     const actual = normalizeHeader(row[index]);
     return actual === label || actual.includes(label) || label.includes(actual);
   }).length;
+  return Math.max(score(expectedWithRef), score(expectedWithoutRef));
 }
 
 function extractOfficialWorkbookMetadata(rows: RawRow[], worksheetName: string, overrides?: AircraftImportMetadataOverride): AircraftImportMetadata {
@@ -857,7 +859,8 @@ function extractOfficialWorkbookMetadata(rows: RawRow[], worksheetName: string, 
 function findOfficialComponentTable(rows: RawRow[], overrides?: ComponentImportColumnOverride) {
   const headerRow = rows[HSV_IMPORT_COMPONENTS_V1.componentHeaderRowIndex] ?? [];
   if (scoreOfficialComponentHeader(headerRow) < 5) return undefined;
-  const officialMapping: Partial<Record<ComponentImportFieldKey, number>> = {
+  const hasRefColumn = normalizeHeader(headerRow[0]).includes("ref");
+  const officialMapping: Partial<Record<ComponentImportFieldKey, number>> = hasRefColumn ? {
     referenceNumber: 0,
     componentName: 1,
     partNumber: 2,
@@ -875,6 +878,22 @@ function findOfficialComponentTable(rows: RawRow[], overrides?: ComponentImportC
     remainingPercentage: 13,
     status: 14,
     notes: 15
+  } : {
+    componentName: 0,
+    partNumber: 1,
+    serialNumber: 2,
+    installationDate: 3,
+    tsnHours: 4,
+    tsoHours: 5,
+    lifeLimitHours: 6,
+    remainingHours: 7,
+    calendarLimitYears: 8,
+    calendarLimitDate: 8,
+    remainingCalendarDays: 9,
+    lifeLimitYears: 10,
+    remainingPercentage: 11,
+    status: 12,
+    notes: 13
   };
   const mapping = { ...officialMapping };
   if (overrides) {
