@@ -549,58 +549,131 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   }
 
   function renderDashboard() {
-    const openAlerts = store.maintenanceAlerts.filter((alert) => alert.status !== "Resolved").length;
+    const openAlerts = store.maintenanceAlerts.filter((alert) => alert.status !== "Resolved");
+    const criticalAlerts = openAlerts.filter((alert) => ["Critical", "Grounding"].includes(alert.severity));
+    const unhealthyComponents = components.filter((component) => ["Monitor", "Critical", "Expired"].includes(component.status));
+    const aircraftFlying = helicopters.filter((helicopter) => ["Available", "Assigned", "In Campaign"].includes(helicopter.status)).length;
+    const upcomingMaintenance = getForecastComponents(components).length;
+    const inventoryRisks = inventoryItems.filter((item) => getLowStockStatus(item) !== "OK");
+    const activeCampaigns = store.campaigns.filter((campaign) => ["Active", "Approved", "Readiness Review", "Planned"].includes(campaign.status));
+    const fleetHealth = Math.max(0, Math.round((helicopters.reduce((sum, helicopter) => sum + helicopter.readiness, 0) / Math.max(helicopters.length, 1)) - criticalAlerts.length * 4));
+    const operationalReadiness = Math.max(0, Math.round((aircraftFlying / Math.max(helicopters.length, 1)) * 100 - inventoryRisks.length * 3));
+    const auraRecommendations = buildExecutiveRecommendations({
+      criticalAlerts: criticalAlerts.length,
+      inventoryRisks: inventoryRisks.length,
+      upcomingMaintenance,
+      activeCampaigns: activeCampaigns.length,
+      unhealthyComponents: unhealthyComponents.length,
+      fleetHealth,
+      operationalReadiness
+    });
     return (
       <div className="grid gap-6">
         <Panel className="overflow-hidden bg-white">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <BrandLockup variant="hero" />
-              <div className="mt-8">
-                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-aviation-blue">{t(getTimeGreetingKey())}</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-normal text-ink sm:text-4xl">{t("shell.welcomeBack")}</h2>
-                <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">{t("brand.subtitle")}</p>
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                <BrandLockup variant="hero" />
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-aviation-blue">{t(getTimeGreetingKey())}</p>
+                  <h2 className="mt-3 text-3xl font-semibold tracking-normal text-ink sm:text-4xl">{tx("Operations Command Center")}</h2>
+                  <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">{t("brand.subtitle")}</p>
+                </div>
               </div>
             </div>
-            <div className="rounded-xl border border-line bg-brand-lightBlue/60 p-5">
-              <StatusPill tone="teal">HeliServiX OS</StatusPill>
-              <p className="mt-4 text-sm font-medium text-ink">{t("brand.subtitle")}</p>
-              <p className="mt-2 text-sm leading-6 text-ink-subtle">{tx("Panama · Ecuador · Latin America")}</p>
+            <div className="grid min-w-[18rem] gap-3 rounded-xl border border-line bg-brand-lightBlue/60 p-5">
+              <StatusPill tone={criticalAlerts.length ? "red" : "green"}>{criticalAlerts.length ? "Attention Required" : "Operational"}</StatusPill>
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Fleet Health" value={`${fleetHealth}%`} />
+                <MiniStat label="Readiness" value={`${operationalReadiness}%`} />
+              </div>
+              <p className="text-sm leading-6 text-ink-subtle">{tx("Panama · Ecuador · Latin America")}</p>
             </div>
           </div>
         </Panel>
-        <section className="grid gap-4 md:grid-cols-4">
-          <Metric label="Helicopters" value={String(helicopters.length)} tone="teal" detail="Local fleet records" />
-          <Metric label="Campaigns" value={String(store.campaigns.length)} tone="blue" detail="Deployment operating records" />
-          <Metric label="Alerts" value={String(openAlerts)} tone="amber" detail="Generated maintenance alerts" />
-          <Metric label="Technical Records" value={String(store.technicalRecords.length)} tone="green" detail="Linked evidence records" />
+        <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-6">
+          <Metric label="Fleet Health" value={`${fleetHealth}%`} tone={fleetHealth >= 80 ? "green" : fleetHealth >= 65 ? "amber" : "red"} detail="Aircraft readiness and alert exposure" />
+          <Metric label="Operational Readiness" value={`${operationalReadiness}%`} tone={operationalReadiness >= 80 ? "green" : operationalReadiness >= 60 ? "amber" : "red"} detail="Aircraft available for current work" />
+          <Metric label="Critical Alerts" value={String(criticalAlerts.length)} tone={criticalAlerts.length ? "red" : "green"} detail="Immediate maintenance attention" />
+          <Metric label="Aircraft Flying" value={`${aircraftFlying}/${helicopters.length}`} tone="blue" detail="Available, assigned, or in campaign" />
+          <Metric label="Upcoming Maintenance" value={String(upcomingMaintenance)} tone={upcomingMaintenance ? "amber" : "green"} detail="Forecasted due components" />
+          <Metric label="Inventory Risk" value={String(inventoryRisks.length)} tone={inventoryRisks.length ? "amber" : "green"} detail="Low stock or expiry signals" />
         </section>
-        <Panel>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-ink">{tx("HSV OS 0.4 Bilingual Core + Aircraft Operations Center MVP")}</h2>
-              <p className="mt-1 text-sm text-ink-subtle">{demoDataPolicy}</p>
+        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <Panel>
+            <SectionHeading title="Operational Picture" detail="What requires management attention today?" />
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              <ExecutiveSummaryCard title="Fleet Health Score" value={`${fleetHealth}%`} status={fleetHealth >= 80 ? "Healthy" : fleetHealth >= 65 ? "Watch" : "Critical"} detail={`${unhealthyComponents.length} component records need monitoring.`} tone={fleetHealth >= 80 ? "green" : fleetHealth >= 65 ? "amber" : "red"} />
+              <ExecutiveSummaryCard title="Campaign Summary" value={String(activeCampaigns.length)} status="Active / planned" detail={`${store.campaigns.length} total local campaign records.`} tone="blue" />
+              <ExecutiveSummaryCard title="Inventory Status" value={String(inventoryRisks.length)} status={inventoryRisks.length ? "Risk" : "Clear"} detail="Low stock, out of stock, or expiry exposure." tone={inventoryRisks.length ? "amber" : "green"} />
             </div>
-            <StatusPill tone="amber">localStorage only</StatusPill>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
-            {[
-              ["HeliServiX Copilot", "/copilot"],
-              ["Campaigns", "/campaigns"],
-              ["Aircraft Operations Center", "/digital-twin"],
-              ["Fleet CRUD", "/helicopters"],
-              ["Crew Portal", "/crew-portal"],
-              ["Vessel Inventory", "/inventory"],
-              ["Purchasing", "/purchasing"],
-              ["Technical Records", "/technical-records"],
-              ["Compliance", "/compliance"]
-            ].map(([label, href]) => (
-              <Link key={href} className="rounded-lg border border-line bg-canvas-muted/58 p-4 text-sm font-semibold text-ink transition hover:text-aviation-teal" href={href}>
-                {label}
-              </Link>
-            ))}
-          </div>
-        </Panel>
+            <div className="mt-5 grid gap-3">
+              {criticalAlerts.slice(0, 3).map((alert) => (
+                <div key={alert.id} className="rounded-xl border border-aviation-red/20 bg-aviation-red/5 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill tone="red">{alert.severity}</StatusPill>
+                    <StatusPill tone="neutral">{alert.helicopterRegistration}</StatusPill>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-ink">{alert.componentName}</p>
+                  <p className="mt-1 text-sm leading-6 text-ink-subtle">{alert.description}</p>
+                </div>
+              ))}
+              {!criticalAlerts.length ? <EmptyInlineState /> : null}
+            </div>
+          </Panel>
+          <Panel>
+            <SectionHeading title="AURA Recommendations" detail="Executive recommendations, not a chat transcript." />
+            <div className="mt-5 grid gap-3">
+              {auraRecommendations.map((recommendation) => (
+                <AuraExecutiveCard key={recommendation.recommendation} {...recommendation} />
+              ))}
+            </div>
+          </Panel>
+        </section>
+        <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <Panel id="lease-simulator">
+            <SectionHeading title="Lease Simulator" detail="Executive margin view for tuna-vessel aircraft operations." />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                ["Catch", "1,100 t"],
+                ["Hours", "84.0"],
+                ["Fuel", "Local estimate"],
+                ["Crew", "Pilot + mechanic"],
+                ["Components", `${upcomingMaintenance} due signals`]
+              ].map(([label, value]) => <MiniStat key={label} label={label} value={value} />)}
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                ["Revenue", "Review contract"],
+                ["Costs", "Operational estimate"],
+                ["Gross Margin", "Pending rates"],
+                ["Reserve for Overhaul", "Required"],
+                ["Projected Profit", "Scenario only"],
+                ["Margin %", "Sensitivity required"]
+              ].map(([label, value]) => <MiniStat key={label} label={label} value={value} />)}
+            </div>
+          </Panel>
+          <Panel>
+            <SectionHeading title="Command Links" detail="Move from executive signal to operating record." />
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {[
+                ["Fleet", "/helicopters"],
+                ["Aircraft", "/digital-twin"],
+                ["Campaigns", "/campaigns"],
+                ["Components", "/components"],
+                ["Inventory", "/inventory"],
+                ["AURA", "/copilot"]
+              ].map(([label, href]) => (
+                <Link key={href} className="rounded-xl border border-line bg-canvas-muted/58 p-4 text-sm font-semibold text-ink transition hover:border-aviation-blue/30 hover:bg-brand-lightBlue/50 hover:text-aviation-blue" href={href}>
+                  {tx(label)}
+                </Link>
+              ))}
+            </div>
+            <p className="mt-5 rounded-lg border border-aviation-amber/20 bg-aviation-amber/10 px-4 py-3 text-sm font-medium text-ink-muted">
+              {demoDataPolicy}
+            </p>
+          </Panel>
+        </section>
       </div>
     );
   }
@@ -653,27 +726,129 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const helicopter = helicopters.find((item) => item.registration === registration);
     if (!helicopter) return <Empty title="Helicopter not found" />;
     const assignedComponents = components.filter((item) => item.helicopterRegistration === helicopter.registration);
+    const criticalComponents = assignedComponents.filter((item) => ["Critical", "Expired"].includes(item.status));
+    const aircraftAlerts = store.maintenanceAlerts.filter((alert) => alert.helicopterRegistration === helicopter.registration && alert.status !== "Resolved");
+    const aircraftRecords = store.technicalRecords.filter((record) => record.relatedHelicopter === helicopter.registration);
+    const aircraftCompliance = store.complianceItems.filter((item) => item.relatedHelicopter === helicopter.registration);
+    const aircraftCampaigns = store.campaigns.filter((campaign) => campaign.helicopterRegistration === helicopter.registration);
+    const aircraftHistory = [
+      ...store.flightLogs.filter((log) => log.helicopterRegistration === helicopter.registration).map((log) => ({ date: log.flightDate, title: `${log.flightHours.toFixed(1)} flight hours`, detail: log.campaign || log.vesselName })),
+      ...store.replacementEvents.filter((event) => event.helicopterRegistration === helicopter.registration).map((event) => ({ date: event.installationDate, title: event.installedComponent, detail: event.reason }))
+    ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
     return (
       <div className="grid gap-5">
-        <section className="grid gap-4 md:grid-cols-4">
-          <Metric label="Hourmeter" value={helicopter.currentHourmeter.toFixed(1)} tone="blue" detail="Current local value" />
-          <Metric label="Components" value={String(assignedComponents.length)} tone="teal" detail="Active assigned records" />
-          <Metric label="Assigned Vessel" value={helicopter.assignedVessel || "Unassigned"} tone="amber" detail="Local assignment" />
-          <Metric label="Source" value={helicopter.source ?? "Demo"} tone={helicopter.source === "User" ? "green" : "amber"} detail="Data policy marker" />
-        </section>
-        <Panel>
-          <ListHeader title={`${helicopter.registration} details`} href={`/helicopters/${helicopter.registration}/edit`} action="Edit helicopter" />
-          <p className="text-sm leading-6 text-ink-subtle">{helicopter.notes}</p>
+        <Panel className="overflow-hidden">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={helicopter.status === "Grounded" ? "red" : helicopter.status === "Maintenance" ? "amber" : "green"}>{helicopter.status}</StatusPill>
+                <StatusPill tone={helicopter.source === "User" ? "green" : "amber"}>{helicopter.source ?? "Demo"}</StatusPill>
+              </div>
+              <h2 className="mt-4 text-3xl font-semibold text-ink">{tx("Aircraft")} <span className="hsv-technical-value">{helicopter.registration}</span></h2>
+              <div className="mt-4 grid gap-3 text-sm text-ink-subtle sm:grid-cols-3">
+                <ProfileField label="Model" value={helicopter.model} mono={false} />
+                <ProfileField label="Serial" value={helicopter.serialNumber || "N/A"} />
+                <ProfileField label="Current Hours" value={helicopter.currentHourmeter.toFixed(1)} />
+              </div>
+            </div>
+            <Link className="hsv-primary-button" href={`/helicopters/${helicopter.registration}/edit`}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              {tx("Edit helicopter")}
+            </Link>
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <ExecutiveSummaryCard title="Health Score" value={`${helicopter.readiness}%`} status={helicopter.readiness >= 80 ? "Healthy" : helicopter.readiness >= 60 ? "Watch" : "Critical"} detail="Imported or local readiness field" tone={helicopter.readiness >= 80 ? "green" : helicopter.readiness >= 60 ? "amber" : "red"} />
+            <ExecutiveSummaryCard title="Mission Readiness" value={aircraftAlerts.length ? "Review" : "Ready"} status={aircraftAlerts.length ? "Attention" : "Operational"} detail={`${aircraftAlerts.length} open alert${aircraftAlerts.length === 1 ? "" : "s"}`} tone={aircraftAlerts.length ? "amber" : "green"} />
+            <ExecutiveSummaryCard title="Assigned Vessel" value={helicopter.assignedVessel || "None"} status="Assignment" detail={helicopter.operationArea || "No operation area"} tone="blue" />
+            <ExecutiveSummaryCard title="Critical Components" value={String(criticalComponents.length)} status={criticalComponents.length ? "Critical" : "Clear"} detail={`${assignedComponents.length} installed component records`} tone={criticalComponents.length ? "red" : "green"} />
+          </div>
+          <p className="mt-5 text-sm leading-6 text-ink-subtle">{helicopter.notes}</p>
         </Panel>
+        <div className="flex gap-2 overflow-x-auto rounded-xl border border-line bg-white p-2 shadow-control dark:bg-canvas-muted">
+          {["Overview", "Components", "Technical Records", "Compliance", "History"].map((tab) => (
+            <a key={tab} className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-ink-muted transition hover:bg-brand-lightBlue hover:text-aviation-blue" href={`#${tab.toLowerCase().replaceAll(" ", "-")}`}>
+              {tx(tab)}
+            </a>
+          ))}
+        </div>
+        <section id="overview" className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+          <Panel>
+            <SectionHeading title="Overview" detail="One aircraft, one operational profile." />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <MiniStat label="Registration" value={helicopter.registration} />
+              <MiniStat label="Owner company" value={helicopter.ownerCompany || "N/A"} />
+              <MiniStat label="Country / operation area" value={helicopter.operationArea || "N/A"} />
+              <MiniStat label="Next due component" value={helicopter.nextDueComponent || "N/A"} />
+            </div>
+          </Panel>
+          <Panel>
+            <SectionHeading title="Campaign Summary" detail="Aircraft deployment history and active context." />
+            <div className="mt-5 grid gap-3">
+              {aircraftCampaigns.slice(0, 4).map((campaign) => (
+                <div key={campaign.id} className="rounded-lg border border-line bg-canvas-muted/45 p-3">
+                  <p className="text-sm font-semibold text-ink">{campaign.code} / {campaign.name}</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{campaign.vesselName} / {campaign.status}</p>
+                </div>
+              ))}
+              {!aircraftCampaigns.length ? <EmptyInlineState /> : null}
+            </div>
+          </Panel>
+        </section>
         <AircraftMigrationCenter
           compact
           preselectedRegistration={helicopter.registration}
           store={store}
           onApply={updateStore}
         />
-        <Panel>
-          <h2 className="mb-4 text-lg font-semibold text-ink">Assigned Components</h2>
+        <Panel id="components">
+          <SectionHeading title="Components" detail="Installed component exposure by aircraft." />
+          <div className="mt-5">
           {renderComponentsTable(assignedComponents)}
+          </div>
+        </Panel>
+        <section className="grid gap-5 xl:grid-cols-2">
+          <Panel id="technical-records">
+            <SectionHeading title="Technical Records" detail="Evidence linked to this aircraft." />
+            <div className="mt-5 grid gap-3">
+              {aircraftRecords.slice(0, 6).map((record) => (
+                <div key={record.id} className="rounded-lg border border-line bg-canvas-muted/45 p-3">
+                  <p className="text-sm font-semibold text-ink">{record.title}</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{record.recordType} / {record.recordDate}</p>
+                </div>
+              ))}
+              {!aircraftRecords.length ? <EmptyInlineState /> : null}
+            </div>
+          </Panel>
+          <Panel id="compliance">
+            <SectionHeading title="Compliance" detail="Open applicability and regulatory references." />
+            <div className="mt-5 grid gap-3">
+              {aircraftCompliance.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-lg border border-line bg-canvas-muted/45 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill tone={item.status === "Overdue" ? "red" : item.status === "Complied" ? "green" : "amber"}>{item.status}</StatusPill>
+                    <StatusPill tone="neutral">{item.authority}</StatusPill>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-ink">{item.referenceNumber} / {item.title}</p>
+                </div>
+              ))}
+              {!aircraftCompliance.length ? <EmptyInlineState /> : null}
+            </div>
+          </Panel>
+        </section>
+        <Panel id="history">
+          <SectionHeading title="History" detail="Flight and maintenance timeline preview." />
+          <div className="mt-5 grid gap-3">
+            {aircraftHistory.map((event) => (
+              <div key={`${event.date}-${event.title}`} className="grid gap-2 rounded-lg border border-line bg-canvas-muted/45 p-3 sm:grid-cols-[140px_1fr]">
+                <p className="hsv-technical-value text-sm font-semibold text-ink">{event.date || "N/A"}</p>
+                <div>
+                  <p className="text-sm font-semibold text-ink">{event.title}</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{event.detail}</p>
+                </div>
+              </div>
+            ))}
+            {!aircraftHistory.length ? <EmptyInlineState /> : null}
+          </div>
         </Panel>
       </div>
     );
@@ -838,17 +1013,77 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   function renderComponentDetail(id?: string) {
     const component = components.find((item) => item.id === id);
     if (!component) return <Empty title="Component not found" />;
+    const helicopter = helicopters.find((item) => item.registration === component.helicopterRegistration);
+    const componentAlerts = store.maintenanceAlerts.filter((alert) => alert.componentId === component.id && alert.status !== "Resolved");
+    const componentChanges = store.componentChanges.filter((change) => change.removedComponentId === component.id || change.installedComponentName === component.componentName);
+    const replacementHistory = store.replacementEvents.filter((event) => event.helicopterRegistration === component.helicopterRegistration && (event.removedComponent.includes(component.componentName) || event.installedComponent.includes(component.componentName)));
     return (
       <div className="grid gap-5">
-        <section className="grid gap-4 md:grid-cols-4">
-          <Metric label="Remaining" value={`${component.remainingHours.toFixed(1)} hrs`} tone="blue" detail="Hour-controlled balance" />
-          <Metric label="Remaining %" value={`${component.remainingPercentage.toFixed(1)}%`} tone="teal" detail="Calculated locally" />
-          <Metric label="Calendar" value={`${component.remainingCalendarDays} days`} tone="amber" detail={component.calendarLimitDate} />
-          <Metric label="Status" value={component.status} tone={component.status === "OK" ? "green" : "red"} detail="Rule-derived state" />
+        <Panel>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={component.status === "OK" ? "green" : component.status === "Monitor" ? "amber" : component.status === "Removed" ? "neutral" : "red"}>{component.status}</StatusPill>
+                <StatusPill tone={component.source === "User" ? "green" : "amber"}>{component.source ?? "Demo"}</StatusPill>
+              </div>
+              <h2 className="mt-4 text-3xl font-semibold text-ink">{component.componentName}</h2>
+              <div className="mt-4 grid gap-3 text-sm text-ink-subtle sm:grid-cols-4">
+                <ProfileField label="Aircraft" value={component.helicopterRegistration} />
+                <ProfileField label="P/N" value={component.partNumber || "N/A"} />
+                <ProfileField label="S/N" value={component.serialNumber || "N/A"} />
+                <ProfileField label="Position" value={component.position || "N/A"} />
+              </div>
+            </div>
+            <Link className="hsv-primary-button" href={`/components/${component.id}/edit`}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              {tx("Edit component")}
+            </Link>
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <Metric label="Remaining Hours" value={`${component.remainingHours.toFixed(1)} hrs`} tone={component.remainingHours <= 0 ? "red" : component.remainingPercentage < 25 ? "amber" : "green"} detail="Hour-controlled balance" />
+            <Metric label="Remaining Calendar" value={`${component.remainingCalendarDays} days`} tone={component.remainingCalendarDays <= 0 ? "red" : component.remainingCalendarDays < 180 ? "amber" : "green"} detail={component.calendarLimitDate || "No calendar limit"} />
+            <Metric label="Current Status" value={component.status} tone={component.status === "OK" ? "green" : component.status === "Monitor" ? "amber" : "red"} detail="Rule-derived state" />
+            <Metric label="Forecast" value={component.remainingHours <= 100 || component.remainingCalendarDays <= 180 ? "Plan" : "Normal"} tone={component.remainingHours <= 100 || component.remainingCalendarDays <= 180 ? "amber" : "green"} detail={helicopter ? `${helicopter.currentHourmeter.toFixed(1)} aircraft hours` : "Aircraft not found"} />
+          </div>
+          <p className="mt-5 text-sm leading-6 text-ink-subtle">{component.notes}</p>
+        </Panel>
+        <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+          <Panel>
+            <SectionHeading title="Forecast" detail="Maintenance exposure based on current remaining life." />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <MiniStat label="Life Limit" value={`${component.lifeLimitHours.toFixed(1)} hrs`} />
+              <MiniStat label="TSN" value={`${component.tsnHours.toFixed(1)} hrs`} />
+              <MiniStat label="TSO" value={`${component.tsoHours.toFixed(1)} hrs`} />
+              <MiniStat label="Remaining %" value={`${component.remainingPercentage.toFixed(1)}%`} />
+            </div>
+          </Panel>
+          <Panel>
+            <SectionHeading title="Current Alerts" detail="Open maintenance signals linked to this component." />
+            <div className="mt-5 grid gap-3">
+              {componentAlerts.map((alert) => (
+                <div key={alert.id} className="rounded-lg border border-line bg-canvas-muted/45 p-3">
+                  <StatusPill tone={alert.severity === "Info" ? "blue" : alert.severity === "Monitor" ? "amber" : "red"}>{alert.severity}</StatusPill>
+                  <p className="mt-3 text-sm text-ink-subtle">{alert.description}</p>
+                </div>
+              ))}
+              {!componentAlerts.length ? <EmptyInlineState /> : null}
+            </div>
+          </Panel>
         </section>
         <Panel>
-          <ListHeader title={`${component.componentName} / ${component.helicopterRegistration}`} href={`/components/${component.id}/edit`} action="Edit component" />
-          <p className="text-sm leading-6 text-ink-subtle">{component.notes}</p>
+          <SectionHeading title="History" detail="Replacement and component-change events." />
+          <div className="mt-5 grid gap-3">
+            {[...componentChanges.map((change) => ({ id: change.id, date: change.installationDate, title: change.installedComponentName, detail: change.reason })), ...replacementHistory.map((event) => ({ id: event.id, date: event.installationDate, title: event.installedComponent, detail: event.reason }))].slice(0, 8).map((event) => (
+              <div key={event.id} className="grid gap-2 rounded-lg border border-line bg-canvas-muted/45 p-3 sm:grid-cols-[140px_1fr]">
+                <p className="hsv-technical-value text-sm font-semibold text-ink">{event.date || "N/A"}</p>
+                <div>
+                  <p className="text-sm font-semibold text-ink">{event.title}</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{event.detail}</p>
+                </div>
+              </div>
+            ))}
+            {!componentChanges.length && !replacementHistory.length ? <EmptyInlineState /> : null}
+          </div>
         </Panel>
       </div>
     );
@@ -1239,9 +1474,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 }
 
 function getHeader(view: FleetOSClientProps["view"], mode: string) {
-  const common = { status: "HSV OS 0.4 / localStorage MVP" };
-  if (view === "dashboard") return { eyebrow: "HSV OS 0.4 Operations", title: "Campaigns, fleet, and Aircraft Operations Center MVP with bilingual local persistence.", description: "Campaigns, Aircraft Operations Center, Fleet CRUD, flight-hour recalculation, records, compliance, inventory, and purchasing without backend services.", icon: Plane, ...common };
-  if (view.includes("helicopter")) return { eyebrow: "Fleet CRUD", title: mode === "edit" ? "Edit helicopter record." : view === "helicopter-form" ? "Create helicopter record." : "Manage helicopter registry records.", description: "All records are demo or user-entered local data until imported into a future backend.", icon: Plane, ...common };
+  const common = { status: "HSV OS 0.3 / localStorage" };
+  if (view === "dashboard") return { eyebrow: "HSV OS 0.3 Operations", title: "Operations Command Center", description: "Executive visibility for fleet health, readiness, critical alerts, campaigns, inventory risk, and AURA recommendations.", icon: Gauge, ...common };
+  if (view.includes("helicopter")) return { eyebrow: "Aircraft", title: mode === "edit" ? "Edit aircraft record." : view === "helicopter-form" ? "Create aircraft record." : "Executive aircraft profile.", description: "Registration, mission readiness, component exposure, records, compliance, and history in one operational profile.", icon: Plane, ...common };
   if (view.includes("vessel")) return { eyebrow: "Vessel CRUD", title: mode === "edit" ? "Edit vessel record." : view === "vessel-form" ? "Create vessel record." : "Manage vessel records and helicopter assignments.", description: "Assign helicopters to vessels using local mock state only.", icon: Anchor, ...common };
   if (view.includes("component")) return { eyebrow: "Component CRUD", title: mode === "edit" ? "Edit component record." : view === "component-form" ? "Create component record." : "Manage controlled component records.", description: "Component remaining life and status are calculated in the frontend MVP.", icon: Wrench, ...common };
   if (view.includes("flight")) return { eyebrow: "Flight Hour Logging", title: "Register flight hours and update local component life.", description: "Saving a flight log updates hourmeter, deducts component hours, recalculates status, and creates alerts locally.", icon: ClipboardList, ...common };
@@ -1269,10 +1504,148 @@ function Metric({ label, value, detail, tone }: { label: string; value: string; 
   return (
     <Panel className="transition duration-150 hover:-translate-y-0.5 hover:border-aviation-blue/25">
       <StatusPill tone={tone}>{tx(label)}</StatusPill>
-      <p className="mt-4 text-3xl font-semibold leading-none text-ink">{value}</p>
+      <p className="hsv-technical-value mt-4 text-3xl font-semibold leading-none text-ink">{value}</p>
       <p className="mt-3 text-sm leading-6 text-ink-subtle">{tx(detail)}</p>
     </Panel>
   );
+}
+
+function SectionHeading({ title, detail }: { title: string; detail: string }) {
+  const { tx } = useI18n();
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 className="text-lg font-semibold text-ink">{tx(title)}</h2>
+        <p className="mt-1 text-sm leading-6 text-ink-subtle">{tx(detail)}</p>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  const { tx } = useI18n();
+  return (
+    <div className="rounded-lg border border-line bg-white/75 px-3 py-3 shadow-control dark:bg-canvas-muted/70">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">{tx(label)}</p>
+      <p className="hsv-technical-value mt-1 truncate text-sm font-semibold text-ink">{tx(value)}</p>
+    </div>
+  );
+}
+
+function ProfileField({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
+  const { tx } = useI18n();
+  return (
+    <div className="rounded-lg border border-line bg-canvas-muted/45 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">{tx(label)}</p>
+      <p className={[mono ? "hsv-technical-value" : "", "mt-1 truncate text-sm font-semibold text-ink"].join(" ")}>{value}</p>
+    </div>
+  );
+}
+
+function ExecutiveSummaryCard({ title, value, status, detail, tone }: { title: string; value: string; status: string; detail: string; tone: "green" | "amber" | "blue" | "red" }) {
+  const { tx } = useI18n();
+  return (
+    <article className="rounded-xl border border-line bg-canvas-muted/45 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-ink">{tx(title)}</p>
+        <StatusPill tone={tone}>{tx(status)}</StatusPill>
+      </div>
+      <p className="hsv-technical-value mt-4 text-3xl font-semibold text-ink">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-ink-subtle">{tx(detail)}</p>
+    </article>
+  );
+}
+
+type AuraExecutiveRecommendation = {
+  priority: "Critical" | "High" | "Monitor";
+  recommendation: string;
+  evidence: string;
+  operationalImpact: string;
+  financialImpact: string;
+  action: string;
+};
+
+function AuraExecutiveCard({ priority, recommendation, evidence, operationalImpact, financialImpact, action }: AuraExecutiveRecommendation) {
+  const { tx } = useI18n();
+  const tone = priority === "Critical" ? "red" : priority === "High" ? "amber" : "blue";
+  return (
+    <article className="rounded-xl border border-line bg-white p-4 shadow-control dark:bg-canvas-muted/70">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <StatusPill tone={tone}>{priority}</StatusPill>
+          <h3 className="mt-3 text-sm font-semibold text-ink">{tx(recommendation)}</h3>
+        </div>
+        <StatusPill tone="neutral">AURA</StatusPill>
+      </div>
+      <div className="mt-4 grid gap-2">
+        <RecommendationLine label="Evidence" value={evidence} />
+        <RecommendationLine label="Operational Impact" value={operationalImpact} />
+        <RecommendationLine label="Financial Impact" value={financialImpact} />
+        <RecommendationLine label="Recommended Action" value={action} />
+      </div>
+    </article>
+  );
+}
+
+function RecommendationLine({ label, value }: { label: string; value: string }) {
+  const { tx } = useI18n();
+  return (
+    <div className="grid gap-1 rounded-lg border border-line bg-canvas-muted/38 px-3 py-2 text-sm sm:grid-cols-[150px_1fr]">
+      <span className="font-semibold text-ink">{tx(label)}</span>
+      <span className="text-ink-subtle">{tx(value)}</span>
+    </div>
+  );
+}
+
+function buildExecutiveRecommendations(input: {
+  criticalAlerts: number;
+  inventoryRisks: number;
+  upcomingMaintenance: number;
+  activeCampaigns: number;
+  unhealthyComponents: number;
+  fleetHealth: number;
+  operationalReadiness: number;
+}): AuraExecutiveRecommendation[] {
+  const recommendations: AuraExecutiveRecommendation[] = [];
+  if (input.criticalAlerts) {
+    recommendations.push({
+      priority: "Critical",
+      recommendation: "Resolve critical maintenance exposure before dispatch.",
+      evidence: `${input.criticalAlerts} critical or grounding alert${input.criticalAlerts === 1 ? "" : "s"} open.`,
+      operationalImpact: "Aircraft availability and campaign readiness may be blocked.",
+      financialImpact: "Unplanned downtime can affect campaign margin.",
+      action: "Assign maintenance review today."
+    });
+  }
+  if (input.inventoryRisks) {
+    recommendations.push({
+      priority: "High",
+      recommendation: "Review vessel inventory risk before approving operations.",
+      evidence: `${input.inventoryRisks} inventory item${input.inventoryRisks === 1 ? "" : "s"} below readiness threshold.`,
+      operationalImpact: "Maintenance completion may be delayed offshore.",
+      financialImpact: "Rush procurement or vessel delays may increase cost.",
+      action: "Prioritize replenishment and transfer planning."
+    });
+  }
+  if (input.upcomingMaintenance) {
+    recommendations.push({
+      priority: "High",
+      recommendation: "Plan upcoming maintenance against active campaigns.",
+      evidence: `${input.upcomingMaintenance} component${input.upcomingMaintenance === 1 ? "" : "s"} in forecast window.`,
+      operationalImpact: "Aircraft rotation may need adjustment.",
+      financialImpact: "Maintenance reserve should be reviewed.",
+      action: "Confirm parts, crew, and campaign timing."
+    });
+  }
+  recommendations.push({
+    priority: input.operationalReadiness >= 80 ? "Monitor" : "High",
+    recommendation: "Confirm operational readiness before next management review.",
+    evidence: `Fleet health ${input.fleetHealth}% / readiness ${input.operationalReadiness}% / ${input.activeCampaigns} active or planned campaign${input.activeCampaigns === 1 ? "" : "s"}.`,
+    operationalImpact: input.unhealthyComponents ? "Component exposure remains visible." : "No major component exposure detected.",
+    financialImpact: "Keep lease and reserve assumptions aligned with current hours.",
+    action: "Review fleet, inventory, and campaign summary."
+  });
+  return recommendations.slice(0, 4);
 }
 
 function ListHeader({ title, href, action }: { title: string; href: string; action: string }) {

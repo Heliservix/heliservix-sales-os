@@ -55,9 +55,9 @@ export function HeliServiXCopilotClient() {
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
         <PageHeader
-          eyebrow="HeliServiX Copilot"
-          title="Local operational assistant for fleet, maintenance, inventory, and campaigns."
-          description="Copilot reads only local HeliServiX OS data. It does not connect to external APIs and never replaces maintenance approval."
+          eyebrow="AURA"
+          title="Executive operational recommendations from local HeliServiX OS data."
+          description="AURA presents decision-support cards for fleet, maintenance, inventory, and campaigns. It does not connect to external APIs and never replaces maintenance approval."
           icon={Bot}
           status="Local-only decision support"
         />
@@ -71,7 +71,7 @@ export function HeliServiXCopilotClient() {
                     <StatusPill tone="amber">{tx("Decision support")}</StatusPill>
                     <StatusPill tone="neutral">{tx("No external API")}</StatusPill>
                   </div>
-                  <h2 className="mt-4 text-2xl font-semibold text-ink">{tx("Operational brief")}</h2>
+                  <h2 className="mt-4 text-2xl font-semibold text-ink">AURA</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-subtle">
                     {tx("Answers are generated from local helicopters, components, alerts, inventory, flight logs, campaigns, purchases, compliance, and technical records.")}
                   </p>
@@ -97,7 +97,7 @@ export function HeliServiXCopilotClient() {
 
             <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
               <Panel>
-                <SectionTitle icon={Sparkles} title="Ask Copilot" description="Use predefined local questions for audit-friendly answers." />
+                <SectionTitle icon={Sparkles} title="AURA Focus" description="Select one operational question for an executive recommendation view." />
                 <div className="mt-5 grid gap-2">
                   {questionOptions.map((item) => {
                     const Icon = item.icon;
@@ -124,12 +124,18 @@ export function HeliServiXCopilotClient() {
                 <SectionTitle icon={ShieldAlert} title={answer.title} description={answer.summary} />
                 <div className="mt-5 grid gap-3">
                   {answer.records.length ? answer.records.map((record) => (
-                    <article key={`${record.label}-${record.detail}`} className="rounded-lg border border-line bg-canvas-muted/50 p-4">
+                    <article key={`${record.label}-${record.detail}`} className="rounded-xl border border-line bg-white p-4 shadow-control dark:bg-canvas-muted/70">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <h3 className="text-sm font-semibold text-ink">{record.label}</h3>
-                        <StatusPill tone={record.tone}>{record.tone === "red" ? "Action" : record.tone === "amber" ? "Review" : "OK"}</StatusPill>
+                        <StatusPill tone={record.tone}>{record.tone === "red" ? "Critical" : record.tone === "amber" ? "High" : "Monitor"}</StatusPill>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-ink-subtle">{record.detail}</p>
+                      <div className="mt-4 grid gap-2">
+                        <RecommendationLine label="Recommendation" value={record.label} />
+                        <RecommendationLine label="Evidence" value={record.detail} />
+                        <RecommendationLine label="Operational Impact" value={record.tone === "red" ? "May block aircraft readiness." : "Requires management review."} />
+                        <RecommendationLine label="Financial Impact" value="Review cost, downtime, and reserve exposure where applicable." />
+                        <RecommendationLine label="Recommended Action" value={record.tone === "green" ? "Continue monitoring." : "Assign owner and review today."} />
+                      </div>
                     </article>
                   )) : <EmptyCopilotState />}
                 </div>
@@ -233,6 +239,16 @@ function MiniLine({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-line bg-canvas-muted/50 px-3 py-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{tx(label)}</p>
       <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+    </div>
+  );
+}
+
+function RecommendationLine({ label, value }: { label: string; value: string }) {
+  const { tx } = useI18n();
+  return (
+    <div className="grid gap-1 rounded-lg border border-line bg-canvas-muted/40 px-3 py-2 text-sm sm:grid-cols-[150px_1fr]">
+      <span className="font-semibold text-ink">{tx(label)}</span>
+      <span className="text-ink-subtle">{tx(value)}</span>
     </div>
   );
 }

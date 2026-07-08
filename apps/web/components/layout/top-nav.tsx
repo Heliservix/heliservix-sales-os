@@ -11,8 +11,9 @@ export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { language, setLanguage, t } = useI18n();
+  const readyNavigation = primaryNavigation.filter((item) => item.status !== "planned");
   const activeHref =
-    primaryNavigation.find((item) => item.href !== "/" && pathname.startsWith(item.href))?.href ?? "/";
+    readyNavigation.find((item) => item.href !== "/" && pathname.startsWith(item.href))?.href ?? "/";
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white/94 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8">
@@ -31,7 +32,7 @@ export function TopNav() {
               value={activeHref}
               onChange={(event) => router.push(event.target.value)}
             >
-              {primaryNavigation.map((item) => (
+              {readyNavigation.map((item) => (
                 <option key={item.label} value={item.href}>
                   {t(item.labelKey)}
                 </option>

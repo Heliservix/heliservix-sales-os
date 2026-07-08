@@ -57,6 +57,7 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 246, 250, 0.96) 28rem),
     rgb(var(--color-canvas));
   color: rgb(var(--color-ink));
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   text-rendering: geometricPrecision;
 }
 
@@ -128,7 +129,7 @@ a {
   }
 
   .hsv-table-wrap {
-    @apply overflow-x-auto rounded-lg border border-line bg-white shadow-control dark:bg-canvas-muted;
+    @apply overflow-x-auto rounded-xl border border-line bg-white shadow-panel dark:bg-canvas-muted;
     content-visibility: auto;
     contain-intrinsic-size: 1px 520px;
   }
@@ -142,7 +143,7 @@ a {
   }
 
   .hsv-table-th {
-    @apply whitespace-nowrap px-4 py-3 font-semibold;
+    @apply whitespace-nowrap px-4 py-3.5 font-semibold;
   }
 
   .hsv-table-body {
@@ -158,7 +159,11 @@ a {
   }
 
   .hsv-table-cell {
-    @apply px-4 py-3 align-middle;
+    @apply px-4 py-3.5 align-middle;
+  }
+
+  .hsv-technical-value {
+    @apply font-mono tabular-nums tracking-normal;
   }
 
   .hsv-empty-state {

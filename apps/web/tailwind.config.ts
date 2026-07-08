@@ -46,6 +46,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
+          "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
           "SF Pro Display",
@@ -55,6 +56,15 @@ const config: Config = {
           "Helvetica Neue",
           "Arial",
           "sans-serif"
+        ],
+        mono: [
+          "JetBrains Mono",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "Liberation Mono",
+          "monospace"
         ]
       }
     }

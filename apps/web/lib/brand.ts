@@ -1,8 +1,8 @@
 export const brand = {
   productName: "HeliServiX OS",
   subtitle: {
-    en: "Helicopter Operations System",
-    es: "Sistema de Operaciones de Helicópteros"
+    en: "Aircraft Operations Intelligence Platform",
+    es: "Plataforma de Inteligencia de Operaciones Aéreas"
   },
   logo: {
     src: "/brand/heliservix-logo.png",
