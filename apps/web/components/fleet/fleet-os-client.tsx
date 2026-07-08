@@ -91,6 +91,7 @@ const textareaClass =
 const active = <T extends { archived?: boolean }>(records: T[]) => records.filter((record) => !record.archived);
 const num = (value: FormDataEntryValue | null) => Number(value || 0);
 const text = (form: FormData, key: string) => String(form.get(key) ?? "");
+const componentsRoutePath = "/Users/adolfospinali/Documents/Codex/2026-07-07/github-plugin-github-openai-curated-remote/work/heliservix-sales-os/apps/web/app/components/page.tsx";
 
 export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClientProps) {
   const { t, tx } = useI18n();
@@ -112,6 +113,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   const components = useMemo(() => active(store.components), [store.components]);
   const inventoryItems = useMemo(() => active(store.inventoryItems), [store.inventoryItems]);
   const purchaseRequests = useMemo(() => active(store.purchaseRequests), [store.purchaseRequests]);
+
+  useEffect(() => {
+    if (view === "components") console.log("CURRENT COMPONENT", componentsRoutePath);
+  }, [view]);
 
   const updateStore = useCallback((updater: (current: FleetStore) => FleetStore, success: string) => {
     setStore((current) => updater(current));
