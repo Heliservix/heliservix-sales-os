@@ -26,6 +26,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { getTimeGreetingKey } from "@/lib/brand";
+import { buildCopilotAnalysis, type AuraRecommendation } from "@/lib/copilot";
 import {
   calculateComponentStatus,
   calculateRemainingPercentage,
@@ -556,17 +557,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const upcomingMaintenance = getForecastComponents(components).length;
     const inventoryRisks = inventoryItems.filter((item) => getLowStockStatus(item) !== "OK");
     const activeCampaigns = store.campaigns.filter((campaign) => ["Active", "Approved", "Readiness Review", "Planned"].includes(campaign.status));
-    const fleetHealth = Math.max(0, Math.round((helicopters.reduce((sum, helicopter) => sum + helicopter.readiness, 0) / Math.max(helicopters.length, 1)) - criticalAlerts.length * 4));
-    const operationalReadiness = Math.max(0, Math.round((aircraftFlying / Math.max(helicopters.length, 1)) * 100 - inventoryRisks.length * 3));
-    const auraRecommendations = buildExecutiveRecommendations({
-      criticalAlerts: criticalAlerts.length,
-      inventoryRisks: inventoryRisks.length,
-      upcomingMaintenance,
-      activeCampaigns: activeCampaigns.length,
-      unhealthyComponents: unhealthyComponents.length,
-      fleetHealth,
-      operationalReadiness
-    });
+    const aura = buildCopilotAnalysis(store).aura;
+    const fleetHealth = aura.fleetHealth.score;
+    const operationalReadiness = aura.missionReadiness.score;
+    const auraRecommendations = aura.executiveRecommendations;
     return (
       <div className="grid gap-6">
         <Panel className="overflow-hidden bg-white">
@@ -1556,32 +1550,25 @@ function ExecutiveSummaryCard({ title, value, status, detail, tone }: { title: s
   );
 }
 
-type AuraExecutiveRecommendation = {
-  priority: "Critical" | "High" | "Monitor";
-  recommendation: string;
-  evidence: string;
-  operationalImpact: string;
-  financialImpact: string;
-  action: string;
-};
-
-function AuraExecutiveCard({ priority, recommendation, evidence, operationalImpact, financialImpact, action }: AuraExecutiveRecommendation) {
+function AuraExecutiveCard({ priority, subject, recommendation, evidence, operationalImpact, financialImpact, recommendedAction, confidence }: AuraRecommendation) {
   const { tx } = useI18n();
-  const tone = priority === "Critical" ? "red" : priority === "High" ? "amber" : "blue";
+  const tone = priority === "Critical" ? "red" : priority === "High" || priority === "Medium" ? "amber" : "blue";
   return (
     <article className="rounded-xl border border-line bg-white p-4 shadow-control dark:bg-canvas-muted/70">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <StatusPill tone={tone}>{priority}</StatusPill>
-          <h3 className="mt-3 text-sm font-semibold text-ink">{tx(recommendation)}</h3>
+          <h3 className="mt-3 text-sm font-semibold text-ink">{tx(subject)}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx(recommendation)}</p>
         </div>
-        <StatusPill tone="neutral">AURA</StatusPill>
+        <StatusPill tone="neutral">{confidence}%</StatusPill>
       </div>
       <div className="mt-4 grid gap-2">
-        <RecommendationLine label="Evidence" value={evidence} />
+        <RecommendationLine label="Evidence" value={evidence.join(" / ")} />
         <RecommendationLine label="Operational Impact" value={operationalImpact} />
         <RecommendationLine label="Financial Impact" value={financialImpact} />
-        <RecommendationLine label="Recommended Action" value={action} />
+        <RecommendationLine label="Recommended Action" value={recommendedAction} />
+        <RecommendationLine label="Confidence Level" value={`${confidence}%`} />
       </div>
     </article>
   );
@@ -1595,57 +1582,6 @@ function RecommendationLine({ label, value }: { label: string; value: string }) 
       <span className="text-ink-subtle">{tx(value)}</span>
     </div>
   );
-}
-
-function buildExecutiveRecommendations(input: {
-  criticalAlerts: number;
-  inventoryRisks: number;
-  upcomingMaintenance: number;
-  activeCampaigns: number;
-  unhealthyComponents: number;
-  fleetHealth: number;
-  operationalReadiness: number;
-}): AuraExecutiveRecommendation[] {
-  const recommendations: AuraExecutiveRecommendation[] = [];
-  if (input.criticalAlerts) {
-    recommendations.push({
-      priority: "Critical",
-      recommendation: "Resolve critical maintenance exposure before dispatch.",
-      evidence: `${input.criticalAlerts} critical or grounding alert${input.criticalAlerts === 1 ? "" : "s"} open.`,
-      operationalImpact: "Aircraft availability and campaign readiness may be blocked.",
-      financialImpact: "Unplanned downtime can affect campaign margin.",
-      action: "Assign maintenance review today."
-    });
-  }
-  if (input.inventoryRisks) {
-    recommendations.push({
-      priority: "High",
-      recommendation: "Review vessel inventory risk before approving operations.",
-      evidence: `${input.inventoryRisks} inventory item${input.inventoryRisks === 1 ? "" : "s"} below readiness threshold.`,
-      operationalImpact: "Maintenance completion may be delayed offshore.",
-      financialImpact: "Rush procurement or vessel delays may increase cost.",
-      action: "Prioritize replenishment and transfer planning."
-    });
-  }
-  if (input.upcomingMaintenance) {
-    recommendations.push({
-      priority: "High",
-      recommendation: "Plan upcoming maintenance against active campaigns.",
-      evidence: `${input.upcomingMaintenance} component${input.upcomingMaintenance === 1 ? "" : "s"} in forecast window.`,
-      operationalImpact: "Aircraft rotation may need adjustment.",
-      financialImpact: "Maintenance reserve should be reviewed.",
-      action: "Confirm parts, crew, and campaign timing."
-    });
-  }
-  recommendations.push({
-    priority: input.operationalReadiness >= 80 ? "Monitor" : "High",
-    recommendation: "Confirm operational readiness before next management review.",
-    evidence: `Fleet health ${input.fleetHealth}% / readiness ${input.operationalReadiness}% / ${input.activeCampaigns} active or planned campaign${input.activeCampaigns === 1 ? "" : "s"}.`,
-    operationalImpact: input.unhealthyComponents ? "Component exposure remains visible." : "No major component exposure detected.",
-    financialImpact: "Keep lease and reserve assumptions aligned with current hours.",
-    action: "Review fleet, inventory, and campaign summary."
-  });
-  return recommendations.slice(0, 4);
 }
 
 function ListHeader({ title, href, action }: { title: string; href: string; action: string }) {

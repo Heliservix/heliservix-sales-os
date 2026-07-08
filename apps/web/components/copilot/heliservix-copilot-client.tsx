@@ -95,6 +95,44 @@ export function HeliServiXCopilotClient() {
               ))}
             </section>
 
+            <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+              <Panel>
+                <SectionTitle icon={Gauge} title="AURA Intelligence Engine v1.0" description="Continuous local analysis across aircraft, components, maintenance, inventory, campaigns, compliance, purchasing, and technical records." />
+                <div className="mt-5 grid gap-3">
+                  <MiniLine label="Fleet Health Score" value={`${analysis.aura.fleetHealth.score}%`} />
+                  <MiniLine label="Mission Readiness Score" value={`${analysis.aura.missionReadiness.score}%`} />
+                  <MiniLine label="30 day forecast" value={`${analysis.aura.maintenanceForecast[30].length} components`} />
+                  <MiniLine label="Inventory risks" value={`${analysis.aura.inventoryRisks.length} items`} />
+                </div>
+              </Panel>
+              <Panel>
+                <SectionTitle icon={Sparkles} title="Executive Recommendation Engine" description="Only the five highest-priority recommendations are shown. Every recommendation is backed by local evidence." />
+                <div className="mt-5 grid gap-3">
+                  {analysis.aura.executiveRecommendations.map((recommendation) => (
+                    <article key={recommendation.id} className="rounded-xl border border-line bg-white p-4 shadow-control dark:bg-canvas-muted/70">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <StatusPill tone={recommendation.priority === "Critical" ? "red" : recommendation.priority === "High" || recommendation.priority === "Medium" ? "amber" : "blue"}>
+                            {recommendation.priority}
+                          </StatusPill>
+                          <h3 className="mt-3 text-sm font-semibold text-ink">{recommendation.subject}</h3>
+                          <p className="mt-1 text-sm text-ink-subtle">{tx(recommendation.recommendation)}</p>
+                        </div>
+                        <StatusPill tone="neutral">{recommendation.confidence}%</StatusPill>
+                      </div>
+                      <div className="mt-4 grid gap-2">
+                        <RecommendationLine label="Evidence" value={recommendation.evidence.join(" / ")} />
+                        <RecommendationLine label="Operational Impact" value={recommendation.operationalImpact} />
+                        <RecommendationLine label="Financial Impact" value={recommendation.financialImpact} />
+                        <RecommendationLine label="Recommended Action" value={recommendation.recommendedAction} />
+                        <RecommendationLine label="Confidence Level" value={`${recommendation.confidence}%`} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </Panel>
+            </section>
+
             <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
               <Panel>
                 <SectionTitle icon={Sparkles} title="AURA Focus" description="Select one operational question for an executive recommendation view." />
