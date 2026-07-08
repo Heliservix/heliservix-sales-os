@@ -78,7 +78,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
 
   const selectedRecords = useMemo(() => {
     const selected = new Set(selectedRegistrations);
-    return preview?.records.filter((record) => selected.has(record.helicopterRegistration)) ?? [];
+    return preview?.records.filter((record) => selected.has(record.helicopterRegistration || preview.aircraftMetadata.registration)) ?? [];
   }, [preview, selectedRegistrations]);
 
   const selectedIssues = useMemo(() => selectedRecords.flatMap((record) => record.issues), [selectedRecords]);
@@ -123,6 +123,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       setRecordActions({});
       const nextPreview = rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
       if (process.env.NODE_ENV !== "production") {
+        console.log("parsedWorkbook", nextPreview);
         console.info("HSV_OFFICIAL_COMPONENT_WORKBOOK_V1 diagnostics", {
           workbookSheetNames: sheets.map((sheet) => sheet.name),
           selectedSheet: nextPreview.diagnostics.selectedSheet,
@@ -166,7 +167,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       metadataOverrides: nextMetadataOverrides,
       selectedSheetName: nextSheetName
     });
-    const detected = nextPreview.detectedHelicopters.map((item) => item.registration);
+    const detected = detectedAircraftForPreview(nextPreview).map((item) => item.registration);
     const nextSelected = preselectedRegistration
       ? detected.filter((registration) => registration === preselectedRegistration)
       : preferredSelection.length
@@ -376,11 +377,12 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   }
 
   function renderDetectStep(currentPreview: ComponentImportPreview) {
+    const detectedAircraft = detectedAircraftForPreview(currentPreview);
     return (
       <div className="grid gap-5">
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <MigrationStat label="Worksheets detected" value={String(currentPreview.worksheetNames.length)} />
-          <MigrationStat label="Helicopters detected" value={String(currentPreview.detectedHelicopters.length)} />
+          <MigrationStat label="Helicopters detected" value={String(detectedAircraft.length)} />
           <MigrationStat label="Component Count" value={String(currentPreview.records.length)} />
           <MigrationStat label="Valid components" value={String(currentPreview.records.filter((record) => !record.issues.some((issue) => issue.severity === "error")).length)} tone="green" />
           <MigrationStat label="Confidence" value={`${currentPreview.aircraftMetadata.confidence}%`} tone={currentPreview.aircraftMetadata.confidence >= 85 ? "green" : currentPreview.aircraftMetadata.confidence >= 70 ? "amber" : "red"} />
@@ -412,7 +414,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         <MappingConfidencePanel preview={currentPreview} onChange={updateMapping} />
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {currentPreview.detectedHelicopters.map((helicopter) => {
+          {detectedAircraft.map((helicopter) => {
             const selected = selectedRegistrations.includes(helicopter.registration);
             return (
               <label key={helicopter.registration} className={["rounded-xl border p-4 transition", selected ? "border-brand-blue bg-brand-lightBlue/55" : "border-line bg-white"].join(" ")}>
@@ -576,6 +578,27 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       </div>
     );
   }
+}
+
+function detectedAircraftForPreview(preview: ComponentImportPreview): ComponentImportPreview["detectedHelicopters"] {
+  if (preview.detectedHelicopters.length) return preview.detectedHelicopters;
+
+  const metadata = preview.aircraftMetadata;
+  if (!metadata.detected || !metadata.registration) return [];
+
+  return [{
+    registration: metadata.registration,
+    model: metadata.model,
+    serialNumber: metadata.aircraftSerialNumber,
+    currentHourmeter: metadata.currentHourmeter,
+    worksheetNames: preview.activeWorksheetName ? [preview.activeWorksheetName] : preview.worksheetNames,
+    componentCount: preview.records.length,
+    warnings: preview.issues.filter((issue) => issue.severity === "warning").length,
+    errors: preview.issues.filter((issue) => issue.severity === "error").length,
+    duplicates: preview.records.filter((record) => record.duplicateInStore || record.duplicateInWorkbook).length,
+    missingData: metadata.missingFields.length,
+    confidence: metadata.confidence
+  }];
 }
 
 function WizardActions({ canContinue, onNext, onBack }: { canContinue: boolean; onNext?: () => void; onBack?: () => void }) {
