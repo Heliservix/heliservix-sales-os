@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { AircraftMigrationCenter } from "@/components/fleet/aircraft-migration-center";
+import { InventoryImportCenter } from "@/components/fleet/inventory-import-center";
 import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -363,6 +364,12 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           </div>
           <p className="mt-5 text-sm leading-6 text-ink-subtle">{campaign.notes}</p>
         </Panel>
+        <InventoryImportCenter
+          compact
+          context={{ campaignId: campaign.id, vesselId: campaign.vesselId, helicopterRegistration: campaign.helicopterRegistration }}
+          store={store}
+          onApply={updateStore}
+        />
         <section className="grid gap-5 lg:grid-cols-2">
           <RelatedList title="Maintenance Events" items={maintenanceEvents.map((event) => `${event.date} / ${event.maintenanceType}`)} />
           <RelatedList title="Inventory Usage" items={inventoryUsage.map((movement) => `${movement.date} / ${movement.movementType} / ${movement.quantity}`)} />

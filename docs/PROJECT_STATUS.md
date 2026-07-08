@@ -32,6 +32,7 @@ Allowed work during freeze:
 - Documentation updates that clarify existing approved scope.
 - Test coverage and verification improvements.
 - Refactoring that reduces risk without changing product scope.
+- User-requested workflow improvements inside existing modules, including Vessel Inventory Excel import, weekly operations/maintenance report import, and inventory PDF export.
 
 Disallowed work during freeze:
 
@@ -98,6 +99,7 @@ Before any release candidate:
 - Verify flight-hour logging and local recalculation.
 - Verify maintenance alerts.
 - Verify vessel, inventory, and purchasing screens.
+- Verify Vessel Inventory `Import Inventory from Excel`, including semantic English/Spanish header detection, optional Observaciones, bodega selection, reconciliation preview, valid-row import, existing-stock update, duplicate skip/review, weekly report flight-hour confirmation, maintenance log draft creation, stock movement draft creation, and `Export Inventory PDF`.
 - Verify technical records and compliance screens if included in the release build.
 - Verify English and Spanish UI switching.
 - Verify demo-data notices.

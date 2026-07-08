@@ -21,6 +21,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/fleet/page-header";
 import { AircraftMigrationCenter } from "@/components/fleet/aircraft-migration-center";
+import { InventoryImportCenter } from "@/components/fleet/inventory-import-center";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -926,6 +927,12 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           <ListHeader title={vessel.name} href={`/vessels/${vessel.id}/edit`} action="Edit vessel" />
           <p className="text-sm leading-6 text-ink-subtle">{vessel.notes}</p>
         </Panel>
+        <InventoryImportCenter
+          compact
+          context={{ vesselId: vessel.id, helicopterRegistration: vessel.assignedHelicopter }}
+          store={store}
+          onApply={updateStore}
+        />
       </div>
     );
   }
@@ -1258,7 +1265,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       sortValue: (item, key) => key === "quantity" ? item.quantity : key === "status" ? getLowStockStatus(item) : item.itemName
     });
     return (
-      <div className="grid gap-5 2xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid gap-5">
+        <InventoryImportCenter store={store} onApply={updateStore} />
+        <div className="grid gap-5 2xl:grid-cols-[0.85fr_1.15fr]">
         <div className="grid gap-5">
           <FormShell key={editing?.id ?? "new-inventory-item"} onSubmit={saveInventoryItem} title={editing ? "Edit Inventory Item" : "Create Inventory Item"}>
             <Select name="vesselId" label="Vessel" defaultValue={editing?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} required />
@@ -1317,6 +1326,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             {!rows.length ? <EmptyTableRow colSpan={7} /> : null}
           </Table>
         </Panel>
+        </div>
       </div>
     );
   }
