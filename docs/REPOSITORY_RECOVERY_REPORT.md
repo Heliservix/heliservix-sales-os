@@ -10,7 +10,127 @@ Branch audited: `redesign/operations-command-center`
 
 Feature work status: stopped for recovery audit.
 
+## Recovery Execution Result
+
+Recovery execution date: 2026-07-08
+
+Recovery status before final push: completed locally.
+
+Safety branch created before rebase:
+
+```text
+backup/recovery-before-rebase 884de35
+```
+
+The safety branch preserves the original pre-rebase commit chain, including the original requested hashes:
+
+```text
+884de35 Audit repository branches and architecture
+53e9888 Fix aircraft metadata extraction from official workbook
+3fa8932 Fix workbook parser dependency
+af01a76 Fix official HeliServiX workbook parser
+03c4e51 Improve vessel inventory and weekly operations report import
+23aaa5c Enable Excel bulk component import from Components module
+c306786 Implement AURA Intelligence Engine v1
+3016543 Implement Operations Command Center redesign
+7986a64 Implement AURA intelligent aircraft migration workflow
+```
+
+The active branch `redesign/operations-command-center` was successfully rebased onto:
+
+```text
+dc3205f Add official import workbooks with real data
+```
+
+The rebase completed without conflicts. No workbook files or parser fixes were dropped.
+
+Because the branch was rebased, the local commits were replayed with new commit IDs on top of `dc3205f`:
+
+| Original commit | Rebased commit | Subject |
+| --- | --- | --- |
+| `7986a64` | `48834b2` | Implement AURA intelligent aircraft migration workflow |
+| `3016543` | `8694886` | Implement Operations Command Center redesign |
+| `c306786` | `fe07815` | Implement AURA Intelligence Engine v1 |
+| `23aaa5c` | `f6217f2` | Enable Excel bulk component import from Components module |
+| `03c4e51` | `df271b3` | Improve vessel inventory and weekly operations report import |
+| `af01a76` | `78ded3c` | Fix official HeliServiX workbook parser |
+| `3fa8932` | `ee038e2` | Fix workbook parser dependency |
+| `53e9888` | `82eb627` | Fix aircraft metadata extraction from official workbook |
+| `884de35` | `1012681` | Audit repository branches and architecture |
+
+Current recovered local branch head before this final report update:
+
+```text
+1012681 Audit repository branches and architecture
+```
+
+Current recovered commit stack before this final report update:
+
+```text
+1012681 Audit repository branches and architecture
+82eb627 Fix aircraft metadata extraction from official workbook
+ee038e2 Fix workbook parser dependency
+78ded3c Fix official HeliServiX workbook parser
+df271b3 Improve vessel inventory and weekly operations report import
+f6217f2 Enable Excel bulk component import from Components module
+fe07815 Implement AURA Intelligence Engine v1
+8694886 Implement Operations Command Center redesign
+48834b2 Implement AURA intelligent aircraft migration workflow
+dc3205f Add official import workbooks with real data
+```
+
+Official workbook verification after rebase:
+
+```text
+FOUND data/imports/helicopter_components/HSV-IMPORT-COMPONENTS-v1.xlsx
+FOUND data/imports/operations_reports/M02_2026_CARONI_2_REPORTE_SEMANA_6.xlsx
+```
+
+Canonical app verification after rebase:
+
+```text
+apps/web exists
+frontend missing
+```
+
+`apps/web` remains the canonical application. `frontend` remains legacy/pending cleanup and is not present in this worktree.
+
+Application verification after rebase:
+
+```text
+npm install        passed
+npm run lint       passed
+npm run typecheck  passed
+npm run build      passed
+```
+
+`npm install` reported packages were up to date. It also reported one existing high-severity audit item and pending install-script approvals for `fsevents`, `sharp`, and `unrs-resolver`; those were not changed during recovery because dependency remediation is outside this recovery task.
+
+Browser import verification after rebase:
+
+```text
+/components loaded
+Import from Excel opened
+Official workbook uploaded
+Registration detected: HP1804
+Model detected: Robinson R44
+Aircraft serial detected: 1234
+Hourmeter detected: 1820.4
+Component rows detected: 43
+Browser runtime errors: none
+```
+
+Final documentation commit to create after this update:
+
+```text
+Finalize repository recovery
+```
+
+After that commit is created, push `redesign/operations-command-center` to `origin`.
+
 ## Executive Summary
+
+The section below records the pre-recovery audit state that triggered the recovery plan.
 
 The current local worktree is on `redesign/operations-command-center` at commit `53e9888`.
 
