@@ -52,6 +52,7 @@ export type ComponentMatchDifference = {
 export type ComponentImportRecord = {
   rowNumber: number;
   worksheetName: string;
+  referenceNumber: string;
   helicopterRegistration: string;
   model: string;
   aircraftSerialNumber: string;
@@ -70,6 +71,9 @@ export type ComponentImportRecord = {
   tsoHours: number;
   lifeLimitHours: number;
   remainingHours: number;
+  calendarLimitYears: number;
+  calendarRemainingYears: number;
+  lifeLimitYears: number;
   calendarLimitDate: string;
   remainingCalendarDays: number;
   remainingPercentage: number;
@@ -109,6 +113,7 @@ export type ComponentImportPreview = {
   fileName: string;
   worksheetNames: string[];
   activeWorksheetName: string;
+  diagnostics: ComponentImportDiagnostics;
   aircraftMetadata: AircraftImportMetadata;
   detectedHelicopter?: {
     registration: string;
@@ -125,6 +130,22 @@ export type ComponentImportPreview = {
   recommendations: string[];
   migrationId: string;
   parsedAt: string;
+};
+
+export type ComponentImportDiagnostics = {
+  parserName: "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1" | "FUZZY_COMPONENT_WORKBOOK";
+  templateName: string;
+  templateDetected: boolean;
+  sheetsFound: string[];
+  selectedSheet: string;
+  metadataDetected: boolean;
+  metadataRowDetected: boolean;
+  componentHeaderRowDetected: boolean;
+  componentHeaderRow: number;
+  componentRowsDetected: number;
+  validComponents: number;
+  warnings: string[];
+  errors: string[];
 };
 
 export type AircraftImportMetadataOverride = Partial<Pick<
@@ -151,6 +172,7 @@ export type BlockingImportOptions = {
 
 type RawRow = unknown[];
 export type ComponentImportFieldKey =
+  | "referenceNumber"
   | "registration"
   | "model"
   | "aircraftSerialNumber"
@@ -165,15 +187,21 @@ export type ComponentImportFieldKey =
   | "tsoHours"
   | "lifeLimitHours"
   | "remainingHours"
+  | "calendarLimitYears"
   | "calendarLimitDate"
   | "remainingCalendarDays"
+  | "lifeLimitYears"
   | "remainingPercentage"
   | "status"
   | "notes";
 
 export const HSV_IMPORT_COMPONENTS_V1 = {
+  parserName: "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1",
   templateName: "HSV-IMPORT-COMPONENTS-v1.xlsx",
+  officialTemplateName: "Official HeliServiX Component Control Workbook V1",
   preferredSheetName: "Control Maestro",
+  fallbackSheetName: "Control Maestro (2)",
+  ignoredSheetNames: ["Resumen Ejecutivo", "Leyenda"],
   metadataHeaderRowIndex: 3,
   metadataValueRowIndex: 4,
   componentHeaderRowIndex: 6,
@@ -202,6 +230,7 @@ export type ComponentImportColumnMapping = {
 };
 
 const fieldAliases: Record<ComponentImportFieldKey, string[]> = {
+  referenceNumber: ["ref", "ref #", "ref.", "ref. #", "reference", "reference number", "numero referencia", "número referencia"],
   registration: ["registration", "matricula", "matrícula", "reg", "reg.", "aircraft", "helicopter", "aeronave", "helicoptero", "helicóptero", "aircraft registration", "helicopter registration"],
   model: ["model", "modelo"],
   aircraftSerialNumber: ["aircraft serial number", "serial aeronave", "sn aeronave", "s/n aeronave", "aircraft sn"],
@@ -216,14 +245,17 @@ const fieldAliases: Record<ComponentImportFieldKey, string[]> = {
   tsoHours: ["tso", "tso hrs", "tso hours", "tso (hrs)"],
   lifeLimitHours: ["life limit hours", "life limit", "life limit hrs", "limit hours", "limite vida horas", "limite vida hrs", "limite vida (hrs)", "límite vida (hrs)", "limite de vida horas"],
   remainingHours: ["remaining hours", "hours remaining", "life remaining", "remaining life", "remanente hrs", "remanente horas", "remanente (hrs)", "horas remanentes", "vida remanente"],
+  calendarLimitYears: ["calendar limit years", "calendar limit anos", "calendar limit años", "limite calendario anos", "límite calendario años", "limite calendario (anos)", "límite calendario (años)"],
   calendarLimitDate: ["calendar limit date", "calendar limit", "calendar", "expiration", "expiration date", "expiry", "expiry date", "expires", "limite calendario", "límite calendario", "vencimiento", "fecha vencimiento", "expiracion", "expiración"],
   remainingCalendarDays: ["remaining calendar", "remaining calendar days", "calendar remaining", "calendar life remaining", "days remaining", "remaining days", "remanente calendario", "remanente calendario dias", "remanente calendario días", "dias remanentes", "días remanentes", "remanente calendario (anos)", "remanente calendario (años)"],
+  lifeLimitYears: ["life limit years", "limite de vida en anos", "límite de vida en años", "limite vida anos", "límite vida años"],
   remainingPercentage: ["remaining percentage", "remaining %", "% remaining", "% remanente", "% remanente horas", "porcentaje remanente"],
   status: ["status", "estado"],
   notes: ["notes", "observations", "observaciones", "notas"]
 };
 
 const fieldLabels: Record<ComponentImportFieldKey, string> = {
+  referenceNumber: "Ref",
   registration: "Registration",
   model: "Model",
   aircraftSerialNumber: "Aircraft Serial Number",
@@ -238,8 +270,10 @@ const fieldLabels: Record<ComponentImportFieldKey, string> = {
   tsoHours: "TSO",
   lifeLimitHours: "Life limit hours",
   remainingHours: "Remaining hours",
+  calendarLimitYears: "Calendar limit years",
   calendarLimitDate: "Calendar limit date",
   remainingCalendarDays: "Remaining calendar days",
+  lifeLimitYears: "Life limit years",
   remainingPercentage: "Remaining percentage",
   status: "Status",
   notes: "Notes"
@@ -254,6 +288,9 @@ export function buildComponentImportPreview(input: {
   metadataOverrides?: AircraftImportMetadataOverride;
   selectedSheetName?: string;
 }): ComponentImportPreview {
+  const official = buildOfficialComponentWorkbookPreview(input);
+  if (official) return official;
+
   const activeSheet = selectImportSheet(input.sheets, input.selectedSheetName);
   const aircraftMetadata = activeSheet
     ? extractOfficialMetadata(activeSheet.rows, activeSheet.name, input.metadataOverrides)
@@ -316,6 +353,16 @@ export function buildComponentImportPreview(input: {
     fileName: input.fileName,
     worksheetNames: input.sheets.map((sheet) => sheet.name),
     activeWorksheetName: activeSheet?.name ?? "",
+    diagnostics: buildDiagnostics({
+      parserName: "FUZZY_COMPONENT_WORKBOOK",
+      sheets: input.sheets,
+      selectedSheet: activeSheet?.name ?? "",
+      metadata: aircraftMetadata,
+      componentHeaderRowDetected: Boolean(parsedWorksheets.length),
+      componentHeaderRow: parsedWorksheets[0]?.componentTable ? parsedWorksheets[0].componentTable!.startRowNumber - 1 : 0,
+      records: recordsWithDuplicateFlags,
+      extraErrors: parsedWorksheets.length ? [] : ["No component table was detected in the workbook."]
+    }),
     aircraftMetadata,
     detectedHelicopter: firstDetected
       ? {
@@ -334,6 +381,139 @@ export function buildComponentImportPreview(input: {
     recommendations: buildAuraRecommendations(recordsWithDuplicateFlags, aircraftMetadata, input.store),
     migrationId: generateId("mig"),
     parsedAt
+  };
+}
+
+function buildOfficialComponentWorkbookPreview(input: {
+  fileName: string;
+  sheets: Array<{ name: string; rows: RawRow[] }>;
+  store: FleetStore;
+  preselectedRegistration?: string;
+  mappingOverrides?: ComponentImportColumnOverride;
+  metadataOverrides?: AircraftImportMetadataOverride;
+  selectedSheetName?: string;
+}): ComponentImportPreview | undefined {
+  const officialSignals = hasOfficialWorkbookSignals(input.sheets);
+  const sheet = officialSignals
+    ? selectOfficialImportSheet(input.sheets, input.selectedSheetName)
+    : input.sheets.find(isOfficialComponentSheet);
+  const templateDetected = Boolean(sheet);
+  if (!sheet && !officialSignals) return undefined;
+
+  const selectedSheet = sheet ?? input.sheets[0];
+  const aircraftMetadata = selectedSheet
+    ? extractOfficialWorkbookMetadata(selectedSheet.rows, selectedSheet.name, input.metadataOverrides)
+    : buildEmptyMetadata(input.metadataOverrides, "Workbook");
+  const componentTable = selectedSheet ? findOfficialComponentTable(selectedSheet.rows, input.mappingOverrides) : undefined;
+  const records = componentTable
+    ? readComponentRows(componentTable.rows)
+      .map((row, index) =>
+        rowToRecord({
+          row,
+          rowNumber: componentTable.startRowNumber + index,
+          worksheetName: selectedSheet.name,
+          mapping: componentTable.mapping,
+          metadata: aircraftMetadata,
+          store: input.store,
+          preselectedRegistration: input.preselectedRegistration
+        })
+      )
+      .filter((record) => record.componentName || record.partNumber || record.serialNumber)
+    : [];
+  const recordsWithDuplicateFlags = applyWorkbookDuplicateFlags(records);
+  const structuralErrors = [
+    ...(templateDetected ? [] : ["Control Maestro sheet was not found."]),
+    ...(aircraftMetadata.detected ? [] : ["Aircraft metadata row 4/5 could not be read."]),
+    ...(componentTable ? [] : ["Component header row 7 could not be read."]),
+    ...(componentTable && !recordsWithDuplicateFlags.length ? ["No valid component rows were detected."] : [])
+  ];
+  const issues = [
+    ...aircraftMetadata.issues,
+    ...structuralErrors.map((message) => issue(0, "Workbook", "error", message, "", "Review official workbook structure.", selectedSheet?.name)),
+    ...recordsWithDuplicateFlags.flatMap((record) => record.issues)
+  ];
+  const detectedHelicopters = buildDetectedHelicopters(recordsWithDuplicateFlags);
+  const firstDetected = detectedHelicopters[0];
+
+  return {
+    fileName: input.fileName,
+    worksheetNames: input.sheets.map((item) => item.name),
+    activeWorksheetName: selectedSheet?.name ?? "",
+    diagnostics: buildDiagnostics({
+      parserName: "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1",
+      sheets: input.sheets,
+      selectedSheet: selectedSheet?.name ?? "",
+      metadata: aircraftMetadata,
+      componentHeaderRowDetected: Boolean(componentTable),
+      componentHeaderRow: componentTable ? HSV_IMPORT_COMPONENTS_V1.componentHeaderRowIndex + 1 : 0,
+      records: recordsWithDuplicateFlags,
+      extraErrors: structuralErrors
+    }),
+    aircraftMetadata,
+    detectedHelicopter: firstDetected
+      ? {
+        registration: firstDetected.registration,
+        model: firstDetected.model,
+        serialNumber: firstDetected.serialNumber,
+        currentHourmeter: firstDetected.currentHourmeter
+      }
+      : undefined,
+    detectedHelicopters,
+    records: recordsWithDuplicateFlags,
+    issues,
+    mappedColumns: componentTable ? mapColumns(componentTable.headerRow, input.mappingOverrides) : {},
+    mappedFields: componentTable?.mappedFields ?? mergeMappedFields([]),
+    columnOptions: buildColumnOptions(componentTable?.headerRow ?? []),
+    recommendations: buildAuraRecommendations(recordsWithDuplicateFlags, aircraftMetadata, input.store),
+    migrationId: generateId("mig"),
+    parsedAt: new Date().toISOString()
+  };
+}
+
+function applyWorkbookDuplicateFlags(records: ComponentImportRecord[]) {
+  const duplicateCounts = new Map<string, number>();
+  records.forEach((record) => {
+    duplicateCounts.set(record.fingerprint, (duplicateCounts.get(record.fingerprint) ?? 0) + 1);
+  });
+  return records.map((record) => ({
+    ...record,
+    duplicateInWorkbook: (duplicateCounts.get(record.fingerprint) ?? 0) > 1,
+    issues: (duplicateCounts.get(record.fingerprint) ?? 0) > 1
+      ? [...record.issues, issue(record.rowNumber, "Duplicate", "warning", "Duplicate component fingerprint inside workbook preview.", record.fingerprint, "Review duplicate component identity.", record.worksheetName, record.helicopterRegistration)]
+      : record.issues
+  }));
+}
+
+function buildDiagnostics(input: {
+  parserName: ComponentImportDiagnostics["parserName"];
+  sheets: Array<{ name: string; rows: RawRow[] }>;
+  selectedSheet: string;
+  metadata: AircraftImportMetadata;
+  componentHeaderRowDetected: boolean;
+  componentHeaderRow: number;
+  records: ComponentImportRecord[];
+  extraErrors?: string[];
+}): ComponentImportDiagnostics {
+  const warnings = input.records.flatMap((record) => record.issues).filter((item) => item.severity === "warning").map((item) => item.message);
+  const errors = [
+    ...(input.extraErrors ?? []),
+    ...input.metadata.issues.filter((item) => item.severity === "error").map((item) => item.message),
+    ...input.records.flatMap((record) => record.issues).filter((item) => item.severity === "error").map((item) => item.message)
+  ];
+  return {
+    parserName: input.parserName,
+    templateName: input.parserName === "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1" ? HSV_IMPORT_COMPONENTS_V1.officialTemplateName : "Generic component workbook",
+    templateDetected: input.parserName === "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1",
+    sheetsFound: input.sheets.map((sheet) => sheet.name),
+    selectedSheet: input.selectedSheet,
+    metadataDetected: input.metadata.detected,
+    metadataRowDetected: input.metadata.detected,
+    componentHeaderRowDetected: input.componentHeaderRowDetected,
+    componentHeaderRow: input.componentHeaderRow,
+    componentRowsDetected: input.records.length,
+    validComponents: input.records.filter((record) => !record.issues.some((item) => item.severity === "error")).length,
+    warnings,
+    errors
   };
 }
 
@@ -520,6 +700,25 @@ export function importRecordKey(record: ComponentImportRecord) {
   return `${record.worksheetName}:${record.rowNumber}:${record.duplicateKey}`;
 }
 
+export function runOfficialComponentWorkbookV1SelfCheck(preview: ComponentImportPreview) {
+  const diagnostics = preview.diagnostics;
+  return {
+    parserName: HSV_IMPORT_COMPONENTS_V1.parserName,
+    templateDetected: diagnostics.templateDetected && diagnostics.parserName === "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1",
+    registrationDetected: Boolean(preview.aircraftMetadata.registration),
+    aircraftSerialDetected: Boolean(preview.aircraftMetadata.aircraftSerialNumber),
+    hourmeterDetected: Number.isFinite(preview.aircraftMetadata.currentHourmeter) && preview.aircraftMetadata.currentHourmeter > 0,
+    atLeastOneValidComponentDetected: diagnostics.validComponents > 0,
+    passed: diagnostics.templateDetected &&
+      diagnostics.parserName === "HSV_OFFICIAL_COMPONENT_WORKBOOK_V1" &&
+      Boolean(preview.aircraftMetadata.registration) &&
+      Boolean(preview.aircraftMetadata.aircraftSerialNumber) &&
+      Number.isFinite(preview.aircraftMetadata.currentHourmeter) &&
+      preview.aircraftMetadata.currentHourmeter > 0 &&
+      diagnostics.validComponents > 0
+  };
+}
+
 function buildAuraRecommendations(records: ComponentImportRecord[], metadata: AircraftImportMetadata, store: FleetStore) {
   const recommendations: string[] = [];
   const existing = store.helicopters.find((helicopter) => helicopter.registration === metadata.registration);
@@ -568,6 +767,160 @@ function selectImportSheet(sheets: Array<{ name: string; rows: RawRow[] }>, sele
     ?? sheets[0];
 }
 
+function selectOfficialImportSheet(sheets: Array<{ name: string; rows: RawRow[] }>, selectedSheetName?: string) {
+  const importSheets = sheets.filter((sheet) =>
+    !HSV_IMPORT_COMPONENTS_V1.ignoredSheetNames.some((ignored) => normalizeHeader(ignored) === normalizeHeader(sheet.name))
+  );
+  if (selectedSheetName) {
+    const selected = importSheets.find((sheet) => sheet.name === selectedSheetName);
+    if (selected) return selected;
+  }
+  return importSheets.find((sheet) => normalizeHeader(sheet.name) === normalizeHeader(HSV_IMPORT_COMPONENTS_V1.preferredSheetName))
+    ?? importSheets.find((sheet) => normalizeHeader(sheet.name) === normalizeHeader(HSV_IMPORT_COMPONENTS_V1.fallbackSheetName))
+    ?? importSheets.find(isOfficialComponentSheet);
+}
+
+function hasOfficialWorkbookSignals(sheets: Array<{ name: string; rows: RawRow[] }>) {
+  return sheets.some((sheet) =>
+    normalizeHeader(sheet.name) === normalizeHeader(HSV_IMPORT_COMPONENTS_V1.preferredSheetName) ||
+    normalizeHeader(sheet.name) === normalizeHeader(HSV_IMPORT_COMPONENTS_V1.fallbackSheetName)
+  );
+}
+
+function isOfficialComponentSheet(sheet: { rows: RawRow[] }) {
+  const metadataHeader = sheet.rows[HSV_IMPORT_COMPONENTS_V1.metadataHeaderRowIndex] ?? [];
+  const componentHeader = sheet.rows[HSV_IMPORT_COMPONENTS_V1.componentHeaderRowIndex] ?? [];
+  return scoreOfficialMetadataHeader(metadataHeader) >= 3 && scoreOfficialComponentHeader(componentHeader) >= 5;
+}
+
+function scoreOfficialMetadataHeader(row: RawRow) {
+  const expected = ["matricula", "modelo", "fecha fabricacion", "s n aeronave", "fecha revision", "horometro"];
+  return expected.filter((label, index) => normalizeHeader(row[index]) === label).length;
+}
+
+function scoreOfficialComponentHeader(row: RawRow) {
+  const expected = ["ref", "componente", "p n", "s n", "posicion", "fecha instalacion", "tsn hrs", "tso hrs", "limite vida hrs", "remanente hrs", "limite calendario anos", "remanente calendario anos", "limite de vida en anos", "remanente horas", "estado", "observaciones"];
+  return expected.filter((label, index) => {
+    const actual = normalizeHeader(row[index]);
+    return actual === label || actual.includes(label) || label.includes(actual);
+  }).length;
+}
+
+function extractOfficialWorkbookMetadata(rows: RawRow[], worksheetName: string, overrides?: AircraftImportMetadataOverride): AircraftImportMetadata {
+  const headerRow = rows[HSV_IMPORT_COMPONENTS_V1.metadataHeaderRowIndex] ?? [];
+  const valueRow = rows[HSV_IMPORT_COMPONENTS_V1.metadataValueRowIndex] ?? [];
+  const headerMap = new Map<string, unknown>();
+  headerRow.forEach((header, index) => {
+    headerMap.set(normalizeHeader(header), valueRow[index]);
+  });
+  const detected = {
+    registration: headerMap.get("matricula") ?? "",
+    model: headerMap.get("modelo") ?? "",
+    manufactureDate: headerMap.get("fecha fabricacion") ?? "",
+    aircraftSerialNumber: headerMap.get("s n aeronave") ?? "",
+    reviewDate: headerMap.get("fecha revision") ?? "",
+    currentHourmeter: headerMap.get("horometro") ?? ""
+  };
+  const rowDetected = Boolean(normalizeCell(detected.registration) || normalizeCell(detected.model) || normalizeCell(detected.aircraftSerialNumber) || normalizeCell(detected.currentHourmeter));
+  const base: AircraftImportMetadata = {
+    registration: normalizeRegistration(detected.registration),
+    model: normalizeCell(detected.model),
+    aircraftSerialNumber: normalizeCell(detected.aircraftSerialNumber),
+    manufactureDate: parseDate(detected.manufactureDate, { allowYear: true }),
+    reviewDate: parseDate(detected.reviewDate, { allowYear: false }),
+    owner: "",
+    operator: "",
+    currentHourmeter: parseNumber(detected.currentHourmeter),
+    detected: rowDetected,
+    manuallyConfirmed: false,
+    confidence: rowDetected ? Math.round((scoreOfficialMetadataHeader(headerRow) / 6) * 100) : 0,
+    issues: []
+  };
+  const metadata: AircraftImportMetadata = {
+    ...base,
+    ...overrides,
+    registration: normalizeRegistration(overrides?.registration ?? base.registration),
+    model: normalizeCell(overrides?.model ?? base.model),
+    aircraftSerialNumber: normalizeCell(overrides?.aircraftSerialNumber ?? base.aircraftSerialNumber),
+    manufactureDate: parseDate(overrides?.manufactureDate ?? base.manufactureDate, { allowYear: true }),
+    reviewDate: parseDate(overrides?.reviewDate ?? base.reviewDate),
+    owner: normalizeCell(overrides?.owner ?? base.owner),
+    operator: normalizeCell(overrides?.operator ?? base.operator),
+    currentHourmeter: typeof overrides?.currentHourmeter === "number" ? overrides.currentHourmeter : base.currentHourmeter,
+    manuallyConfirmed: Boolean(overrides?.manuallyConfirmed),
+    confidence: overrides?.manuallyConfirmed ? 100 : base.confidence
+  };
+  metadata.issues = validateAircraftMetadata(metadata, worksheetName);
+  return metadata;
+}
+
+function findOfficialComponentTable(rows: RawRow[], overrides?: ComponentImportColumnOverride) {
+  const headerRow = rows[HSV_IMPORT_COMPONENTS_V1.componentHeaderRowIndex] ?? [];
+  if (scoreOfficialComponentHeader(headerRow) < 5) return undefined;
+  const officialMapping: Partial<Record<ComponentImportFieldKey, number>> = {
+    referenceNumber: 0,
+    componentName: 1,
+    partNumber: 2,
+    serialNumber: 3,
+    position: 4,
+    installationDate: 5,
+    tsnHours: 6,
+    tsoHours: 7,
+    lifeLimitHours: 8,
+    remainingHours: 9,
+    calendarLimitYears: 10,
+    calendarLimitDate: 10,
+    remainingCalendarDays: 11,
+    lifeLimitYears: 12,
+    remainingPercentage: 13,
+    status: 14,
+    notes: 15
+  };
+  const mapping = { ...officialMapping };
+  if (overrides) {
+    Object.entries(overrides).forEach(([field, index]) => {
+      if (index === null) {
+        delete mapping[field as ComponentImportFieldKey];
+      } else if (index !== undefined) {
+        mapping[field as ComponentImportFieldKey] = index;
+      }
+    });
+  }
+  const mappedFields = mapHeaderFields(headerRow, overrides).map((field) =>
+    mapping[field.field] !== undefined
+      ? buildColumnMapping(field.field, headerRow, mapping[field.field], field.confidence || 100, Boolean(overrides && Object.prototype.hasOwnProperty.call(overrides, field.field)), field.alternatives)
+      : field
+  );
+  return {
+    headerRow,
+    mapping,
+    mappedFields,
+    rows: rows.slice(HSV_IMPORT_COMPONENTS_V1.componentDataStartRowIndex),
+    startRowNumber: HSV_IMPORT_COMPONENTS_V1.componentDataStartRowIndex + 1
+  };
+}
+
+function readComponentRows(rows: RawRow[]) {
+  const accepted: RawRow[] = [];
+  let blankCount = 0;
+  for (const row of rows) {
+    const isBlank = !row.some((cell) => normalizeCell(cell));
+    if (isBlank) {
+      blankCount += 1;
+      if (blankCount >= 12) break;
+      continue;
+    }
+    blankCount = 0;
+    const componentName = normalizeCell(row[1]);
+    const partNumber = normalizeCell(row[2]);
+    const serialNumber = normalizeCell(row[3]);
+    const visualTitle = normalizeCell(row[0]) && !componentName && !partNumber && !serialNumber;
+    if (visualTitle) continue;
+    accepted.push(row);
+  }
+  return accepted;
+}
+
 function findComponentTable(rows: RawRow[], overrides?: ComponentImportColumnOverride) {
   const candidates = rows.map((row, index) => {
     const mappedFields = mapHeaderFields(row, overrides);
@@ -603,8 +956,10 @@ function scoreComponentHeader(mappedFields: ComponentImportColumnMapping[], mapp
     "tsoHours",
     "lifeLimitHours",
     "remainingHours",
+    "calendarLimitYears",
     "calendarLimitDate",
     "remainingCalendarDays",
+    "lifeLimitYears",
     "status",
     "notes"
   ];
@@ -934,10 +1289,21 @@ function rowToRecord(input: {
   const currentHourmeter = parseNumber(raw("currentHourmeter")) || input.metadata.currentHourmeter;
   const lifeLimitHours = parseNumber(raw("lifeLimitHours"));
   const remainingHours = parseNumber(raw("remainingHours"));
+  const calendarLimitYears = parseNumber(raw("calendarLimitYears"));
+  const calendarRemainingYears = parseNumber(raw("remainingCalendarDays"));
+  const lifeLimitYears = parseNumber(raw("lifeLimitYears"));
   const calendarLimitRaw = normalizeCell(raw("calendarLimitDate"));
   const calendarLimitDate = parseDate(raw("calendarLimitDate"));
+  const installationDate = parseDate(raw("installationDate"));
+  const derivedCalendarLimitDate = installationDate && calendarLimitYears > 0 ? addYearsToIsoDate(installationDate, calendarLimitYears) : "";
   const importedRemainingCalendarDays = parseNumber(raw("remainingCalendarDays"));
-  const remainingCalendarDays = calendarLimitDate ? Math.ceil((new Date(calendarLimitDate).getTime() - Date.now()) / 86400000) : importedRemainingCalendarDays;
+  const remainingCalendarDays = calendarLimitDate
+    ? Math.ceil((new Date(calendarLimitDate).getTime() - Date.now()) / 86400000)
+    : derivedCalendarLimitDate
+      ? Math.ceil((new Date(derivedCalendarLimitDate).getTime() - Date.now()) / 86400000)
+    : calendarRemainingYears > 0
+      ? Math.round(calendarRemainingYears * 365)
+      : importedRemainingCalendarDays;
   const remainingPercentage = normalizePercentage(parseNumber(get("remainingPercentage")) || calculateRemainingPercentage(remainingHours, lifeLimitHours));
   const recalculatedStatus = calculateComponentStatus({ remainingHours, remainingCalendarDays, remainingPercentage });
   const workbookStatus = get("status");
@@ -945,6 +1311,7 @@ function rowToRecord(input: {
   const record: ComponentImportRecord = {
     rowNumber: input.rowNumber,
     worksheetName: input.worksheetName,
+    referenceNumber: get("referenceNumber"),
     helicopterRegistration: registration,
     model,
     aircraftSerialNumber,
@@ -958,12 +1325,15 @@ function rowToRecord(input: {
     partNumber: get("partNumber"),
     serialNumber: get("serialNumber"),
     position: get("position"),
-    installationDate: parseDate(raw("installationDate")),
+    installationDate,
     tsnHours: parseNumber(raw("tsnHours")),
     tsoHours: parseNumber(raw("tsoHours")),
     lifeLimitHours,
     remainingHours,
-    calendarLimitDate: calendarLimitDate || calendarLimitRaw,
+    calendarLimitYears,
+    calendarRemainingYears,
+    lifeLimitYears,
+    calendarLimitDate: calendarLimitDate || derivedCalendarLimitDate || calendarLimitRaw,
     remainingCalendarDays,
     remainingPercentage,
     workbookStatus,
@@ -1117,7 +1487,7 @@ function calculateRecordConfidence(record: ComponentImportRecord, metadata: Airc
   if (record.partNumber) confidence += 10;
   if (record.serialNumber) confidence += 10;
   if (record.position) confidence += 5;
-  if (record.lifeLimitHours > 0 || record.remainingHours > 0 || record.calendarLimitDate) confidence += 5;
+  if (record.lifeLimitHours > 0 || record.remainingHours > 0 || record.calendarLimitYears > 0 || record.calendarRemainingYears > 0 || record.lifeLimitYears > 0 || record.calendarLimitDate) confidence += 5;
   confidence = Math.round((confidence + record.matchConfidence + metadata.confidence) / 3);
   if (record.matchType === "low-confidence-review") confidence = Math.min(confidence, 72);
   if (!record.serialNumber) confidence = Math.min(confidence, 82);
@@ -1128,8 +1498,8 @@ function validateRecord(record: ComponentImportRecord, workbookStatus?: Componen
   const issues: ImportIssue[] = [];
   if (!record.helicopterRegistration) issues.push(recordIssue(record, "Registration", "error", "Helicopter registration is required.", record.helicopterRegistration, "Confirm Matrícula in aircraft metadata."));
   if (!record.componentName) issues.push(recordIssue(record, "Component name", "error", "Component name is required.", record.componentName, "Map or enter Componente."));
-  if (!record.partNumber && !record.serialNumber) issues.push(recordIssue(record, "P/N or S/N", "error", "Part number or serial number is required for component import.", "", "Enter P/N or S/N."));
-  if (record.lifeLimitHours <= 0 && record.remainingHours <= 0 && !record.calendarLimitDate) issues.push(recordIssue(record, "Life limit", "error", "At least one component limit is required.", "", "Provide Límite vida, Remanente, or Límite calendario."));
+  if (!record.partNumber && !record.serialNumber) issues.push(recordIssue(record, "P/N or S/N", "warning", "Part number or serial number is missing.", "", "Review P/N or S/N if available."));
+  if (record.lifeLimitHours <= 0 && record.remainingHours <= 0 && record.calendarLimitYears <= 0 && record.calendarRemainingYears <= 0 && record.lifeLimitYears <= 0 && !record.calendarLimitDate) issues.push(recordIssue(record, "Life limit", "error", "At least one component limit is required.", "", "Provide Límite vida, Remanente, Límite calendario, Remanente calendario, or Límite de vida en años."));
   if (!record.position) issues.push(recordIssue(record, "Position", "warning", "Position is missing.", record.position, "Confirm component position if available."));
   if (!record.installationDate) issues.push(recordIssue(record, "Installation date", "warning", "Installation date is recommended.", record.installationDate, "Confirm Fecha instalación if available."));
   if (record.installationDate && !isValidIsoDate(record.installationDate)) issues.push(recordIssue(record, "Installation date", "error", "Installation date is invalid.", record.installationDate, "Use a valid date."));
@@ -1161,6 +1531,10 @@ function buildHelicopter(record: ComponentImportRecord): Helicopter {
 }
 
 function buildComponent(record: ComponentImportRecord, id: string): HelicopterComponent {
+  const notes = [
+    record.referenceNumber ? `Ref: ${record.referenceNumber}` : "",
+    record.notes
+  ].filter(Boolean).join("\n");
   return {
     id,
     helicopterRegistration: record.helicopterRegistration,
@@ -1178,7 +1552,7 @@ function buildComponent(record: ComponentImportRecord, id: string): HelicopterCo
     remainingCalendarDays: record.remainingCalendarDays,
     remainingPercentage: record.remainingPercentage,
     status: record.status,
-    notes: record.notes,
+    notes,
     documents: 0,
     source: "User"
   };
@@ -1330,7 +1704,10 @@ function normalizePercentage(value: number) {
   return value > 0 && value <= 1 ? value * 100 : Math.min(value, 100);
 }
 
-function parseDate(value: unknown) {
+function parseDate(value: unknown, options: { allowYear?: boolean } = {}) {
+  if (typeof value === "number" && options.allowYear && value >= 1900 && value <= 2100 && Number.isInteger(value)) {
+    return String(value);
+  }
   if (typeof value === "number" && value > 20000 && value < 70000) {
     const epoch = new Date(Date.UTC(1899, 11, 30));
     epoch.setUTCDate(epoch.getUTCDate() + value);
@@ -1338,7 +1715,11 @@ function parseDate(value: unknown) {
   }
 
   const cell = normalizeCell(value);
-  if (!cell || /^\d+(\.\d+)?$/.test(cell)) return "";
+  if (!cell) return "";
+  if (/^\d{4}$/.test(cell) && options.allowYear) return cell;
+  if (/^\d+(\.\d+)?$/.test(cell)) return "";
+  const isoDate = cell.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) return cell;
   const slashDate = cell.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (slashDate) {
     const [, day, month, year] = slashDate;
@@ -1348,11 +1729,26 @@ function parseDate(value: unknown) {
   }
   const normalized = cell
     .replace(/ENE/gi, "JAN")
+    .replace(/FEB/gi, "FEB")
+    .replace(/MAR/gi, "MAR")
     .replace(/ABR/gi, "APR")
+    .replace(/MAY/gi, "MAY")
+    .replace(/JUN/gi, "JUN")
+    .replace(/JUL/gi, "JUL")
     .replace(/AGO/gi, "AUG")
+    .replace(/SEP/gi, "SEP")
+    .replace(/OCT/gi, "OCT")
+    .replace(/NOV/gi, "NOV")
     .replace(/DIC/gi, "DEC");
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function addYearsToIsoDate(value: string, years: number) {
+  if (!isValidIsoDate(value) || !Number.isFinite(years) || years <= 0) return "";
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCFullYear(date.getUTCFullYear() + Math.floor(years));
   return date.toISOString().slice(0, 10);
 }
 

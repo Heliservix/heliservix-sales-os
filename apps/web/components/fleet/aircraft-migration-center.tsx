@@ -135,11 +135,23 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       setMappingOverrides({});
       setMetadataOverrides({});
       setRecordActions({});
-      rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
+      const nextPreview = rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
+      if (process.env.NODE_ENV !== "production") {
+        console.info("HSV_OFFICIAL_COMPONENT_WORKBOOK_V1 diagnostics", {
+          workbookSheetNames: workbook.SheetNames,
+          selectedSheet: nextPreview.diagnostics.selectedSheet,
+          metadataValuesFound: nextPreview.aircraftMetadata,
+          componentHeaderRowFound: nextPreview.diagnostics.componentHeaderRow,
+          componentRowCount: nextPreview.diagnostics.componentRowsDetected
+        });
+      }
       setStep(2);
+      const firstError = nextPreview.diagnostics.errors[0];
       setMessage(tx("Workbook parsed. Review detected helicopters before import."));
-    } catch {
-      setError(tx("The workbook could not be parsed. Confirm it is an .xlsx component-control file."));
+      if (firstError && !nextPreview.records.length) setError(tx(firstError));
+    } catch (caught) {
+      const message = caught instanceof Error && caught.message ? caught.message : "The workbook could not be parsed. Confirm it is an .xlsx component-control file.";
+      setError(tx(message));
     }
   }
 
@@ -184,6 +196,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       });
       return next;
     });
+    return nextPreview;
   }
 
   function updateSheet(name: string) {
@@ -408,6 +421,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           </div>
         </section>
 
+        <WorkbookDiagnosticsPanel preview={currentPreview} />
         <AircraftMetadataPanel preview={currentPreview} onChange={updateMetadata} />
         <MappingConfidencePanel preview={currentPreview} onChange={updateMapping} />
 
@@ -662,6 +676,41 @@ function AircraftMetadataPanel({
   );
 }
 
+function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview }) {
+  const { tx } = useI18n();
+  const diagnostics = preview.diagnostics;
+  return (
+    <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{tx("Workbook Diagnostics")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("AURA validates the official workbook structure before reconciliation.")}</p>
+        </div>
+        <StatusPill tone={diagnostics.errors.length ? "red" : diagnostics.warnings.length ? "amber" : "green"}>
+          {diagnostics.templateDetected ? tx("Template detected") : tx("Template not detected")}
+        </StatusPill>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MiniStat label="Sheets found" value={diagnostics.sheetsFound.join(", ") || "N/A"} />
+        <MiniStat label="Selected sheet" value={diagnostics.selectedSheet || "N/A"} />
+        <MiniStat label="Metadata detected" value={diagnostics.metadataDetected ? tx("Yes") : tx("No")} />
+        <MiniStat label="Component header row detected" value={diagnostics.componentHeaderRowDetected ? String(diagnostics.componentHeaderRow) : tx("No")} />
+        <MiniStat label="Component rows detected" value={String(diagnostics.componentRowsDetected)} />
+        <MiniStat label="Valid components" value={String(diagnostics.validComponents)} />
+        <MiniStat label="Warnings" value={String(diagnostics.warnings.length)} />
+        <MiniStat label="Errors" value={String(diagnostics.errors.length)} />
+      </div>
+      {diagnostics.errors.length || diagnostics.warnings.length ? (
+        <div className="mt-4 grid gap-2">
+          {[...diagnostics.errors, ...diagnostics.warnings].slice(0, 6).map((item) => (
+            <p key={item} className="rounded-md border border-line bg-canvas-muted/45 px-3 py-2 text-sm text-ink-muted">{tx(item)}</p>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function MappingConfidencePanel({
   preview,
   onChange
@@ -772,7 +821,7 @@ function ComponentPreviewTable({
       <table className="hsv-table min-w-[1120px]">
         <thead className="hsv-table-head">
           <tr>
-            {["Worksheet", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Confidence", "AURA Decision", "Action"].map((header) => (
+            {["Worksheet", "Ref", "Aircraft", "Component", "P/N", "S/N", "Position", "Remaining", "%", "Calendar", "Status", "Confidence", "AURA Decision", "Action"].map((header) => (
               <th key={header} className="hsv-table-th">{tx(header)}</th>
             ))}
           </tr>
@@ -784,6 +833,7 @@ function ComponentPreviewTable({
             return (
             <tr key={key}>
               <td className="px-4 py-3 text-ink-muted">{record.worksheetName}</td>
+              <td className="px-4 py-3 text-ink-muted">{record.referenceNumber || "N/A"}</td>
               <td className="px-4 py-3 font-medium text-ink">{record.helicopterRegistration}</td>
               <td className="px-4 py-3 font-semibold text-ink">{record.componentName || tx("Missing")}</td>
               <td className="px-4 py-3 text-ink-muted">{record.partNumber || "N/A"}</td>
