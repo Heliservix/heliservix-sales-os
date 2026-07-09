@@ -244,6 +244,8 @@ create table flight_logs (
   helicopter_registration text not null references helicopters(registration) on delete cascade,
   vessel_id uuid references vessels(id),
   campaign_id uuid,
+  marea_code text,
+  week_number integer,
   flight_date date not null,
   pilot text,
   mechanic text,
@@ -256,6 +258,14 @@ create table flight_logs (
   created_at timestamptz not null default now(),
   check (hobbs_end >= hobbs_start)
 );
+
+-- Prevents importing the same weekly report (marea + week) twice for the same
+-- aircraft, which would otherwise double-deduct hours from every component via
+-- trg_apply_flight_log. Only enforced when both fields are present (manual flight
+-- log entries with no marea/week are unaffected).
+create unique index idx_flight_logs_unique_week
+  on flight_logs(helicopter_registration, marea_code, week_number)
+  where marea_code is not null and week_number is not null;
 
 create index idx_flight_logs_helicopter on flight_logs(helicopter_registration);
 

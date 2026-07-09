@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Plane, Trash2 } from "lucide-react";
+import { Pencil, Plane, Trash2, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -83,7 +83,13 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
         </Panel>
 
         <Panel>
-          <h2 className="mb-4 text-lg font-semibold text-ink">Componentes</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-ink">Componentes</h2>
+            <Link className="hsv-secondary-button" href="/helicopters/import">
+              <UploadCloud className="h-4 w-4" aria-hidden="true" />
+              Importar / actualizar desde Excel
+            </Link>
+          </div>
           <div className="hsv-table-wrap">
             <table className="hsv-table">
               <thead className="hsv-table-head">
@@ -114,7 +120,7 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                 {!components?.length ? (
                   <tr>
                     <td className="hsv-empty-state" colSpan={6}>
-                      Esta aeronave todavía no tiene componentes registrados. (La migración desde Excel se porta en el siguiente paso.)
+                      Esta aeronave todavía no tiene componentes registrados. Usa &ldquo;Importar / actualizar desde Excel&rdquo; arriba.
                     </td>
                   </tr>
                 ) : null}

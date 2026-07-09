@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plane, Plus } from "lucide-react";
+import { Plane, Plus, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -41,10 +41,16 @@ export default async function HelicoptersPage() {
               <h2 className="text-lg font-semibold text-ink">Helicópteros</h2>
               <p className="mt-1 text-sm text-ink-subtle">{helicopters.length} registro{helicopters.length === 1 ? "" : "s"}</p>
             </div>
-            <Link className="hsv-primary-button" href="/helicopters/new">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Crear helicóptero
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link className="hsv-secondary-button" href="/helicopters/import">
+                <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                Importar componentes
+              </Link>
+              <Link className="hsv-primary-button" href="/helicopters/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Crear helicóptero
+              </Link>
+            </div>
           </div>
 
           {error ? (

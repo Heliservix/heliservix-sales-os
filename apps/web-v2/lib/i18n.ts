@@ -38,7 +38,8 @@ export const dictionary = {
       aircraftMigrationCenter: "Aircraft Migration Center",
       leaseSimulator: "Lease Simulator",
       reports: "Reports",
-      aura: "AURA"
+      aura: "AURA",
+      weeklyReports: "Weekly Reports"
     },
     navGroup: {
       operations: "Operations",
@@ -122,7 +123,8 @@ export const dictionary = {
       aircraftMigrationCenter: "Centro de Migración de Aeronaves",
       leaseSimulator: "Simulador de Arriendo",
       reports: "Reportes",
-      aura: "AURA"
+      aura: "AURA",
+      weeklyReports: "Reportes Semanales"
     },
     navGroup: {
       operations: "Operaciones",
