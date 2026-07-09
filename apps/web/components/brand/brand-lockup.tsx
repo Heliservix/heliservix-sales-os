@@ -34,16 +34,21 @@ function BrandLockupComponent({ variant = "topbar" }: BrandLockupProps) {
         />
       </div>
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={[
-              "rounded-md border px-2.5 py-1 text-xs font-bold tracking-[0.22em]",
-              isHero ? "text-sm" : "",
-              isSidebar ? "border-white/24 bg-white/10 text-white" : "border-aviation-blue/20 bg-aviation-blue/10 text-aviation-blue"
-            ].join(" ")}
-          >
-            OS
-          </span>
+        <div className="flex min-w-0 items-center gap-2">
+          {isSidebar ? (
+            <p className="truncate text-sm font-semibold text-white">HeliServiX OS</p>
+          ) : null}
+          {!isSidebar ? (
+            <span
+              className={[
+                "rounded-md border px-2.5 py-1 text-xs font-bold tracking-[0.22em]",
+                isHero ? "text-sm" : "",
+                "border-aviation-blue/20 bg-aviation-blue/10 text-aviation-blue"
+              ].join(" ")}
+            >
+              OS
+            </span>
+          ) : null}
         </div>
         {!isCompact ? (
           <p className={["mt-1 truncate text-xs font-medium", isSidebar ? "text-white/68" : "text-ink-subtle"].join(" ")}>

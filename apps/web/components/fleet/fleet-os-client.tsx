@@ -566,55 +566,52 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   function renderDashboard() {
     const openAlerts = store.maintenanceAlerts.filter((alert) => alert.status !== "Resolved");
     const criticalAlerts = openAlerts.filter((alert) => ["Critical", "Grounding"].includes(alert.severity));
-    const unhealthyComponents = components.filter((component) => ["Monitor", "Critical", "Expired"].includes(component.status));
-    const aircraftFlying = helicopters.filter((helicopter) => ["Available", "Assigned", "In Campaign"].includes(helicopter.status)).length;
-    const upcomingMaintenance = getForecastComponents(components).length;
+    const maintenanceDue = getForecastComponents(components);
     const inventoryRisks = inventoryItems.filter((item) => getLowStockStatus(item) !== "OK");
     const activeCampaigns = store.campaigns.filter((campaign) => ["Active", "Approved", "Readiness Review", "Planned"].includes(campaign.status));
     const aura = buildCopilotAnalysis(store).aura;
     const fleetHealth = aura.fleetHealth.score;
     const operationalReadiness = aura.missionReadiness.score;
     const auraRecommendations = aura.executiveRecommendations;
+    const quickActions = [
+      ["Import components", "/components"],
+      ["Review maintenance alerts", "/alerts"],
+      ["Open inventory", "/inventory"],
+      ["Review AURA", "/copilot"]
+    ];
     return (
       <div className="grid gap-6">
         <Panel className="overflow-hidden bg-white">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                <BrandLockup variant="hero" />
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-aviation-blue">{t(getTimeGreetingKey())}</p>
-                  <h2 className="mt-3 text-3xl font-semibold tracking-normal text-ink sm:text-4xl">{tx("Operations Command Center")}</h2>
-                  <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">{t("brand.subtitle")}</p>
-                </div>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="mb-4 w-fit">
+                <BrandLockup variant="compact" />
               </div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-aviation-blue">{t(getTimeGreetingKey())}</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-normal text-ink sm:text-4xl">{tx("Operations Command Center")}</h2>
+              <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">
+                {tx("A calm executive view of fleet health, readiness, maintenance exposure, campaigns, inventory risk, and AURA recommendations.")}
+              </p>
             </div>
-            <div className="grid min-w-[18rem] gap-3 rounded-xl border border-line bg-brand-lightBlue/60 p-5">
-              <StatusPill tone={criticalAlerts.length ? "red" : "green"}>{criticalAlerts.length ? "Attention Required" : "Operational"}</StatusPill>
-              <div className="grid grid-cols-2 gap-3">
-                <MiniStat label="Fleet Health" value={`${fleetHealth}%`} />
-                <MiniStat label="Readiness" value={`${operationalReadiness}%`} />
-              </div>
-              <p className="text-sm leading-6 text-ink-subtle">{tx("Panama · Ecuador · Latin America")}</p>
+            <div className="rounded-xl border border-line bg-canvas-muted/55 p-4">
+              <StatusPill tone={criticalAlerts.length ? "red" : inventoryRisks.length || maintenanceDue.length ? "amber" : "green"}>
+                {criticalAlerts.length ? tx("Attention Required") : tx("Operational")}
+              </StatusPill>
+              <p className="mt-3 text-sm leading-6 text-ink-subtle">{tx("Panama · Ecuador · Latin America")}</p>
             </div>
           </div>
         </Panel>
-        <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-6">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <Metric label="Fleet Health" value={`${fleetHealth}%`} tone={fleetHealth >= 80 ? "green" : fleetHealth >= 65 ? "amber" : "red"} detail="Aircraft readiness and alert exposure" />
           <Metric label="Operational Readiness" value={`${operationalReadiness}%`} tone={operationalReadiness >= 80 ? "green" : operationalReadiness >= 60 ? "amber" : "red"} detail="Aircraft available for current work" />
           <Metric label="Critical Alerts" value={String(criticalAlerts.length)} tone={criticalAlerts.length ? "red" : "green"} detail="Immediate maintenance attention" />
-          <Metric label="Aircraft Flying" value={`${aircraftFlying}/${helicopters.length}`} tone="blue" detail="Available, assigned, or in campaign" />
-          <Metric label="Upcoming Maintenance" value={String(upcomingMaintenance)} tone={upcomingMaintenance ? "amber" : "green"} detail="Forecasted due components" />
+          <Metric label="Active Campaigns" value={String(activeCampaigns.length)} tone="blue" detail="Active, planned, or readiness review" />
+          <Metric label="Maintenance Due" value={String(maintenanceDue.length)} tone={maintenanceDue.length ? "amber" : "green"} detail="Forecasted due components" />
           <Metric label="Inventory Risk" value={String(inventoryRisks.length)} tone={inventoryRisks.length ? "amber" : "green"} detail="Low stock or expiry signals" />
         </section>
-        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
           <Panel>
-            <SectionHeading title="Operational Picture" detail="What requires management attention today?" />
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              <ExecutiveSummaryCard title="Fleet Health Score" value={`${fleetHealth}%`} status={fleetHealth >= 80 ? "Healthy" : fleetHealth >= 65 ? "Watch" : "Critical"} detail={`${unhealthyComponents.length} component records need monitoring.`} tone={fleetHealth >= 80 ? "green" : fleetHealth >= 65 ? "amber" : "red"} />
-              <ExecutiveSummaryCard title="Campaign Summary" value={String(activeCampaigns.length)} status="Active / planned" detail={`${store.campaigns.length} total local campaign records.`} tone="blue" />
-              <ExecutiveSummaryCard title="Inventory Status" value={String(inventoryRisks.length)} status={inventoryRisks.length ? "Risk" : "Clear"} detail="Low stock, out of stock, or expiry exposure." tone={inventoryRisks.length ? "amber" : "green"} />
-            </div>
+            <SectionHeading title="Critical Alerts" detail="Management attention required before operations continue." />
             <div className="mt-5 grid gap-3">
               {criticalAlerts.slice(0, 3).map((alert) => (
                 <div key={alert.id} className="rounded-xl border border-aviation-red/20 bg-aviation-red/5 p-4">
@@ -638,40 +635,27 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             </div>
           </Panel>
         </section>
-        <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-          <Panel id="lease-simulator">
-            <SectionHeading title="Lease Simulator" detail="Executive margin view for tuna-vessel aircraft operations." />
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {[
-                ["Catch", "1,100 t"],
-                ["Hours", "84.0"],
-                ["Fuel", "Local estimate"],
-                ["Crew", "Pilot + mechanic"],
-                ["Components", `${upcomingMaintenance} due signals`]
-              ].map(([label, value]) => <MiniStat key={label} label={label} value={value} />)}
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {[
-                ["Revenue", "Review contract"],
-                ["Costs", "Operational estimate"],
-                ["Gross Margin", "Pending rates"],
-                ["Reserve for Overhaul", "Required"],
-                ["Projected Profit", "Scenario only"],
-                ["Margin %", "Sensitivity required"]
-              ].map(([label, value]) => <MiniStat key={label} label={label} value={value} />)}
+        <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <Panel>
+            <SectionHeading title="Maintenance Due" detail="Forecasted component exposure from local records." />
+            <div className="mt-5 grid gap-3">
+              {maintenanceDue.slice(0, 4).map((component) => (
+                <div key={component.id} className="rounded-xl border border-line bg-canvas-muted/45 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill tone={component.status === "OK" ? "green" : component.status === "Monitor" ? "amber" : "red"}>{component.status}</StatusPill>
+                    <StatusPill tone="neutral">{component.helicopterRegistration}</StatusPill>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-ink">{component.componentName}</p>
+                  <p className="mt-1 text-sm leading-6 text-ink-subtle">{component.remainingHours.toFixed(1)} {tx("Remaining Hours")}</p>
+                </div>
+              ))}
+              {!maintenanceDue.length ? <EmptyInlineState /> : null}
             </div>
           </Panel>
           <Panel>
-            <SectionHeading title="Command Links" detail="Move from executive signal to operating record." />
+            <SectionHeading title="Quick Actions" detail="Move from executive signal to the operating workspace." />
             <div className="mt-5 grid gap-3 md:grid-cols-3">
-              {[
-                ["Fleet", "/helicopters"],
-                ["Aircraft", "/digital-twin"],
-                ["Campaigns", "/campaigns"],
-                ["Components", "/components"],
-                ["Inventory", "/inventory"],
-                ["AURA", "/copilot"]
-              ].map(([label, href]) => (
+              {quickActions.map(([label, href]) => (
                 <Link key={href} className="rounded-xl border border-line bg-canvas-muted/58 p-4 text-sm font-semibold text-ink transition hover:border-aviation-blue/30 hover:bg-brand-lightBlue/50 hover:text-aviation-blue" href={href}>
                   {tx(label)}
                 </Link>
@@ -972,7 +956,16 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
       <div className="grid gap-5">
         <AircraftMigrationCenter store={store} onApply={updateStore} />
         <Panel>
-          <ListHeader title="Components" href="/components/new" action="Create component" />
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{tx("Components")}</h2>
+              <p className="mt-1 text-sm leading-6 text-ink-subtle">{tx("Use Excel migration for complete aircraft component control. Manual entry is available for small corrections only.")}</p>
+            </div>
+            <Link className="hsv-secondary-button w-full sm:w-auto" href="/components/new">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {tx("Add component manually")}
+            </Link>
+          </div>
           {renderComponentsTable(components)}
         </Panel>
       </div>
@@ -1269,6 +1262,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   function renderInventory() {
     const editing = inventoryItems.find((item) => item.id === editingInventoryId);
     const selectedVessel = vessels.find((vessel) => vessel.id === selectedInventoryVesselId);
+    const hasInventoryContext = Boolean(selectedInventoryVesselId && selectedInventoryBodega);
     const bodegaOptions = selectedInventoryVesselId
       ? uniqueValues(inventoryItems
         .filter((item) => item.vesselId === selectedInventoryVesselId)
@@ -1397,48 +1391,62 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <InventoryImportCenter
-            key={`${selectedInventoryVesselId}-${selectedInventoryBodega}`}
-            store={store}
-            onApply={updateStore}
-            context={{
-              vesselId: selectedInventoryVesselId,
-              helicopterRegistration: selectedVessel?.assignedHelicopter
-            }}
-          />
+          {hasInventoryContext ? (
+            <InventoryImportCenter
+              key={`${selectedInventoryVesselId}-${selectedInventoryBodega}`}
+              store={store}
+              onApply={updateStore}
+              context={{
+                vesselId: selectedInventoryVesselId,
+                helicopterRegistration: selectedVessel?.assignedHelicopter
+              }}
+            />
+          ) : (
+            <Panel>
+              <SectionHeading title="Import inventory from Excel" detail="Select a vessel and bodega first so imported records are scoped to the correct storage location." />
+              <div className="mt-5 rounded-lg border border-dashed border-line bg-canvas-muted/45 px-5 py-8 text-center text-sm text-ink-subtle">
+                {tx("Select a vessel and bodega to enable inventory import.")}
+              </div>
+            </Panel>
+          )}
           <Panel>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <SectionHeading title="Inventory actions" detail="Use these actions for bodega-level stock control." />
-              <button className="hsv-secondary-button" type="button" onClick={exportSelectedInventory}>
+              <button className="hsv-secondary-button" type="button" onClick={exportSelectedInventory} disabled={!hasInventoryContext}>
                 <FileDown className="h-4 w-4" aria-hidden="true" />
                 {tx("Export Bodega Inventory PDF")}
               </button>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button className="hsv-primary-button justify-center" type="button" onClick={() => {
+              <button className="hsv-secondary-button justify-center" type="button" disabled={!hasInventoryContext} onClick={() => {
                 setEditingInventoryId(undefined);
                 setInventoryWorkspaceMode("item");
               }}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 {tx("Add item manually")}
               </button>
-              <button className="hsv-secondary-button justify-center" type="button" onClick={() => openMovement("Received")}>
+              <button className="hsv-secondary-button justify-center" type="button" disabled={!hasInventoryContext} onClick={() => openMovement("Received")}>
                 <PackagePlus className="h-4 w-4" aria-hidden="true" />
                 {tx("Register stock entry")}
               </button>
-              <button className="hsv-secondary-button justify-center" type="button" onClick={() => openMovement("Used")}>
+              <button className="hsv-secondary-button justify-center" type="button" disabled={!hasInventoryContext} onClick={() => openMovement("Used")}>
                 <PackageMinus className="h-4 w-4" aria-hidden="true" />
                 {tx("Register stock exit")}
               </button>
-              <button className="hsv-secondary-button justify-center" type="button" onClick={() => openMovement("Consumed")}>
+              <button className="hsv-secondary-button justify-center" type="button" disabled={!hasInventoryContext} onClick={() => openMovement("Consumed")}>
                 <ClipboardList className="h-4 w-4" aria-hidden="true" />
                 {tx("Register consumption")}
               </button>
-              <button className="hsv-secondary-button justify-center sm:col-span-2" type="button" onClick={() => openMovement("Transferred")}>
+              <button className="hsv-secondary-button justify-center sm:col-span-2" type="button" disabled={!hasInventoryContext} onClick={() => openMovement("Transferred")}>
                 <Repeat2 className="h-4 w-4" aria-hidden="true" />
                 {tx("Transfer between bodegas")}
               </button>
             </div>
+            {!hasInventoryContext ? (
+              <p className="mt-4 rounded-lg border border-aviation-amber/20 bg-aviation-amber/10 px-4 py-3 text-sm font-medium text-ink-muted">
+                {tx("Select a vessel and bodega to enable bodega actions.")}
+              </p>
+            ) : null}
           </Panel>
         </div>
 
@@ -1471,6 +1479,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           </div>
         </Panel>
 
+        {hasInventoryContext ? (
         <div className="grid gap-5 2xl:grid-cols-[0.82fr_1.18fr]">
           <div className="grid gap-5">
             {inventoryWorkspaceMode === "item" ? (
@@ -1599,6 +1608,14 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           </Table>
         </Panel>
         </div>
+        ) : (
+          <Panel>
+            <SectionHeading title="Current Inventory" detail="Select a vessel and bodega to load the bodega inventory table, movement history, purchase needs, and PDF export." />
+            <div className="mt-5 rounded-lg border border-dashed border-line bg-canvas-muted/45 px-5 py-8 text-center text-sm text-ink-subtle">
+              {tx("Select a vessel and bodega to view current inventory.")}
+            </div>
+          </Panel>
+        )}
       </div>
     );
   }
@@ -1974,12 +1991,10 @@ function AuraExecutiveCard({ priority, subject, recommendation, evidence, operat
         </div>
         <StatusPill tone="neutral">{confidence}%</StatusPill>
       </div>
-      <div className="mt-4 grid gap-2">
-        <RecommendationLine label="Evidence" value={evidence.join(" / ")} />
-        <RecommendationLine label="Operational Impact" value={operationalImpact} />
-        <RecommendationLine label="Financial Impact" value={financialImpact} />
-        <RecommendationLine label="Recommended Action" value={recommendedAction} />
-        <RecommendationLine label="Confidence Level" value={`${confidence}%`} />
+      <div className="mt-4 grid gap-2 text-sm">
+        <RecommendationLine label="Evidence" value={evidence.slice(0, 2).join(" / ")} />
+        <RecommendationLine label="Action" value={recommendedAction} />
+        <RecommendationLine label="Impact" value={`${operationalImpact} / ${financialImpact}`} />
       </div>
     </article>
   );

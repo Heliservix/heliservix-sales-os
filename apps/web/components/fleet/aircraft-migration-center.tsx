@@ -275,15 +275,6 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) => void parseFile(event.target.files?.[0])}
           />
-          {!isOpen ? (
-            <button
-              className="hsv-secondary-button"
-              type="button"
-              onClick={() => setIsOpen(true)}
-            >
-              {tx("Import from Excel")}
-            </button>
-          ) : null}
           <button
             className="hsv-primary-button"
             type="button"
@@ -310,14 +301,6 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
                 <StatusPill tone="green">{tx("Observations optional")}</StatusPill>
               </div>
             </div>
-            <button
-              className="hsv-primary-button"
-              type="button"
-              onClick={() => inputRef.current?.click()}
-            >
-              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-              {tx("Upload Component Control Workbook")}
-            </button>
           </div>
         </div>
       ) : null}
