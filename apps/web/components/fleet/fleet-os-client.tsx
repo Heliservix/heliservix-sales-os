@@ -9,10 +9,14 @@ import {
   ArrowDownUp,
   Boxes,
   ClipboardList,
+  FileDown,
   Gauge,
   Pencil,
   Plane,
   Plus,
+  PackageMinus,
+  PackagePlus,
+  Repeat2,
   ShoppingCart,
   Trash2,
   UserRoundCog,
@@ -22,6 +26,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/fleet/page-header";
 import { AircraftMigrationCenter } from "@/components/fleet/aircraft-migration-center";
 import { InventoryImportCenter } from "@/components/fleet/inventory-import-center";
+import { exportInventoryPdfDocument } from "@/lib/inventory-report-import";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -106,6 +111,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   const [crewRole, setCrewRole] = useState<CrewPortalRole>("Maintenance Chief View");
   const [editingInventoryId, setEditingInventoryId] = useState<string | undefined>();
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | undefined>();
+  const [selectedInventoryVesselId, setSelectedInventoryVesselId] = useState("");
+  const [selectedInventoryBodega, setSelectedInventoryBodega] = useState("");
+  const [inventoryWorkspaceMode, setInventoryWorkspaceMode] = useState<"item" | "movement">("item");
+  const [inventoryMovementPreset, setInventoryMovementPreset] = useState<StockMovement["movementType"]>("Received");
 
   const helicopters = useMemo(() => active(store.helicopters), [store.helicopters]);
   const vessels = useMemo(() => active(store.vessels), [store.vessels]);
@@ -1255,55 +1264,281 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
 
   function renderInventory() {
     const editing = inventoryItems.find((item) => item.id === editingInventoryId);
-    const rows = prepareCrudRows(inventoryItems, {
+    const selectedVessel = vessels.find((vessel) => vessel.id === selectedInventoryVesselId);
+    const bodegaOptions = selectedInventoryVesselId
+      ? uniqueValues(inventoryItems
+        .filter((item) => item.vesselId === selectedInventoryVesselId)
+        .map((item) => item.storageLocation || "Unassigned bodega"))
+      : [];
+    const bodegaItems = inventoryItems.filter((item) =>
+      Boolean(selectedInventoryVesselId) &&
+      Boolean(selectedInventoryBodega) &&
+      item.vesselId === selectedInventoryVesselId &&
+      (item.storageLocation || "Unassigned bodega") === selectedInventoryBodega
+    );
+    const vesselItems = inventoryItems.filter((item) => !selectedInventoryVesselId || item.vesselId === selectedInventoryVesselId);
+    const movementItems = bodegaItems.length ? bodegaItems : vesselItems;
+    const bodegaMovements = store.stockMovements.filter((movement) => {
+      const item = inventoryItems.find((record) => record.id === movement.inventoryItemId);
+      if (!item) return false;
+      return (!selectedInventoryVesselId || item.vesselId === selectedInventoryVesselId) &&
+        (!selectedInventoryBodega || item.storageLocation === selectedInventoryBodega || movement.fromLocation === selectedInventoryBodega || movement.toLocation === selectedInventoryBodega);
+    });
+    const rows = prepareCrudRows(bodegaItems, {
       query: listQuery,
       filter: listFilter,
       sortKey,
       sortDirection,
-      searchable: (item) => [item.itemName, item.itemType, item.storageLocation, item.partNumber, item.serialNumber, item.condition, item.relatedHelicopter],
-      filterValue: (item) => [getLowStockStatus(item), item.itemType, item.source ?? "Demo"],
+      searchable: (item) => [item.itemName, item.itemType, item.storageLocation, item.partNumber, item.serialNumber, item.condition, item.relatedHelicopter, item.notes],
+      filterValue: (item) => [getLowStockStatus(item), item.itemType, item.source ?? "Demo", item.relatedHelicopter ?? "Unassigned aircraft"],
       sortValue: (item, key) => key === "quantity" ? item.quantity : key === "status" ? getLowStockStatus(item) : item.itemName
     });
+    const summary = {
+      total: bodegaItems.length,
+      criticalSpares: bodegaItems.filter((item) => ["Component", "Kit"].includes(item.itemType)).length,
+      consumables: bodegaItems.filter((item) => ["Consumable", "Oil", "Filter", "Hardware"].includes(item.itemType)).length,
+      lowStock: bodegaItems.filter((item) => getLowStockStatus(item) !== "OK").length,
+      withSerial: bodegaItems.filter((item) => item.serialNumber?.trim()).length,
+      withoutSerial: bodegaItems.filter((item) => !item.serialNumber?.trim()).length
+    };
+    const auraFindings = buildInventoryAuraFindings(bodegaItems, inventoryItems);
+    const movementDefaults = getInventoryMovementDefaults(inventoryMovementPreset, selectedInventoryBodega, selectedVessel?.assignedHelicopter);
+    const purchaseNeeds = bodegaItems
+      .filter((item) => item.quantity <= item.minimumStock)
+      .map((item) => ({
+        id: item.id,
+        itemName: item.itemName,
+        partNumber: item.partNumber || "N/A",
+        quantity: Math.max(1, item.minimumStock - item.quantity + 1),
+        unit: item.unitOfMeasure
+      }));
+
+    function openMovement(type: StockMovement["movementType"]) {
+      setInventoryMovementPreset(type);
+      setInventoryWorkspaceMode("movement");
+    }
+
+    function exportSelectedInventory() {
+      exportInventoryPdfDocument({
+        items: inventoryItems,
+        store,
+        vesselId: selectedInventoryVesselId,
+        storageLocation: selectedInventoryBodega,
+        campaignName: selectedVessel?.campaign
+      });
+    }
+
     return (
       <div className="grid gap-5">
-        <InventoryImportCenter store={store} onApply={updateStore} />
-        <div className="grid gap-5 2xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="grid gap-5">
-          <FormShell key={editing?.id ?? "new-inventory-item"} onSubmit={saveInventoryItem} title={editing ? "Edit Inventory Item" : "Create Inventory Item"}>
-            <Select name="vesselId" label="Vessel" defaultValue={editing?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} required />
-            <Field name="storageLocation" label="Bodega / storage location" defaultValue={editing?.storageLocation} />
-            <Select name="itemType" label="Item type" defaultValue={editing?.itemType ?? "Component"} options={["Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "Other"]} />
-            <Field name="itemName" label="Item name" defaultValue={editing?.itemName} required />
-            <Field name="partNumber" label="Part number" defaultValue={editing?.partNumber} />
-            <Field name="serialNumber" label="Serial number" defaultValue={editing?.serialNumber} />
-            <Field name="lotBatch" label="Lot / batch" defaultValue={editing?.lotBatch} />
-            <Field name="quantity" label="Quantity" defaultValue={editing?.quantity} required />
-            <Field name="unitOfMeasure" label="Unit of measure" defaultValue={editing?.unitOfMeasure ?? "ea"} />
-            <Field name="minimumStock" label="Minimum stock" defaultValue={editing?.minimumStock} />
-            <Field name="condition" label="Condition" defaultValue={editing?.condition ?? "Serviceable"} />
-            <Field name="expirationDate" label="Expiration date" defaultValue={editing?.expirationDate} />
-            <Select name="relatedHelicopter" label="Related helicopter" defaultValue={editing?.relatedHelicopter ?? ""} options={["", ...helicopters.map((item) => item.registration)]} />
-            <TextArea name="notes" label="Notes" defaultValue={editing?.notes} />
-          </FormShell>
-          <FormShell onSubmit={saveStockMovement} title="Record Stock Movement">
-            <Select name="inventoryItemId" label="Inventory item" options={inventoryItems.map((item) => item.id)} required />
-            <Select name="movementType" label="Movement type" options={["Received", "Transferred", "Used", "Installed", "Consumed", "Adjusted"]} />
-            <Field name="fromLocation" label="From location" />
-            <Field name="toLocation" label="To location" />
-            <Field name="quantity" label="Quantity" required />
-            <Field name="date" label="Date" defaultValue={new Date().toISOString().slice(0, 10)} />
-            <Field name="relatedMaintenanceEvent" label="Related maintenance event" />
-            <TextArea name="notes" label="Notes" />
-          </FormShell>
-        </div>
         <Panel>
-          <h2 className="mb-4 text-lg font-semibold text-ink">Vessel Inventory</h2>
+          <div className="grid gap-5 xl:grid-cols-[1fr_1fr] xl:items-end">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-aviation-blue">{tx("Vessel Inventory Workspace")}</p>
+              <h2 className="mt-2 text-2xl font-semibold text-ink">{tx("Select vessel and bodega first.")}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-subtle">
+                {tx("Inventory is organized by vessel, then bodega, then current stock, movements, consumption, and purchase needs.")}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-semibold text-ink">
+                {tx("Vessel")}
+                <select className={inputClass} value={selectedInventoryVesselId} onChange={(event) => {
+                  setSelectedInventoryVesselId(event.target.value);
+                  setSelectedInventoryBodega("");
+                }}>
+                  <option value="">{tx("Select vessel")}</option>
+                  {vessels.map((vessel) => <option key={vessel.id} value={vessel.id}>{vessel.name}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-semibold text-ink">
+                {tx("Bodega / storage location")}
+                <select className={inputClass} value={selectedInventoryBodega} onChange={(event) => setSelectedInventoryBodega(event.target.value)} disabled={!selectedInventoryVesselId}>
+                  <option value="">{tx("Select bodega")}</option>
+                  {bodegaOptions.map((bodega) => <option key={bodega} value={bodega}>{bodega}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+        </Panel>
+
+        <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <Metric label="Total items" value={String(summary.total)} tone="blue" detail="Current records in selected bodega" />
+          <Metric label="Critical spares" value={String(summary.criticalSpares)} tone="teal" detail="Components and kits on board" />
+          <Metric label="Consumables" value={String(summary.consumables)} tone="green" detail="Consumables, oils, filters, and hardware" />
+          <Metric label="Low stock" value={String(summary.lowStock)} tone={summary.lowStock ? "amber" : "green"} detail="Items at or below minimum stock" />
+          <Metric label="With S/N" value={String(summary.withSerial)} tone="blue" detail="Items with serial numbers" />
+          <Metric label="Without S/N" value={String(summary.withoutSerial)} tone={summary.withoutSerial ? "amber" : "neutral"} detail="Items without serial numbers" />
+        </section>
+
+        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <InventoryImportCenter
+            key={`${selectedInventoryVesselId}-${selectedInventoryBodega}`}
+            store={store}
+            onApply={updateStore}
+            context={{
+              vesselId: selectedInventoryVesselId,
+              helicopterRegistration: selectedVessel?.assignedHelicopter
+            }}
+          />
+          <Panel>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <SectionHeading title="Inventory actions" detail="Use these actions for bodega-level stock control." />
+              <button className="hsv-secondary-button" type="button" onClick={exportSelectedInventory}>
+                <FileDown className="h-4 w-4" aria-hidden="true" />
+                {tx("Export PDF")}
+              </button>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button className="hsv-primary-button justify-center" type="button" onClick={() => {
+                setEditingInventoryId(undefined);
+                setInventoryWorkspaceMode("item");
+              }}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {tx("Add item manually")}
+              </button>
+              <button className="hsv-secondary-button justify-center" type="button" onClick={() => openMovement("Received")}>
+                <PackagePlus className="h-4 w-4" aria-hidden="true" />
+                {tx("Register stock entry")}
+              </button>
+              <button className="hsv-secondary-button justify-center" type="button" onClick={() => openMovement("Used")}>
+                <PackageMinus className="h-4 w-4" aria-hidden="true" />
+                {tx("Register stock exit")}
+              </button>
+              <button className="hsv-secondary-button justify-center" type="button" onClick={() => openMovement("Consumed")}>
+                <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                {tx("Register consumption")}
+              </button>
+              <button className="hsv-secondary-button justify-center sm:col-span-2" type="button" onClick={() => openMovement("Transferred")}>
+                <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                {tx("Transfer between bodegas")}
+              </button>
+            </div>
+          </Panel>
+        </div>
+
+        <Panel>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <SectionHeading title="AURA inventory intelligence" detail="AURA reviews selected bodega stock for operational risk and purchase needs." />
+            <StatusPill tone={auraFindings.some((finding) => finding.tone === "red") ? "red" : auraFindings.some((finding) => finding.tone === "amber") ? "amber" : "green"}>
+              {auraFindings.length ? tx("Review required") : tx("No immediate findings")}
+            </StatusPill>
+          </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {auraFindings.map((finding) => (
+              <article key={finding.title} className="rounded-lg border border-line bg-canvas-muted/45 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill tone={finding.tone}>{tx(finding.priority)}</StatusPill>
+                  <StatusPill tone="neutral">{finding.count}</StatusPill>
+                </div>
+                <h3 className="mt-3 text-sm font-semibold text-ink">{tx(finding.title)}</h3>
+                <p className="mt-2 text-sm leading-6 text-ink-subtle">{tx(finding.detail)}</p>
+                <p className="mt-3 text-sm font-semibold text-aviation-blue">{tx(finding.action)}</p>
+              </article>
+            ))}
+            {!auraFindings.length ? (
+              <article className="rounded-lg border border-brand-green/25 bg-brand-green/10 p-4">
+                <StatusPill tone="green">{tx("OK")}</StatusPill>
+                <p className="mt-3 text-sm font-semibold text-ink">{tx("No immediate inventory findings")}</p>
+                <p className="mt-2 text-sm leading-6 text-ink-subtle">{tx("Selected bodega has no low stock, duplicate, missing P/N, or serial-number review findings in local records.")}</p>
+              </article>
+            ) : null}
+          </div>
+        </Panel>
+
+        <div className="grid gap-5 2xl:grid-cols-[0.82fr_1.18fr]">
+          <div className="grid gap-5">
+            {inventoryWorkspaceMode === "item" ? (
+              <FormShell key={editing?.id ?? `${selectedInventoryVesselId}-${selectedInventoryBodega}-new-inventory-item`} onSubmit={saveInventoryItem} title={editing ? "Edit Inventory Item" : "Add item manually"}>
+                <Select name="vesselId" label="Vessel" defaultValue={editing?.vesselId ?? selectedInventoryVesselId} options={["", ...vessels.map((item) => item.id)]} required />
+                <Field name="storageLocation" label="Bodega / storage location" defaultValue={editing?.storageLocation ?? selectedInventoryBodega} required />
+                <Select name="itemType" label="Category" defaultValue={editing?.itemType ?? "Component"} options={["Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "Other"]} />
+                <Field name="itemName" label="Item name" defaultValue={editing?.itemName} required />
+                <Field name="partNumber" label="Part Number / P/N" defaultValue={editing?.partNumber} />
+                <Field name="serialNumber" label="Serial Number / S/N" defaultValue={editing?.serialNumber} />
+                <Field name="lotBatch" label="Lot / batch" defaultValue={editing?.lotBatch} />
+                <Field name="quantity" label="Quantity" defaultValue={editing?.quantity} required />
+                <Field name="unitOfMeasure" label="Unit" defaultValue={editing?.unitOfMeasure ?? "ea"} />
+                <Field name="minimumStock" label="Minimum stock" defaultValue={editing?.minimumStock} />
+                <Field name="condition" label="Condition" defaultValue={editing?.condition ?? "Serviceable"} />
+                <Field name="expirationDate" label="Expiration date" defaultValue={editing?.expirationDate} />
+                <Select name="relatedHelicopter" label="Related aircraft" defaultValue={editing?.relatedHelicopter ?? selectedVessel?.assignedHelicopter ?? ""} options={["", ...helicopters.map((item) => item.registration)]} />
+                <TextArea name="notes" label="Notes" defaultValue={editing?.notes} />
+              </FormShell>
+            ) : (
+              <FormShell key={`${inventoryMovementPreset}-${selectedInventoryVesselId}-${selectedInventoryBodega}`} onSubmit={saveStockMovement} title="Record Stock Movement">
+                <label className="grid gap-2 text-sm font-semibold text-ink sm:col-span-2">
+                  {tx("Inventory item")}
+                  <select className={inputClass} name="inventoryItemId" required>
+                    <option value="">{tx("Select inventory item")}</option>
+                    {movementItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.itemName} / {item.partNumber || "No P/N"} / {item.quantity} {item.unitOfMeasure}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Select name="movementType" label="Movement type" defaultValue={inventoryMovementPreset} options={["Received", "Transferred", "Used", "Installed", "Consumed", "Adjusted"]} />
+                <Field name="fromLocation" label="From location" defaultValue={movementDefaults.fromLocation} />
+                <Field name="toLocation" label="To location" defaultValue={movementDefaults.toLocation} />
+                <Field name="quantity" label="Quantity" required />
+                <Field name="date" label="Date" defaultValue={new Date().toISOString().slice(0, 10)} />
+                <Field name="relatedMaintenanceEvent" label="Related maintenance event" defaultValue={selectedVessel?.campaign} />
+                <TextArea name="notes" label="Notes" />
+              </FormShell>
+            )}
+
+            <Panel>
+              <SectionHeading title="Stock movements" detail="Recent entries, exits, transfers, consumption, and adjustments for selected bodega." />
+              <div className="mt-4 grid gap-3">
+                {bodegaMovements.slice(0, 6).map((movement) => {
+                  const item = inventoryItems.find((record) => record.id === movement.inventoryItemId);
+                  return (
+                    <div key={movement.id} className="rounded-lg border border-line bg-canvas-muted/45 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-ink">{item?.itemName ?? movement.inventoryItemId}</p>
+                        <StatusPill tone={movement.movementType === "Received" ? "green" : movement.movementType === "Transferred" ? "blue" : "amber"}>{movement.movementType}</StatusPill>
+                      </div>
+                      <p className="mt-2 text-sm text-ink-subtle">{movement.quantity} / {movement.fromLocation || "N/A"} -&gt; {movement.toLocation || "N/A"} / {movement.date || "N/A"}</p>
+                    </div>
+                  );
+                })}
+                {!bodegaMovements.length ? <EmptyInlineState /> : null}
+              </div>
+            </Panel>
+
+            <Panel>
+              <SectionHeading title="Purchase needs" detail="Suggested purchase quantities from current stock and minimum-stock records." />
+              <div className="mt-4 grid gap-3">
+                {purchaseNeeds.slice(0, 6).map((need) => (
+                  <div key={need.id} className="rounded-lg border border-line bg-canvas-muted/45 p-3">
+                    <p className="text-sm font-semibold text-ink">{need.itemName}</p>
+                    <p className="mt-1 text-sm text-ink-subtle">{need.partNumber} / {tx("Suggested purchase request")}: {need.quantity} {need.unit}</p>
+                  </div>
+                ))}
+                {!purchaseNeeds.length ? <EmptyInlineState /> : null}
+              </div>
+            </Panel>
+          </div>
+
+          <Panel>
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{tx("Current Inventory")}</h2>
+              <p className="mt-1 text-sm text-ink-subtle">
+                {selectedVessel ? selectedVessel.name : tx("Select vessel")} / {selectedInventoryBodega || tx("Select bodega")}
+              </p>
+            </div>
+            <button className="hsv-secondary-button" type="button" onClick={exportSelectedInventory}>
+              <FileDown className="h-4 w-4" aria-hidden="true" />
+              {tx("Export PDF")}
+            </button>
+          </div>
           <ListControls
             query={listQuery}
             onQueryChange={setListQuery}
             filter={listFilter}
             onFilterChange={setListFilter}
-            filters={["All", "OK", "Low stock", "Out of stock", "Expiring soon", "Expired", "Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "User", "Demo"]}
+            filters={["All", "OK", "Low stock", "Out of stock", "Expiring soon", "Expired", "Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "Unassigned aircraft", ...helicopters.map((item) => item.registration), "User", "Demo"]}
             sortKey={sortKey}
             onSortKeyChange={setSortKey}
             sortOptions={[["name", "Item"], ["quantity", "Quantity"], ["status", "Status"]]}
@@ -1311,19 +1546,24 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             onSortDirectionChange={setSortDirection}
             resultCount={rows.length}
           />
-          <Table headers={["Item", "Vessel", "Location", "Qty", "Min", "Status", "Actions"]}>
+          <Table headers={["Item name", "P/N", "S/N", "Category", "Quantity", "Unit", "Location / Bodega", "Related aircraft", "Status", "Last movement", "Notes", "Actions"]}>
             {rows.map((item) => (
               <tr key={item.id}>
                 <Cell>{item.itemName}</Cell>
-                <Cell muted>{vessels.find((vessel) => vessel.id === item.vesselId)?.name ?? item.vesselId}</Cell>
-                <Cell muted>{item.storageLocation}</Cell>
-                <Cell>{item.quantity} {item.unitOfMeasure}</Cell>
-                <Cell>{item.minimumStock}</Cell>
-                <Cell><StatusPill tone={getLowStockStatus(item) === "OK" ? "green" : "amber"}>{getLowStockStatus(item)}</StatusPill></Cell>
+                <Cell muted>{item.partNumber || "N/A"}</Cell>
+                <Cell muted>{item.serialNumber || "N/A"}</Cell>
+                <Cell muted>{item.itemType}</Cell>
+                <Cell>{item.quantity}</Cell>
+                <Cell muted>{item.unitOfMeasure}</Cell>
+                <Cell muted>{item.storageLocation || "Unassigned bodega"}</Cell>
+                <Cell muted>{item.relatedHelicopter || "Unassigned aircraft"}</Cell>
+                <Cell><StatusPill tone={inventoryStatusTone(getLowStockStatus(item))}>{getLowStockStatus(item)}</StatusPill></Cell>
+                <Cell muted>{lastInventoryMovementLabel(item.id, store.stockMovements)}</Cell>
+                <Cell muted>{item.notes || "N/A"}</Cell>
                 <Cell><InlineActions onEdit={() => setEditingInventoryId(item.id)} onArchive={() => archiveRecord("inventoryItems", "id", item.id)} onDelete={() => deleteRecord("inventoryItems", "id", item.id)} /></Cell>
               </tr>
             ))}
-            {!rows.length ? <EmptyTableRow colSpan={7} /> : null}
+            {!rows.length ? <EmptyTableRow colSpan={12} /> : null}
           </Table>
         </Panel>
         </div>
@@ -1501,6 +1741,120 @@ function prepareCrudRows<T>(rows: T[], config: {
   sortValue: (row: T, key: string) => string | number | undefined;
 }) {
   return prepareStableCrudRows(rows, config);
+}
+
+function uniqueValues(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function inventoryStatusTone(status: string): "green" | "amber" | "red" | "blue" | "neutral" {
+  if (status === "OK") return "green";
+  if (status === "Out of stock" || status === "Expired") return "red";
+  if (status === "Low stock" || status === "Expiring soon") return "amber";
+  return "neutral";
+}
+
+function lastInventoryMovementLabel(itemId: string, movements: StockMovement[]) {
+  const movement = movements
+    .filter((record) => record.inventoryItemId === itemId)
+    .sort((left, right) => (right.date || "").localeCompare(left.date || ""))[0];
+  if (!movement) return "No movements";
+  return `${movement.date || "N/A"} / ${movement.movementType}`;
+}
+
+function getInventoryMovementDefaults(type: StockMovement["movementType"], bodega: string, aircraft?: string) {
+  if (type === "Received") return { fromLocation: "Supplier / main warehouse", toLocation: bodega };
+  if (type === "Transferred") return { fromLocation: bodega, toLocation: "" };
+  if (type === "Installed") return { fromLocation: bodega, toLocation: aircraft ? `${aircraft} installation` : "Aircraft installation" };
+  if (type === "Consumed" || type === "Used") return { fromLocation: bodega, toLocation: "Maintenance event" };
+  return { fromLocation: bodega, toLocation: "Inventory adjustment" };
+}
+
+function buildInventoryAuraFindings(selectedItems: InventoryItem[], allItems: InventoryItem[]) {
+  const duplicateKeys = new Map<string, number>();
+  selectedItems.forEach((item) => {
+    const key = [item.vesselId, item.storageLocation, item.itemName, item.partNumber, item.serialNumber].join("|").toLowerCase();
+    duplicateKeys.set(key, (duplicateKeys.get(key) ?? 0) + 1);
+  });
+  const lowStock = selectedItems.filter((item) => getLowStockStatus(item) !== "OK");
+  const duplicates = selectedItems.filter((item) =>
+    (duplicateKeys.get([item.vesselId, item.storageLocation, item.itemName, item.partNumber, item.serialNumber].join("|").toLowerCase()) ?? 0) > 1
+  );
+  const missingPartNumbers = selectedItems.filter((item) => !item.partNumber.trim());
+  const serializedTypes: InventoryItem["itemType"][] = ["Component", "Tool", "Kit"];
+  const missingSerials = selectedItems.filter((item) => serializedTypes.includes(item.itemType) && !item.serialNumber?.trim());
+  const quantityMismatch = selectedItems.filter((item) => item.minimumStock > 0 && item.quantity < item.minimumStock);
+  const criticalSpares = selectedItems.filter((item) => ["Component", "Kit"].includes(item.itemType));
+  const globalCriticalSpares = allItems.filter((item) => !item.archived && ["Component", "Kit"].includes(item.itemType));
+  const findings: Array<{
+    title: string;
+    detail: string;
+    action: string;
+    priority: string;
+    count: string;
+    tone: "green" | "amber" | "blue" | "red" | "neutral";
+  }> = [];
+
+  if (!criticalSpares.length && globalCriticalSpares.length) {
+    findings.push({
+      title: "Missing critical items",
+      detail: "No component or kit records are visible in the selected bodega while critical spares exist elsewhere in local inventory.",
+      action: "Review whether critical spares should be transferred to this bodega before campaign dispatch.",
+      priority: "Medium",
+      count: "0",
+      tone: "amber"
+    });
+  }
+  if (lowStock.length) findings.push({
+    title: "Low stock items",
+    detail: "One or more items are at low, expired, expiring, or out-of-stock status based on local quantity and expiration data.",
+    action: "Review stock movements and prepare purchase requests for affected items.",
+    priority: lowStock.some((item) => getLowStockStatus(item) === "Out of stock" || getLowStockStatus(item) === "Expired") ? "High" : "Medium",
+    count: String(lowStock.length),
+    tone: lowStock.some((item) => getLowStockStatus(item) === "Out of stock" || getLowStockStatus(item) === "Expired") ? "red" : "amber"
+  });
+  if (duplicates.length) findings.push({
+    title: "Duplicate items",
+    detail: "Possible duplicate inventory records share vessel, bodega, item, P/N, and S/N identity.",
+    action: "Review duplicate records before exporting reports or creating purchase requests.",
+    priority: "Medium",
+    count: String(duplicates.length),
+    tone: "amber"
+  });
+  if (missingPartNumbers.length) findings.push({
+    title: "Items without P/N",
+    detail: "Some records do not include a part number, which limits purchasing and traceability.",
+    action: "Add P/N values from invoices, tags, certificates, or approved inventory records.",
+    priority: "Medium",
+    count: String(missingPartNumbers.length),
+    tone: "amber"
+  });
+  if (missingSerials.length) findings.push({
+    title: "Items without S/N where serial should exist",
+    detail: "Serialized item categories such as components, tools, and kits should normally carry serial numbers when applicable.",
+    action: "Confirm whether each item is serialized and add S/N when available.",
+    priority: "Medium",
+    count: String(missingSerials.length),
+    tone: "amber"
+  });
+  if (quantityMismatch.length) findings.push({
+    title: "Items with quantity mismatch",
+    detail: "Current quantity is below minimum stock for one or more items in this bodega.",
+    action: "Reconcile physical count and create suggested purchase requests for the shortage.",
+    priority: "High",
+    count: String(quantityMismatch.length),
+    tone: "red"
+  });
+  if (quantityMismatch.length || lowStock.length) findings.push({
+    title: "Suggested purchase requests",
+    detail: "AURA can identify purchase needs from bodega quantity and minimum-stock records.",
+    action: "Use the purchase needs panel to draft operational purchasing requests.",
+    priority: "Medium",
+    count: String(new Set([...quantityMismatch, ...lowStock].map((item) => item.id)).size),
+    tone: "blue"
+  });
+
+  return findings.slice(0, 6);
 }
 
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {

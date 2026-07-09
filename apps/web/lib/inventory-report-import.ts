@@ -20,6 +20,7 @@ export type InventoryImportField =
   | "itemName"
   | "partNumber"
   | "serialNumber"
+  | "category"
   | "quantity"
   | "unit"
   | "storageLocation"
@@ -45,6 +46,7 @@ export type InventoryImportRecord = {
   itemName: string;
   partNumber: string;
   serialNumber: string;
+  category: string;
   quantity: number;
   unitOfMeasure: string;
   storageLocation: string;
@@ -123,6 +125,7 @@ const fieldAliases: Record<InventoryImportField, string[]> = {
   itemName: ["item name", "name", "nombre", "descripcion", "descripción", "description", "item", "articulo", "artículo", "material"],
   partNumber: ["part number", "part no", "pn", "p/n", "numero de parte", "número de parte", "numero parte", "parte"],
   serialNumber: ["serial number", "serial", "sn", "s/n", "numero de serie", "número de serie"],
+  category: ["category", "categoria", "categoría", "item type", "tipo", "tipo item", "clase", "familia"],
   quantity: ["quantity", "qty", "cantidad", "existencia", "stock", "on board", "a bordo"],
   unit: ["unit", "unidad", "u/m", "um", "uom", "medida"],
   storageLocation: ["bodega", "storage", "location", "ubicacion", "ubicación", "almacen", "almacén"],
@@ -135,6 +138,7 @@ const fieldLabels: Record<InventoryImportField, string> = {
   itemName: "Item name",
   partNumber: "Part number",
   serialNumber: "Serial number",
+  category: "Category",
   quantity: "Quantity",
   unit: "Unit",
   storageLocation: "Bodega / storage location",
@@ -341,14 +345,22 @@ export function exportInventoryPdfDocument(input: {
     (!input.storageLocation || item.storageLocation === input.storageLocation)
   );
   const generatedAt = new Date().toLocaleString();
+  const summary = {
+    totalItems: rows.length,
+    lowStock: rows.filter((item) => item.quantity <= item.minimumStock).length,
+    serialized: rows.filter((item) => item.serialNumber?.trim()).length,
+    withoutSerial: rows.filter((item) => !item.serialNumber?.trim()).length
+  };
   const tableRows = rows.map((item) => {
     const itemVessel = input.store.vessels.find((v) => v.id === item.vesselId);
     return `<tr>
       <td>${escapeHtml(item.itemName)}</td>
       <td>${escapeHtml(item.partNumber || "N/A")}</td>
       <td>${escapeHtml(item.serialNumber || "N/A")}</td>
+      <td>${escapeHtml(item.itemType)}</td>
       <td>${item.quantity} ${escapeHtml(item.unitOfMeasure)}</td>
       <td>${escapeHtml(item.storageLocation || "N/A")}</td>
+      <td>${escapeHtml(item.relatedHelicopter || "N/A")}</td>
       <td>${escapeHtml(item.condition || "N/A")}</td>
       <td>${escapeHtml(item.notes || "")}</td>
       <td>${escapeHtml(item.source ?? "Demo")}</td>
@@ -369,6 +381,7 @@ export function exportInventoryPdfDocument(input: {
           .card { border: 1px solid #d9e3ee; border-radius: 10px; padding: 12px; background: #f8fbff; }
           .label { color: #607089; font-size: 11px; font-weight: 700; text-transform: uppercase; }
           .value { margin-top: 5px; font-size: 14px; font-weight: 700; }
+          .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0 22px; }
           table { width: 100%; border-collapse: collapse; font-size: 11px; }
           th { background: #e8f2ff; color: #071a33; text-align: left; padding: 9px; border-bottom: 1px solid #b9d8ff; }
           td { padding: 8px 9px; border-bottom: 1px solid #edf2f7; vertical-align: top; }
@@ -390,9 +403,15 @@ export function exportInventoryPdfDocument(input: {
             <div class="card"><div class="label">Report date</div><div class="value">${escapeHtml(generatedAt)}</div></div>
             <div class="card"><div class="label">Data indicator</div><div class="value">${rows.some((item) => item.source === "User") ? "Real/imported and demo records" : "Demo records"}</div></div>
           </section>
+          <section class="summary">
+            <div class="card"><div class="label">Total items</div><div class="value">${summary.totalItems}</div></div>
+            <div class="card"><div class="label">Low stock</div><div class="value">${summary.lowStock}</div></div>
+            <div class="card"><div class="label">Items with S/N</div><div class="value">${summary.serialized}</div></div>
+            <div class="card"><div class="label">Items without S/N</div><div class="value">${summary.withoutSerial}</div></div>
+          </section>
           <table>
-            <thead><tr><th>Item</th><th>P/N</th><th>S/N</th><th>Quantity</th><th>Bodega</th><th>Status</th><th>Notes</th><th>Source</th><th>Vessel</th></tr></thead>
-            <tbody>${tableRows || "<tr><td colspan='9'>No inventory records available.</td></tr>"}</tbody>
+            <thead><tr><th>Item</th><th>P/N</th><th>S/N</th><th>Category</th><th>Quantity</th><th>Bodega</th><th>Aircraft</th><th>Status</th><th>Notes</th><th>Source</th><th>Vessel</th></tr></thead>
+            <tbody>${tableRows || "<tr><td colspan='11'>No inventory records available.</td></tr>"}</tbody>
           </table>
           <footer>Generated by HeliServiX OS. Review operational records before dispatch or procurement decisions.</footer>
         </main>
@@ -459,6 +478,7 @@ function rowToRecord(input: {
   const itemName = normalizeCell(raw("itemName"));
   const partNumber = normalizeCell(raw("partNumber"));
   const serialNumber = normalizeCell(raw("serialNumber"));
+  const category = normalizeCell(raw("category"));
   const quantity = parseNumber(raw("quantity"));
   const storageLocation = normalizeCell(raw("storageLocation")) || firstValue([input.metadata.notes.find((note) => normalizeKey(note).includes("bodega"))]) || "";
   const vesselName = normalizeCell(raw("vessel")) || input.metadata.vesselName;
@@ -502,6 +522,7 @@ function rowToRecord(input: {
     itemName,
     partNumber,
     serialNumber,
+    category,
     quantity,
     unitOfMeasure,
     storageLocation,
@@ -542,7 +563,7 @@ function buildInventoryItem(record: InventoryImportRecord, vesselId: string, sto
     id: generateId("inv"),
     vesselId,
     storageLocation: storageLocation || record.storageLocation || "Unassigned bodega",
-    itemType: inferItemType(record.itemName),
+    itemType: normalizeItemType(record.category) ?? inferItemType(record.itemName),
     itemName: record.itemName,
     partNumber: record.partNumber,
     serialNumber: record.serialNumber,
@@ -649,6 +670,20 @@ function inferItemType(itemName: string): InventoryItem["itemType"] {
   if (/kit/i.test(itemName)) return "Kit";
   if (/bolt|nut|washer|tornillo|tuerca|arandela/i.test(itemName)) return "Hardware";
   return "Component";
+}
+
+function normalizeItemType(value: string): InventoryItem["itemType"] | undefined {
+  const normalized = normalizeKey(value);
+  if (!normalized) return undefined;
+  if (/component|componente/.test(normalized)) return "Component";
+  if (/hardware|tornillo|tuerca|arandela/.test(normalized)) return "Hardware";
+  if (/consumable|consumible/.test(normalized)) return "Consumable";
+  if (/oil|aceite/.test(normalized)) return "Oil";
+  if (/filter|filtro/.test(normalized)) return "Filter";
+  if (/tool|herramienta/.test(normalized)) return "Tool";
+  if (/kit/.test(normalized)) return "Kit";
+  if (/other|otro/.test(normalized)) return "Other";
+  return undefined;
 }
 
 function matchVesselId(store: FleetStore, value: string) {
