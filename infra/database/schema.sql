@@ -530,12 +530,13 @@ create table migration_logs (
 -- ========================================================================
 -- Row Level Security
 -- ========================================================================
--- MVP posture: any authenticated HeliServiX user (you, and later your
--- maintenance chief / pilots) can read and write. Tighten per-role
--- later (e.g. Maintenance Chief View limited to components + logs) by
--- replacing these blanket policies with role-checked ones — the roles
--- are already modeled in the product docs (Administrator / Maintenance
--- Chief), they just were not enforced anywhere in HSV OS 0.2/0.3.
+-- MVP posture: no login exists yet (matches HSV OS 0.2/0.3's own
+-- documented "Authentication is not active" limitation), so policies
+-- grant access to both `anon` and `authenticated` for now. Once
+-- Supabase Auth is wired up for you / your maintenance chief / pilots,
+-- replace `anon, authenticated` below with role-checked policies per
+-- the Administrator / Maintenance Chief roles already described in
+-- docs/HSV-SPEC-002_MAINTENANCE_CREW_PORTAL.md.
 
 do $$
 declare
@@ -550,6 +551,6 @@ begin
     ])
   loop
     execute format('alter table %I enable row level security;', t);
-    execute format('create policy %I_authenticated_all on %I for all to authenticated using (true) with check (true);', t, t);
+    execute format('create policy %I_open_access on %I for all to anon, authenticated using (true) with check (true);', t, t);
   end loop;
 end $$;

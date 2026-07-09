@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --color-brand-primary-blue: 0 91 170;
+  --color-brand-dark-navy: 6 27 46;
+  --color-brand-light-blue: 232 243 255;
+  --color-brand-white: 255 255 255;
+  --color-brand-light-gray: 243 246 250;
+  --color-status-green: 22 163 74;
+  --color-status-yellow: 217 119 6;
+  --color-status-red: 220 38 38;
+  --color-canvas: 243 246 250;
+  --color-canvas-muted: 232 243 255;
+  --color-ink: 6 27 46;
+  --color-ink-muted: 71 85 105;
+  --color-ink-subtle: 100 116 139;
+  --color-line: 220 229 239;
+  --color-aviation-teal: 0 91 170;
+  --color-aviation-green: var(--color-status-green);
+  --color-aviation-amber: var(--color-status-yellow);
+  --color-aviation-red: var(--color-status-red);
+  --color-aviation-blue: var(--color-brand-primary-blue);
+}
+
+.dark {
+  color-scheme: dark;
+  --color-brand-light-blue: 17 49 80;
+  --color-canvas: 13 18 26;
+  --color-canvas-muted: 19 27 39;
+  --color-ink: 241 245 249;
+  --color-ink-muted: 203 213 225;
+  --color-ink-subtle: 148 163 184;
+  --color-line: 51 65 85;
+  --color-aviation-teal: 45 212 191;
+  --color-aviation-green: 74 222 128;
+  --color-aviation-amber: 251 191 36;
+  --color-aviation-red: 248 113 113;
+  --color-aviation-blue: 96 165 250;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: rgb(var(--color-canvas));
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 246, 250, 0.96) 28rem),
+    rgb(var(--color-canvas));
+  color: rgb(var(--color-ink));
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  text-rendering: geometricPrecision;
+}
+
+.dark body {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.46), rgba(13, 18, 26, 0.96) 28rem),
+    rgb(var(--color-canvas));
+}
+
+::selection {
+  background: rgba(0, 91, 170, 0.18);
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgb(var(--color-brand-primary-blue));
+    outline-offset: 2px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--color-ink-subtle));
+  }
+}
+
+@layer components {
+  .hsv-panel {
+    @apply min-w-0 rounded-xl border border-line bg-white p-5 shadow-panel backdrop-blur-xl dark:bg-canvas-muted;
+  }
+
+  .hsv-control {
+    @apply h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-medium text-ink shadow-control outline-none transition duration-150 placeholder:text-ink-subtle hover:border-aviation-blue/30 focus:border-aviation-blue focus:ring-4 focus:ring-aviation-blue/10 disabled:cursor-not-allowed disabled:bg-canvas-muted disabled:text-ink-subtle dark:bg-canvas-muted;
+  }
+
+  .hsv-textarea {
+    @apply min-h-32 w-full resize-y rounded-md border border-line bg-white px-3 py-3 text-sm font-medium leading-6 text-ink shadow-control outline-none transition duration-150 placeholder:text-ink-subtle hover:border-aviation-blue/30 focus:border-aviation-blue focus:ring-4 focus:ring-aviation-blue/10 disabled:cursor-not-allowed disabled:bg-canvas-muted disabled:text-ink-subtle dark:bg-canvas-muted;
+  }
+
+  .hsv-primary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-4 text-sm font-semibold text-white shadow-control transition duration-150 hover:bg-brand-blue active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-ink dark:hover:bg-brand-lightBlue;
+  }
+
+  .hsv-secondary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink-muted shadow-control transition duration-150 hover:border-aviation-blue/30 hover:text-ink active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 dark:bg-canvas-muted;
+  }
+
+  .hsv-ghost-button {
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5 text-sm font-semibold text-ink-muted transition duration-150 hover:bg-canvas-muted hover:text-ink;
+  }
+
+  .hsv-danger-button {
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5 text-sm font-semibold text-aviation-red transition duration-150 hover:bg-aviation-red/10;
+  }
+
+  .hsv-table-wrap {
+    @apply overflow-x-auto rounded-xl border border-line bg-white shadow-panel dark:bg-canvas-muted;
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 520px;
+  }
+
+  .hsv-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .hsv-table-head {
+    @apply sticky top-0 z-10 border-b border-line bg-canvas-muted/95 text-[11px] uppercase tracking-wide text-ink-subtle backdrop-blur;
+  }
+
+  .hsv-table-th {
+    @apply whitespace-nowrap px-4 py-3.5 font-semibold;
+  }
+
+  .hsv-table-body {
+    @apply divide-y divide-line bg-white/70 dark:bg-canvas-muted;
+  }
+
+  .hsv-table-body tr {
+    @apply transition duration-150 hover:bg-brand-lightBlue/40;
+  }
+
+  .hsv-table-row {
+    @apply transition duration-150 hover:bg-brand-lightBlue/40;
+  }
+
+  .hsv-table-cell {
+    @apply px-4 py-3.5 align-middle;
+  }
+
+  .hsv-technical-value {
+    @apply font-mono tabular-nums tracking-normal;
+  }
+
+  .hsv-empty-state {
+    @apply rounded-lg border border-dashed border-line bg-canvas-muted/40 px-5 py-8 text-center text-sm text-ink-subtle;
+  }
+
+  .hsv-success-banner {
+    @apply mb-5 rounded-lg border border-aviation-green/25 bg-aviation-green/10 px-4 py-3 text-sm font-semibold text-aviation-green shadow-control;
+  }
+
+  .hsv-error-banner {
+    @apply mb-5 rounded-lg border border-aviation-red/25 bg-aviation-red/10 px-4 py-3 text-sm font-semibold text-aviation-red shadow-control;
+  }
+
+  .hsv-skeleton-line {
+    @apply animate-pulse rounded bg-canvas-muted;
+  }
+}
