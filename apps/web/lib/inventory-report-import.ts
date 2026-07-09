@@ -90,8 +90,15 @@ export type InventoryImportPreview = {
     field: InventoryImportField;
     label: string;
     header: string;
+    columnIndex?: number;
     confidence: number;
+    status: "auto-mapped" | "needs-review" | "blocked" | "optional" | "manual";
+    sampleValues: string[];
+    warning?: string;
+    evidence: string;
+    manuallyMapped: boolean;
   }>;
+  columnOptions: Array<{ index: number; header: string }>;
   records: InventoryImportRecord[];
   weeklyReport: WeeklyReportPreview;
   recommendations: string[];
@@ -120,13 +127,14 @@ export type InventoryImportOptions = {
 };
 
 type Mapping = Partial<Record<InventoryImportField, number>>;
+export type InventoryImportColumnOverride = Partial<Record<InventoryImportField, number | null>>;
 
 const fieldAliases: Record<InventoryImportField, string[]> = {
   itemName: ["item name", "name", "nombre", "descripcion", "descripción", "description", "item", "articulo", "artículo", "material"],
-  partNumber: ["part number", "part no", "pn", "p/n", "numero de parte", "número de parte", "numero parte", "parte"],
-  serialNumber: ["serial number", "serial", "sn", "s/n", "numero de serie", "número de serie"],
+  partNumber: ["p/n", "pn", "part number", "part no", "part no.", "numero de parte", "número de parte", "numero parte", "nº parte", "no parte"],
+  serialNumber: ["s/n", "sn", "serial", "serial number", "serial no", "serial no.", "numero de serie", "número de serie", "numero serie"],
   category: ["category", "categoria", "categoría", "item type", "tipo", "tipo item", "clase", "familia"],
-  quantity: ["quantity", "qty", "cantidad", "existencia", "stock", "on board", "a bordo"],
+  quantity: ["quantity", "qty", "cantidad", "existencia", "stock"],
   unit: ["unit", "unidad", "u/m", "um", "uom", "medida"],
   storageLocation: ["bodega", "storage", "location", "ubicacion", "ubicación", "almacen", "almacén"],
   vessel: ["vessel", "barco", "buque", "embarcacion", "embarcación"],
@@ -156,21 +164,36 @@ export function buildInventoryImportPreview(input: {
     campaignId?: string;
     helicopterRegistration?: string;
   };
+  mappingOverrides?: InventoryImportColumnOverride;
 }): InventoryImportPreview {
   const sheetPreview = input.sheets
-    .map((sheet) => ({ sheet, table: findInventoryTable(sheet.rows) }))
+    .map((sheet) => ({ sheet, table: findInventoryTable(sheet.rows, input.mappingOverrides) }))
     .filter((item) => item.table)
     .sort((a, b) => b.table!.score - a.table!.score)[0];
   const sheet = sheetPreview?.sheet ?? input.sheets[0] ?? { name: "", rows: [] };
   const table = sheetPreview?.table;
   const metadata = detectWeeklyMetadata(input.sheets, input.store, input.context);
   const mapping = table?.mapping ?? {};
-  const mappedFields = (Object.keys(fieldAliases) as InventoryImportField[]).map((field) => ({
+  const mappedFields = (Object.keys(fieldAliases) as InventoryImportField[]).map((field) => {
+    const columnIndex = mapping[field];
+    const sampleValues = columnIndex === undefined ? [] : sampleColumnValues(table?.rows ?? [], columnIndex);
+    const manuallyMapped = Boolean(input.mappingOverrides && Object.prototype.hasOwnProperty.call(input.mappingOverrides, field));
+    const initialConfidence = columnIndex === undefined ? 0 : manuallyMapped ? 100 : scoreHeaderForField(table?.headerRow[columnIndex], field);
+    const warning = columnIndex === undefined ? undefined : validateColumnSamples(field, sampleValues);
+    const confidence = warning && !manuallyMapped ? Math.min(initialConfidence, 79) : initialConfidence;
+    return {
     field,
     label: fieldLabels[field],
-    header: mapping[field] === undefined ? "" : normalizeCell(table?.headerRow[mapping[field]!]),
-    confidence: mapping[field] === undefined ? 0 : scoreHeaderForField(table?.headerRow[mapping[field]!], field)
-  }));
+      header: columnIndex === undefined ? "" : normalizeCell(table?.headerRow[columnIndex]),
+      columnIndex,
+      confidence,
+      status: getMappingStatus(field, confidence, manuallyMapped, columnIndex !== undefined),
+      sampleValues,
+      warning,
+      evidence: columnIndex === undefined ? "No matching column met the safe mapping threshold." : `Header "${normalizeCell(table?.headerRow[columnIndex])}" matched ${fieldLabels[field]}.`,
+      manuallyMapped
+    };
+  });
 
   const records = table
     ? table.rows
@@ -210,6 +233,7 @@ export function buildInventoryImportPreview(input: {
     worksheetNames: input.sheets.map((item) => item.name),
     activeWorksheetName: sheet.name,
     mappedFields,
+    columnOptions: buildColumnOptions(table?.headerRow ?? []),
     records: recordsWithDuplicates,
     weeklyReport,
     recommendations: buildRecommendations(recordsWithDuplicates, weeklyReport),
@@ -332,6 +356,20 @@ export function applyInventoryImport(current: FleetStore, preview: InventoryImpo
   return nextStore;
 }
 
+export function hasBlockingInventoryImportIssues(preview?: InventoryImportPreview, selectedVesselId?: string, selectedStorageLocation?: string) {
+  if (!preview) return true;
+  const byField = new Map(preview.mappedFields.map((field) => [field.field, field]));
+  const itemName = byField.get("itemName");
+  const quantity = byField.get("quantity");
+  const partNumber = byField.get("partNumber");
+  if (!isSafeInventoryMapping(itemName)) return true;
+  if (!isSafeInventoryMapping(quantity)) return true;
+  if (partNumber?.columnIndex !== undefined && !isSafeInventoryMapping(partNumber)) return true;
+  if (!selectedVesselId && !preview.detected.vesselId) return true;
+  if (!selectedStorageLocation && !preview.detected.storageLocation) return true;
+  return false;
+}
+
 export function exportInventoryPdfDocument(input: {
   items: InventoryItem[];
   store: FleetStore;
@@ -426,10 +464,10 @@ export function exportInventoryPdfDocument(input: {
   printWindow.print();
 }
 
-function findInventoryTable(rows: unknown[][]) {
+function findInventoryTable(rows: unknown[][], overrides?: InventoryImportColumnOverride) {
   return rows
     .map((row, index) => {
-      const mapping = mapHeader(row);
+      const mapping = mapHeader(row, overrides);
       const score = scoreMapping(mapping);
       return {
         headerRow: row,
@@ -443,12 +481,22 @@ function findInventoryTable(rows: unknown[][]) {
     .sort((a, b) => b.score - a.score)[0];
 }
 
-function mapHeader(row: unknown[]): Mapping {
+function mapHeader(row: unknown[], overrides?: InventoryImportColumnOverride): Mapping {
   const used = new Set<number>();
+  const manualMapping: Mapping = {};
+  if (overrides) {
+    Object.entries(overrides).forEach(([field, index]) => {
+      if (index === null || index === undefined) return;
+      manualMapping[field as InventoryImportField] = index;
+      used.add(index);
+    });
+  }
   return Object.fromEntries((Object.keys(fieldAliases) as InventoryImportField[]).map((field) => {
+    if (manualMapping[field] !== undefined) return [field, manualMapping[field]];
+    if (overrides && field in overrides && overrides[field] === null) return [field, undefined];
     const candidates = row
       .map((cell, index) => ({ index, score: scoreHeaderForField(cell, field) }))
-      .filter((candidate) => candidate.score >= 58 && !used.has(candidate.index))
+      .filter((candidate) => candidate.score >= 80 && !used.has(candidate.index))
       .sort((a, b) => b.score - a.score);
     const best = candidates[0];
     if (!best) return [field, undefined];
@@ -649,6 +697,88 @@ function scoreHeaderForField(header: unknown, field: InventoryImportField) {
     const overlap = target.split(" ").filter((token) => normalized.split(" ").includes(token)).length;
     return overlap ? 50 + overlap * 12 : 0;
   }), 0);
+}
+
+function isSafeInventoryMapping(field?: InventoryImportPreview["mappedFields"][number]) {
+  if (!field || field.columnIndex === undefined) return false;
+  if (field.manuallyMapped) return true;
+  return field.confidence >= 95 && field.status === "auto-mapped" && !field.warning;
+}
+
+function buildColumnOptions(row: unknown[]) {
+  return row
+    .map((cell, index) => ({ index, header: normalizeCell(cell) || `Column ${index + 1}` }))
+    .filter((option) => option.header.trim());
+}
+
+function sampleColumnValues(rows: unknown[][], columnIndex: number) {
+  return rows
+    .map((row) => normalizeCell(row[columnIndex]))
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .slice(0, 3);
+}
+
+function getMappingStatus(
+  field: InventoryImportField,
+  confidence: number,
+  manuallyMapped: boolean,
+  hasColumn: boolean
+): InventoryImportPreview["mappedFields"][number]["status"] {
+  if (field === "notes") return "optional";
+  if (manuallyMapped) return "manual";
+  if (!hasColumn || confidence < 80) return "blocked";
+  if (confidence < 95) return "needs-review";
+  return "auto-mapped";
+}
+
+function validateColumnSamples(field: InventoryImportField, samples: string[]) {
+  if (!samples.length || field === "notes") return undefined;
+  if (field === "partNumber" && samples.some(looksLikePartNumberColumnNoise)) {
+    return "AURA is not confident this column represents Part Number.";
+  }
+  if (field === "partNumber" && samples.every(looksLikeRowNumberOrQuantity)) {
+    return "Possible wrong P/N mapping. Values look like row numbers or quantities.";
+  }
+  if (field === "serialNumber" && samples.some(looksLikeSerialNumberColumnNoise)) {
+    return "Serial Number appears to be mapped to a quantity column.";
+  }
+  if (field === "serialNumber" && samples.every(looksLikeRowNumberOrQuantity)) {
+    return "Serial Number appears to be mapped to a quantity column.";
+  }
+  if (field === "quantity" && samples.some(isInvalidNumericSample)) {
+    return "AURA is not confident this column represents Quantity.";
+  }
+  return undefined;
+}
+
+function looksLikeRowNumberOrQuantity(value: string) {
+  const parsed = Number(value.replace(",", ".").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 && /^\d{1,2}(?:[.,]\d+)?$/.test(value.trim());
+}
+
+function isInvalidNumericSample(value: string) {
+  const numeric = value.replace(",", ".").replace(/[^\d.-]/g, "");
+  return !/\d/.test(numeric) || Number.isNaN(Number(numeric));
+}
+
+function looksLikePartNumberColumnNoise(value: string) {
+  const normalized = normalizeKey(value);
+  return ["p/n", "pn", "part number", "numero de parte", "número de parte"].includes(normalized) ||
+    normalized.includes("hrs aeronave") ||
+    normalized.includes("hrs motor") ||
+    normalized.includes("revisado por") ||
+    normalized.endsWith(":");
+}
+
+function looksLikeSerialNumberColumnNoise(value: string) {
+  const normalized = normalizeKey(value);
+  return ["s/n", "sn", "serial", "serial number", "numero de serie", "número de serie"].includes(normalized) ||
+    normalized.includes("cantidad") ||
+    normalized.includes("quantity") ||
+    normalized.includes("hrs aeronave") ||
+    normalized.includes("hrs motor") ||
+    normalized.includes("revisado por");
 }
 
 function calculateConfidence(input: { itemName: string; partNumber: string; serialNumber: string; quantity: number; storageLocation: string; existing: boolean; errors: string[] }) {

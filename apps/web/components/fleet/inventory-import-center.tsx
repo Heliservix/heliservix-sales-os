@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { FileDown, FileSpreadsheet, PackageCheck, ShieldCheck, Upload } from "lucide-react";
+import { CheckCircle2, FileDown, FileSpreadsheet, PackageCheck, ShieldCheck, Upload } from "lucide-react";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -10,7 +10,10 @@ import {
   applyInventoryImport,
   buildInventoryImportPreview,
   exportInventoryPdfDocument,
+  hasBlockingInventoryImportIssues,
   type InventoryImportAction,
+  type InventoryImportColumnOverride,
+  type InventoryImportField,
   type InventoryImportOptions,
   type InventoryImportPreview
 } from "@/lib/inventory-report-import";
@@ -32,6 +35,7 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [preview, setPreview] = useState<InventoryImportPreview>();
+  const [workbookSheets, setWorkbookSheets] = useState<Array<{ name: string; rows: unknown[][] }>>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [mode, setMode] = useState<InventoryImportOptions["mode"]>("merge");
@@ -45,6 +49,8 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
   const [selectedCampaignId, setSelectedCampaignId] = useState(context?.campaignId ?? "");
   const [selectedHelicopter, setSelectedHelicopter] = useState(context?.helicopterRegistration ?? "");
   const [rowActions, setRowActions] = useState<Record<string, InventoryImportAction>>({});
+  const [mappingOverrides, setMappingOverrides] = useState<InventoryImportColumnOverride>({});
+  const [columnMappingConfirmed, setColumnMappingConfirmed] = useState(false);
 
   const summary = useMemo(() => {
     const records = preview?.records ?? [];
@@ -69,8 +75,11 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
     }
     try {
       const sheets = await readXlsxWorkbook(file);
-      const nextPreview = buildInventoryImportPreview({ fileName: file.name, sheets, store, context });
+      setWorkbookSheets(sheets);
+      const nextPreview = buildInventoryImportPreview({ fileName: file.name, sheets, store, context, mappingOverrides: {} });
       setPreview(nextPreview);
+      setMappingOverrides({});
+      setColumnMappingConfirmed(false);
       setSelectedVesselId(nextPreview.detected.vesselId || context?.vesselId || store.vessels[0]?.id || "");
       setSelectedStorageLocation(nextPreview.detected.storageLocation || "");
       setSelectedCampaignId(nextPreview.detected.campaignId || context?.campaignId || "");
@@ -85,6 +94,10 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
 
   function applyImport() {
     if (!preview) return;
+    if (!columnMappingConfirmed || hasBlockingInventoryImportIssues(preview, selectedVesselId, selectedStorageLocation)) {
+      setError(tx("This workbook cannot be safely imported until mappings are corrected."));
+      return;
+    }
     if (!selectedVesselId) {
       setError(tx("Select a vessel before importing inventory."));
       return;
@@ -110,6 +123,24 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
       tx("Inventory and weekly operations report import saved to localStorage.")
     );
     setMessage(tx("Import complete. Inventory, flight hours, maintenance drafts, and stock movements were updated where selected."));
+  }
+
+  function updateMapping(field: InventoryImportField, value: string) {
+    if (!preview) return;
+    const nextOverrides: InventoryImportColumnOverride = { ...mappingOverrides };
+    if (value === "auto") {
+      delete nextOverrides[field];
+    } else if (value === "ignore") {
+      nextOverrides[field] = null;
+    } else {
+      nextOverrides[field] = Number(value);
+    }
+    const nextPreview = buildInventoryImportPreview({ fileName: preview.fileName, sheets: workbookSheets, store, context, mappingOverrides: nextOverrides });
+    setMappingOverrides(nextOverrides);
+    setColumnMappingConfirmed(false);
+    setPreview(nextPreview);
+    setRowActions(Object.fromEntries(nextPreview.records.map((record) => [record.key, record.recommendedAction])));
+    setMessage(tx("Column mapping updated. Review inventory preview before import."));
   }
 
   function exportPdf() {
@@ -201,6 +232,16 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
                 <ImportStat label="Existing stock matches" value={String(summary.matches)} tone={summary.matches ? "blue" : "neutral"} />
                 <ImportStat label="Flight hours" value={preview.weeklyReport.flightHours ? preview.weeklyReport.flightHours.toFixed(1) : "0.0"} tone={preview.weeklyReport.flightHours ? "amber" : "neutral"} />
               </section>
+
+              <InventoryMappingPreview
+                preview={preview}
+                confirmed={columnMappingConfirmed}
+                onChange={updateMapping}
+                onConfirm={() => {
+                  setColumnMappingConfirmed(true);
+                  setMessage(tx("Column mapping confirmed. Review inventory preview before import."));
+                }}
+              />
 
               <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -317,7 +358,7 @@ export function InventoryImportCenter({ store, onApply, context, compact = false
                   <FileDown className="h-4 w-4" aria-hidden="true" />
                   {tx("Export Inventory PDF")}
                 </button>
-                <button className="hsv-primary-button" type="button" onClick={applyImport} disabled={!summary.validRows}>
+                <button className="hsv-primary-button" type="button" onClick={applyImport} disabled={!summary.validRows || !columnMappingConfirmed || hasBlockingInventoryImportIssues(preview, selectedVesselId, selectedStorageLocation)}>
                   <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                   {tx("Import all valid rows")}
                 </button>
@@ -338,6 +379,110 @@ function ImportStat({ label, value, tone = "blue" }: { label: string; value: str
       <p className="mt-3 truncate text-lg font-semibold text-ink">{value}</p>
     </div>
   );
+}
+
+function InventoryMappingPreview({
+  preview,
+  confirmed,
+  onChange,
+  onConfirm
+}: {
+  preview: InventoryImportPreview;
+  confirmed: boolean;
+  onChange: (field: InventoryImportField, value: string) => void;
+  onConfirm: () => void;
+}) {
+  const { tx } = useI18n();
+  const blocked = hasBlockingInventoryColumnMapping(preview.mappedFields);
+  const needsReview = preview.mappedFields.some((field) => field.status === "needs-review" || field.warning);
+  return (
+    <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">{tx("Confirm Column Mapping")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("AURA must confirm every critical Excel column before import.")}</p>
+        </div>
+        <StatusPill tone={blocked ? "red" : needsReview ? "amber" : confirmed ? "green" : "blue"}>
+          {confirmed ? tx("Mapping confirmed") : blocked ? tx("Manual confirmation required before import.") : needsReview ? tx("Needs user review") : tx("Ready for confirmation")}
+        </StatusPill>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <MiniStat label="Detected workbook type" value={preview.weeklyReport.flightHours || preview.weeklyReport.maintenanceActions.length ? "Weekly Operations Report" : "Vessel Inventory Workbook"} />
+        <MiniStat label="Detected worksheet" value={preview.activeWorksheetName || "N/A"} />
+        <MiniStat label="Detected header row" value={preview.records[0]?.rowNumber ? String(Math.max(1, preview.records[0].rowNumber - 1)) : "N/A"} />
+        <MiniStat label="Mapping status" value={confirmed ? tx("Confirmed") : blocked ? tx("Blocked") : needsReview ? tx("Needs review") : tx("Ready")} />
+      </div>
+      <div className="hsv-table-wrap mt-4">
+        <table className="hsv-table min-w-[1180px]">
+          <thead className="hsv-table-head">
+            <tr>
+              {["Target Field", "Excel Column", "Sample Values", "Confidence", "Mapping status", "AURA evidence", "Correction"].map((header) => (
+                <th key={header} className="hsv-table-th">{tx(header)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="hsv-table-body">
+            {preview.mappedFields.map((field) => (
+              <tr key={field.field}>
+                <td className="px-4 py-3 font-semibold text-ink">{tx(field.label)}</td>
+                <td className="px-4 py-3 text-ink-muted">{field.header || tx("No column mapped")}</td>
+                <td className="px-4 py-3 text-ink-muted">{field.sampleValues.join(", ") || tx("No samples")}</td>
+                <td className="hsv-table-cell">
+                  <StatusPill tone={field.confidence >= 95 ? "green" : field.confidence >= 80 ? "amber" : "red"}>{field.confidence}%</StatusPill>
+                </td>
+                <td className="hsv-table-cell">
+                  <StatusPill tone={field.status === "auto-mapped" || field.status === "manual" || field.status === "optional" ? "green" : field.status === "needs-review" ? "amber" : "red"}>
+                    {tx(mappingStatusLabel(field.status))}
+                  </StatusPill>
+                </td>
+                <td className="px-4 py-3 text-ink-muted">{tx(field.warning || field.evidence)}</td>
+                <td className="hsv-table-cell">
+                  <select className="hsv-control h-10" value={field.manuallyMapped ? field.columnIndex === undefined ? "ignore" : String(field.columnIndex) : "auto"} onChange={(event) => onChange(field.field, event.target.value)}>
+                    <option value="auto">{tx("Auto detect")}</option>
+                    <option value="ignore">{tx("Do not import this field")}</option>
+                    {preview.columnOptions.map((option) => (
+                      <option key={`${field.field}-${option.index}`} value={option.index}>{option.header}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {blocked ? <p className="hsv-error-banner mt-4 mb-0">{tx("This workbook cannot be safely imported until mappings are corrected.")}</p> : null}
+      {needsReview ? <p className="hsv-warning-banner mt-4 mb-0">{tx("AURA is not confident about one or more mappings. Manual confirmation required before import.")}</p> : null}
+      <div className="mt-4 flex justify-end">
+        <button className="hsv-primary-button" type="button" onClick={onConfirm} disabled={blocked}>
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          {tx("Confirm Column Mapping")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function hasBlockingInventoryColumnMapping(mappedFields: InventoryImportPreview["mappedFields"]) {
+  const byField = new Map(mappedFields.map((field) => [field.field, field]));
+  const partNumber = byField.get("partNumber");
+
+  return !isConfirmedCriticalInventoryField(byField.get("itemName")) ||
+    !isConfirmedCriticalInventoryField(byField.get("quantity")) ||
+    (partNumber?.columnIndex !== undefined && !isConfirmedCriticalInventoryField(partNumber));
+}
+
+function isConfirmedCriticalInventoryField(field?: InventoryImportPreview["mappedFields"][number]) {
+  if (!field || field.columnIndex === undefined) return false;
+  if (field.manuallyMapped) return true;
+  return field.confidence >= 95 && field.status === "auto-mapped" && !field.warning;
+}
+
+function mappingStatusLabel(status: InventoryImportPreview["mappedFields"][number]["status"]) {
+  if (status === "auto-mapped") return "Auto-map";
+  if (status === "needs-review") return "Needs user review";
+  if (status === "blocked") return "Do not map automatically";
+  if (status === "optional") return "Optional";
+  return "Manual";
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {

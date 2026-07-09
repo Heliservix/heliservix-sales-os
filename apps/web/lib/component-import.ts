@@ -232,6 +232,10 @@ export type ComponentImportColumnMapping = {
   header: string;
   columnIndex?: number;
   confidence: number;
+  status: "auto-mapped" | "needs-review" | "blocked" | "optional" | "manual";
+  sampleValues: string[];
+  warning?: string;
+  evidence: string;
   manuallyMapped: boolean;
   alternatives: Array<{
     columnIndex: number;
@@ -242,14 +246,14 @@ export type ComponentImportColumnMapping = {
 
 const fieldAliases: Record<ComponentImportFieldKey, string[]> = {
   referenceNumber: ["ref", "ref #", "ref.", "ref. #", "reference", "reference number", "numero referencia", "número referencia"],
-  registration: ["registration", "matricula", "matrícula", "reg", "reg.", "aircraft", "helicopter", "aeronave", "helicoptero", "helicóptero", "aircraft registration", "helicopter registration"],
+  registration: ["registration", "matricula", "matrícula", "reg", "reg.", "aircraft registration", "helicopter registration", "matricula aeronave", "matrícula aeronave"],
   model: ["model", "modelo"],
   aircraftSerialNumber: ["aircraft serial number", "serial aeronave", "sn aeronave", "s/n aeronave", "aircraft sn"],
   currentHourmeter: ["current hourmeter", "horometro", "horómetro", "horometro aeronave", "hourmeter", "hobbs"],
-  componentName: ["component name", "component", "componente", "nombre componente", "reference", "referencia"],
+  componentName: ["component name", "component", "componente", "nombre componente", "nombre de componente", "descripcion componente", "descripción componente"],
   category: ["component category", "category", "categoria", "categoría", "grupo", "sistema"],
-  partNumber: ["part number", "part no", "part", "pn", "p/n", "numero parte", "n parte", "número de parte"],
-  serialNumber: ["serial number", "serial no", "serial", "sn", "s/n", "numero serie", "número de serie"],
+  partNumber: ["p/n", "pn", "part number", "part no", "part no.", "numero de parte", "número de parte", "numero parte", "nº parte", "no parte"],
+  serialNumber: ["s/n", "sn", "serial", "serial number", "serial no", "serial no.", "numero de serie", "número de serie", "numero serie"],
   position: ["position", "posicion", "posición"],
   installationDate: ["installation date", "fecha instalacion", "fecha instalación", "fecha instalado"],
   tsnHours: ["tsn", "tsn hrs", "tsn hours", "tsn (hrs)"],
@@ -708,12 +712,32 @@ export function hasBlockingImportIssues(preview?: ComponentImportPreview, select
   const selected = new Set(selectedRegistrations?.length ? selectedRegistrations : preview.detectedHelicopters.map((item) => item.registration));
   if (!preview.aircraftMetadata.registration) return true;
   if (!Number.isFinite(preview.aircraftMetadata.currentHourmeter) || preview.aircraftMetadata.currentHourmeter <= 0) return true;
+  if (hasBlockingComponentMapping(preview.mappedFields)) return true;
   return preview.issues.some((item) =>
     item.severity === "error" &&
     item.field !== "Aircraft metadata" &&
     !options.allowValidRowsOnly &&
     (!item.helicopterRegistration || selected.has(item.helicopterRegistration))
   );
+}
+
+function hasBlockingComponentMapping(mappedFields: ComponentImportColumnMapping[]) {
+  const byField = new Map(mappedFields.map((field) => [field.field, field]));
+  const componentName = byField.get("componentName");
+  const partNumber = byField.get("partNumber");
+  const serialNumber = byField.get("serialNumber");
+  const remainingHours = byField.get("remainingHours");
+  const lifeLimitHours = byField.get("lifeLimitHours");
+  if (!isSafeCriticalMapping(componentName)) return true;
+  if (!isSafeCriticalMapping(partNumber) && !isSafeCriticalMapping(serialNumber)) return true;
+  if (!isSafeCriticalMapping(remainingHours) && !isSafeCriticalMapping(lifeLimitHours)) return true;
+  return false;
+}
+
+function isSafeCriticalMapping(field?: ComponentImportColumnMapping) {
+  if (!field || field.columnIndex === undefined) return false;
+  if (field.manuallyMapped) return true;
+  return field.confidence >= 95 && field.status === "auto-mapped" && !field.warning;
 }
 
 export function importRecordKey(record: ComponentImportRecord) {
@@ -1028,11 +1052,18 @@ function findOfficialComponentTable(rows: RawRow[], overrides?: ComponentImportC
       }
     });
   }
-  const mappedFields = mapHeaderFields(headerRow, overrides).map((field) =>
+  const mappedFields = enrichMappedFields(mapHeaderFields(headerRow, overrides).map((field) =>
     mapping[field.field] !== undefined
-      ? buildColumnMapping(field.field, headerRow, mapping[field.field], field.confidence || 100, Boolean(overrides && Object.prototype.hasOwnProperty.call(overrides, field.field)), field.alternatives)
+      ? buildColumnMapping(
+        field.field,
+        headerRow,
+        mapping[field.field],
+        Boolean(overrides && Object.prototype.hasOwnProperty.call(overrides, field.field)) ? 100 : scoreHeaderForField(headerRow[mapping[field.field]!], field.field),
+        Boolean(overrides && Object.prototype.hasOwnProperty.call(overrides, field.field)),
+        field.alternatives
+      )
       : field
-  );
+  ), rows.slice(HSV_IMPORT_COMPONENTS_V1.componentDataStartRowIndex), mapping);
   return {
     headerRow,
     mapping,
@@ -1081,7 +1112,7 @@ function findComponentTable(rows: RawRow[], overrides?: ComponentImportColumnOve
   return {
     headerRow: best.row,
     mapping: best.mapping,
-    mappedFields: best.mappedFields,
+    mappedFields: enrichMappedFields(best.mappedFields, rows.slice(best.index + 1).filter((candidate) => candidate.some((cell) => normalizeCell(cell))), best.mapping),
     rows: rows.slice(best.index + 1).filter((candidate) => candidate.some((cell) => normalizeCell(cell))),
     startRowNumber: best.index + 2
   };
@@ -1147,7 +1178,7 @@ function mapHeaderFields(row: RawRow, overrides?: ComponentImportColumnOverride)
     .filter((field) => !manualMappings.has(field))
     .map((field) => {
       const best = candidatesByField[field][0];
-      return best && best.confidence >= 58
+      return best && best.confidence >= 80
         ? buildColumnMapping(field, row, best.columnIndex, best.confidence, false, candidatesByField[field])
         : buildColumnMapping(field, row, undefined, 0, false, candidatesByField[field]);
     })
@@ -1188,9 +1219,111 @@ function buildColumnMapping(
     header: columnIndex === undefined ? "" : normalizeCell(row[columnIndex]),
     columnIndex,
     confidence,
+    status: getMappingStatus(field, confidence, manuallyMapped, columnIndex !== undefined),
+    sampleValues: [],
+    warning: undefined,
+    evidence: columnIndex === undefined ? "No matching column met the safe mapping threshold." : `Header "${normalizeCell(row[columnIndex])}" matched ${fieldLabels[field]}.`,
     manuallyMapped,
     alternatives
   };
+}
+
+function enrichMappedFields(
+  mappedFields: ComponentImportColumnMapping[],
+  rows: RawRow[],
+  mapping: Partial<Record<ComponentImportFieldKey, number>>
+) {
+  return mappedFields.map((field) => {
+    const columnIndex = mapping[field.field] ?? field.columnIndex;
+    if (columnIndex === undefined) return field;
+    const sampleValues = sampleColumnValues(rows, columnIndex);
+    const warning = validateColumnSamples(field.field, sampleValues);
+    const confidence = warning && !field.manuallyMapped ? Math.min(field.confidence, 79) : field.confidence;
+    return {
+      ...field,
+      columnIndex,
+      sampleValues,
+      confidence,
+      status: getMappingStatus(field.field, confidence, field.manuallyMapped, true),
+      warning,
+      evidence: sampleValues.length
+        ? `Header "${field.header}" matched ${fieldLabels[field.field]}; samples: ${sampleValues.join(", ")}.`
+        : `Header "${field.header}" matched ${fieldLabels[field.field]}; no sample values found.`
+    };
+  });
+}
+
+function sampleColumnValues(rows: RawRow[], columnIndex: number) {
+  return rows
+    .map((row) => normalizeCell(row[columnIndex]))
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .slice(0, 3);
+}
+
+function getMappingStatus(
+  field: ComponentImportFieldKey,
+  confidence: number,
+  manuallyMapped: boolean,
+  hasColumn: boolean
+): ComponentImportColumnMapping["status"] {
+  if (field === "notes") return "optional";
+  if (manuallyMapped) return "manual";
+  if (!hasColumn || confidence < 80) return "blocked";
+  if (confidence < 95) return "needs-review";
+  return "auto-mapped";
+}
+
+function validateColumnSamples(field: ComponentImportFieldKey, samples: string[]) {
+  if (!samples.length || field === "notes") return undefined;
+  if (field === "partNumber" && samples.some(looksLikePartNumberColumnNoise)) {
+    return "AURA is not confident this column represents Part Number.";
+  }
+  if (field === "partNumber" && samples.every(looksLikeRowNumberOrQuantity)) {
+    return "Possible wrong P/N mapping. Values look like row numbers or quantities.";
+  }
+  if (field === "serialNumber" && samples.some(looksLikeSerialNumberColumnNoise)) {
+    return "Serial Number appears to be mapped to a quantity column.";
+  }
+  if (field === "serialNumber" && samples.every(looksLikeRowNumberOrQuantity)) {
+    return "Serial Number appears to be mapped to a quantity column.";
+  }
+  if (field === "remainingHours" && samples.some(isInvalidNumericSample)) {
+    return "AURA is not confident this column represents Remaining Hours.";
+  }
+  if (field === "lifeLimitHours" && samples.some(isInvalidNumericSample)) {
+    return "AURA is not confident this column represents Life Limit.";
+  }
+  return undefined;
+}
+
+function looksLikeRowNumberOrQuantity(value: string) {
+  const parsed = Number(value.replace(",", ".").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 && /^\d{1,2}(?:[.,]\d+)?$/.test(value.trim());
+}
+
+function isInvalidNumericSample(value: string) {
+  const numeric = value.replace(",", ".").replace(/[^\d.-]/g, "");
+  return !/\d/.test(numeric) || Number.isNaN(Number(numeric));
+}
+
+function looksLikePartNumberColumnNoise(value: string) {
+  const normalized = normalizeHeader(value);
+  return ["p/n", "pn", "part number", "numero de parte", "número de parte"].includes(normalized) ||
+    normalized.includes("hrs aeronave") ||
+    normalized.includes("hrs motor") ||
+    normalized.includes("revisado por") ||
+    normalized.endsWith(":");
+}
+
+function looksLikeSerialNumberColumnNoise(value: string) {
+  const normalized = normalizeHeader(value);
+  return ["s/n", "sn", "serial", "serial number", "numero de serie", "número de serie"].includes(normalized) ||
+    normalized.includes("cantidad") ||
+    normalized.includes("quantity") ||
+    normalized.includes("hrs aeronave") ||
+    normalized.includes("hrs motor") ||
+    normalized.includes("revisado por");
 }
 
 function buildFieldCandidates(row: RawRow, field: ComponentImportFieldKey) {

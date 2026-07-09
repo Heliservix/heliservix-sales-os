@@ -82,6 +82,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   const [workbookSheets, setWorkbookSheets] = useState<ParsedWorkbookSheet[]>([]);
   const [selectedSheetName, setSelectedSheetName] = useState("");
   const [mappingOverrides, setMappingOverrides] = useState<ComponentImportColumnOverride>({});
+  const [columnMappingConfirmed, setColumnMappingConfirmed] = useState(false);
   const [metadataOverrides, setMetadataOverrides] = useState<AircraftImportMetadataOverride>({});
   const [createHelicopter, setCreateHelicopter] = useState(true);
   const [updateHelicopter, setUpdateHelicopter] = useState(true);
@@ -132,6 +133,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
         ?? "";
       setSelectedSheetName(initialSheetName);
       setMappingOverrides({});
+      setColumnMappingConfirmed(false);
       setMetadataOverrides({});
       setRecordActions({});
       const nextPreview = rebuildPreview(file.name, sheets, {}, [], {}, initialSheetName);
@@ -192,6 +194,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   function updateSheet(name: string) {
     if (!preview) return;
     setSelectedSheetName(name);
+    setColumnMappingConfirmed(false);
     rebuildPreview(preview.fileName, workbookSheets, mappingOverrides, [], metadataOverrides, name);
     setMessage(tx("Worksheet selection updated. Review metadata and validation before import."));
   }
@@ -219,12 +222,13 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
       nextOverrides[field] = Number(value);
     }
     setMappingOverrides(nextOverrides);
+    setColumnMappingConfirmed(false);
     rebuildPreview(preview.fileName, workbookSheets, nextOverrides);
     setMessage(tx("Column mapping updated. Review detected helicopters and validation before import."));
   }
 
   function applyImport() {
-    if (!preview || hasBlockingImportIssues(preview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly })) return;
+    if (!preview || !columnMappingConfirmed || hasBlockingImportIssues(preview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly })) return;
     const result = applyComponentImport(store, preview, {
       createHelicopter,
       updateHelicopter,
@@ -415,7 +419,15 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
 
         <WorkbookDiagnosticsPanel preview={currentPreview} />
         <AircraftMetadataPanel preview={currentPreview} onChange={updateMetadata} />
-        <MappingConfidencePanel preview={currentPreview} onChange={updateMapping} />
+        <MappingConfidencePanel
+          preview={currentPreview}
+          confirmed={columnMappingConfirmed}
+          onChange={updateMapping}
+          onConfirm={() => {
+            setColumnMappingConfirmed(true);
+            setMessage(tx("Column mapping confirmed. Review component preview before import."));
+          }}
+        />
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {detectedAircraft.map((helicopter) => {
@@ -454,7 +466,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
           })}
         </section>
 
-        <WizardActions canContinue={selectedRegistrations.length > 0} onNext={() => setStep(3)} />
+        <WizardActions canContinue={columnMappingConfirmed && selectedRegistrations.length > 0} onNext={() => setStep(3)} />
       </div>
     );
   }
@@ -482,7 +494,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   }
 
   function renderValidateStep(currentPreview: ComponentImportPreview) {
-    const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
+    const blocking = !columnMappingConfirmed || hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
     return (
       <div className="grid gap-5">
         <section className="grid gap-3 md:grid-cols-5">
@@ -516,7 +528,7 @@ export function AircraftMigrationCenter({ store, onApply, preselectedRegistratio
   }
 
   function renderImportStep(currentPreview: ComponentImportPreview) {
-    const blocking = hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
+    const blocking = !columnMappingConfirmed || hasBlockingImportIssues(currentPreview, selectedRegistrations, { allowValidRowsOnly: forceValidRowsOnly });
     return (
       <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
         <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
@@ -778,28 +790,40 @@ function WorkbookDiagnosticsPanel({ preview }: { preview: ComponentImportPreview
 
 function MappingConfidencePanel({
   preview,
-  onChange
+  confirmed,
+  onChange,
+  onConfirm
 }: {
   preview: ComponentImportPreview;
+  confirmed: boolean;
   onChange: (field: ComponentImportFieldKey, value: string) => void;
+  onConfirm: () => void;
 }) {
   const { tx } = useI18n();
+  const blocked = hasBlockingComponentColumnMapping(preview.mappedFields);
+  const needsReview = preview.mappedFields.some((field) => field.status === "needs-review" || field.warning);
   return (
     <section className="rounded-lg border border-line bg-white/84 p-4 shadow-control dark:bg-canvas-muted/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-ink">{tx("Column mapping confidence")}</h3>
-          <p className="mt-1 text-sm text-ink-subtle">{tx("Review automatic matches and correct any column before import.")}</p>
+          <h3 className="text-sm font-semibold text-ink">{tx("Confirm Column Mapping")}</h3>
+          <p className="mt-1 text-sm text-ink-subtle">{tx("AURA must confirm every critical Excel column before import.")}</p>
         </div>
-        <StatusPill tone={preview.mappedFields.some((field) => field.confidence < 75) ? "amber" : "green"}>
-          {tx("Fuzzy matching active")}
+        <StatusPill tone={blocked ? "red" : needsReview ? "amber" : confirmed ? "green" : "blue"}>
+          {confirmed ? tx("Mapping confirmed") : blocked ? tx("Manual confirmation required before import.") : needsReview ? tx("Needs user review") : tx("Ready for confirmation")}
         </StatusPill>
       </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <MiniStat label="Detected workbook type" value={preview.diagnostics.templateName || preview.diagnostics.parserName} />
+        <MiniStat label="Detected worksheet" value={preview.diagnostics.selectedSheet || preview.activeWorksheetName || "N/A"} />
+        <MiniStat label="Detected header row" value={preview.diagnostics.componentHeaderRow ? String(preview.diagnostics.componentHeaderRow) : "N/A"} />
+        <MiniStat label="Mapping status" value={confirmed ? tx("Confirmed") : blocked ? tx("Blocked") : needsReview ? tx("Needs review") : tx("Ready")} />
+      </div>
       <div className="hsv-table-wrap mt-4">
-        <table className="hsv-table min-w-[860px]">
+        <table className="hsv-table min-w-[1180px]">
           <thead className="hsv-table-head">
             <tr>
-              {["Field", "Detected header", "Confidence", "Correction"].map((header) => (
+              {["Target Field", "Excel Column", "Sample Values", "Confidence", "Mapping status", "AURA evidence", "Correction"].map((header) => (
                 <th key={header} className="hsv-table-th">{tx(header)}</th>
               ))}
             </tr>
@@ -812,10 +836,19 @@ function MappingConfidencePanel({
                   {field.header || tx("No column mapped")}
                   {field.manuallyMapped ? <span className="ml-2 text-xs font-semibold text-aviation-blue">{tx("Manual")}</span> : null}
                 </td>
+                <td className="px-4 py-3 text-ink-muted">{field.sampleValues.join(", ") || tx("No samples")}</td>
                 <td className="hsv-table-cell">
-                  <StatusPill tone={field.confidence >= 90 ? "green" : field.confidence >= 75 ? "blue" : field.confidence >= 58 ? "amber" : "red"}>
+                  <StatusPill tone={field.confidence >= 95 ? "green" : field.confidence >= 80 ? "amber" : "red"}>
                     {field.confidence}%
                   </StatusPill>
+                </td>
+                <td className="hsv-table-cell">
+                  <StatusPill tone={field.status === "auto-mapped" || field.status === "manual" || field.status === "optional" ? "green" : field.status === "needs-review" ? "amber" : "red"}>
+                    {tx(mappingStatusLabel(field.status))}
+                  </StatusPill>
+                </td>
+                <td className="px-4 py-3 text-ink-muted">
+                  <p>{tx(field.warning || field.evidence)}</p>
                 </td>
                 <td className="hsv-table-cell">
                   <select
@@ -842,8 +875,41 @@ function MappingConfidencePanel({
           </tbody>
         </table>
       </div>
+      {blocked || needsReview ? (
+        <div className="mt-4 grid gap-2">
+          {blocked ? <p className="hsv-error-banner mb-0">{tx("This workbook cannot be safely imported until mappings are corrected.")}</p> : null}
+          {needsReview ? <p className="hsv-warning-banner mb-0">{tx("AURA is not confident about one or more mappings. Manual confirmation required before import.")}</p> : null}
+        </div>
+      ) : null}
+      <div className="mt-4 flex justify-end">
+        <button className="hsv-primary-button" type="button" onClick={onConfirm} disabled={blocked}>
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          {tx("Confirm Column Mapping")}
+        </button>
+      </div>
     </section>
   );
+}
+
+function hasBlockingComponentColumnMapping(mappedFields: ComponentImportPreview["mappedFields"]) {
+  const byField = new Map(mappedFields.map((field) => [field.field, field]));
+  return !isConfirmedCriticalComponentField(byField.get("componentName")) ||
+    (!isConfirmedCriticalComponentField(byField.get("partNumber")) && !isConfirmedCriticalComponentField(byField.get("serialNumber"))) ||
+    (!isConfirmedCriticalComponentField(byField.get("remainingHours")) && !isConfirmedCriticalComponentField(byField.get("lifeLimitHours")));
+}
+
+function isConfirmedCriticalComponentField(field?: ComponentImportPreview["mappedFields"][number]) {
+  if (!field || field.columnIndex === undefined) return false;
+  if (field.manuallyMapped) return true;
+  return field.confidence >= 95 && field.status === "auto-mapped" && !field.warning;
+}
+
+function mappingStatusLabel(status: ComponentImportPreview["mappedFields"][number]["status"]) {
+  if (status === "auto-mapped") return "Auto-map";
+  if (status === "needs-review") return "Needs user review";
+  if (status === "blocked") return "Do not map automatically";
+  if (status === "optional") return "Optional";
+  return "Manual";
 }
 
 function AuraRecommendations({ recommendations, migrationId }: { recommendations: string[]; migrationId: string }) {
