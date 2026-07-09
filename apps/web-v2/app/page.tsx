@@ -68,7 +68,12 @@ export default async function DashboardPage() {
           </section>
 
           <Panel>
-            <h3 className="text-base font-semibold text-ink">Alertas críticas</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-ink">Alertas críticas</h3>
+              <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/alerts">
+                Ver plan de mantenimiento →
+              </Link>
+            </div>
             <div className="mt-4 grid gap-3">
               {(criticalAlerts ?? []).map((alert) => (
                 <div key={alert.id} className="rounded-xl border border-aviation-red/20 bg-aviation-red/5 p-4">
@@ -87,11 +92,16 @@ export default async function DashboardPage() {
           <Panel>
             <h3 className="text-base font-semibold text-ink">Siguiente paso</h3>
             <p className="mt-2 text-sm leading-6 text-ink-subtle">
-              Esta es la primera vista real del rediseño. Solo Flota está migrada a la base de datos por ahora.
+              Sube el reporte semanal de cada barco los lunes para mantener horas y componentes al día.
             </p>
-            <Link className="hsv-primary-button mt-4 inline-flex" href="/helicopters">
-              Ver flota
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link className="hsv-primary-button" href="/helicopters">
+                Ver flota
+              </Link>
+              <Link className="hsv-secondary-button" href="/reports/import">
+                Importar reporte semanal
+              </Link>
+            </div>
           </Panel>
         </div>
       </div>

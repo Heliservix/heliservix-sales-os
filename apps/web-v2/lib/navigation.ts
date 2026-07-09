@@ -55,7 +55,7 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       { label: "Components", labelKey: "nav.components", href: "/components", icon: Wrench, status: "planned" },
       { label: "Weekly Reports", labelKey: "nav.weeklyReports", href: "/reports/import", icon: ClipboardList, status: "ready" },
-      { label: "Maintenance", labelKey: "nav.maintenance", href: "/alerts", icon: AlertTriangle, status: "planned" },
+      { label: "Maintenance", labelKey: "nav.maintenance", href: "/alerts", icon: AlertTriangle, status: "ready" },
       { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "planned" },
       { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "planned" }
     ]

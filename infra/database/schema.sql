@@ -198,7 +198,11 @@ begin
     ) values (
       new.helicopter_registration, new.id, new.component_name, computed_alert_type,
       computed_severity,
-      case when new.remaining_hours <= 0 then 'Hours' when coalesce(new.remaining_calendar_days,0) <= 0 then 'Calendar' else 'Forecast' end,
+      case
+        when new.remaining_hours <= 0 then 'Hours'
+        when new.remaining_calendar_days is not null and new.remaining_calendar_days <= 0 then 'Calendar'
+        else 'Forecast'
+      end,
       new.remaining_hours, new.remaining_calendar_days, new.calendar_limit_date,
       'Maintenance Chief', 'Open',
       new.component_name || ' is ' || new.status || '. Review hour, calendar, and evidence records before dispatch.',
