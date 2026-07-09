@@ -3,7 +3,7 @@ import { Plane, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
-import { PageHeader } from "@/components/fleet/page-header";
+import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export default async function HelicoptersPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
-        <PageHeader
+        <SectionHeader
           eyebrow="Flota"
           title="Helicópteros"
           description="Matrícula, modelo, horómetro y estado — datos reales de Supabase, no de un archivo en tu navegador."

@@ -1,14 +1,14 @@
 import { Plane } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
-import { PageHeader } from "@/components/fleet/page-header";
+import { SectionHeader } from "@/components/ui/section-header";
 import { createHelicopter, helicopterStatuses } from "@/app/helicopters/actions";
 
 export default function NewHelicopterPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">
-        <PageHeader
+        <SectionHeader
           eyebrow="Flota"
           title="Crear helicóptero"
           description="Se guarda directo en la base de datos: matrícula única, sin duplicados posibles."

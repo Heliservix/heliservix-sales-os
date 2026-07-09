@@ -4,7 +4,7 @@ import { Pencil, Plane, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
-import { PageHeader } from "@/components/fleet/page-header";
+import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { deleteHelicopter } from "@/app/helicopters/actions";
 
@@ -34,7 +34,7 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
   return (
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
-        <PageHeader eyebrow="Flota" title={`Aeronave ${helicopter.registration}`} description={helicopter.model} icon={Plane} />
+        <SectionHeader eyebrow="Flota" title={`Aeronave ${helicopter.registration}`} description={helicopter.model} icon={Plane} />
 
         <Panel className="mb-5">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">

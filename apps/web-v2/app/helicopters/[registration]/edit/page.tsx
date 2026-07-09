@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Plane } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
-import { PageHeader } from "@/components/fleet/page-header";
+import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { helicopterStatuses, updateHelicopter } from "@/app/helicopters/actions";
 
@@ -20,7 +20,7 @@ export default async function EditHelicopterPage({ params }: EditHelicopterPageP
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">
-        <PageHeader eyebrow="Flota" title={`Editar ${helicopter.registration}`} description={helicopter.model} icon={Plane} />
+        <SectionHeader eyebrow="Flota" title={`Editar ${helicopter.registration}`} description={helicopter.model} icon={Plane} />
         <Panel>
           <form action={boundUpdate} className="grid gap-5 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
