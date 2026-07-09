@@ -113,6 +113,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | undefined>();
   const [selectedInventoryVesselId, setSelectedInventoryVesselId] = useState("");
   const [selectedInventoryBodega, setSelectedInventoryBodega] = useState("");
+  const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("All");
+  const [inventoryAircraftFilter, setInventoryAircraftFilter] = useState("All");
+  const [inventoryStockStatusFilter, setInventoryStockStatusFilter] = useState("All");
   const [inventoryWorkspaceMode, setInventoryWorkspaceMode] = useState<"item" | "movement">("item");
   const [inventoryMovementPreset, setInventoryMovementPreset] = useState<StockMovement["movementType"]>("Received");
 
@@ -1268,25 +1272,36 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     const bodegaOptions = selectedInventoryVesselId
       ? uniqueValues(inventoryItems
         .filter((item) => item.vesselId === selectedInventoryVesselId)
-        .map((item) => item.storageLocation || "Unassigned bodega"))
+        .map(inventoryBodegaName))
       : [];
     const bodegaItems = inventoryItems.filter((item) =>
       Boolean(selectedInventoryVesselId) &&
       Boolean(selectedInventoryBodega) &&
       item.vesselId === selectedInventoryVesselId &&
-      (item.storageLocation || "Unassigned bodega") === selectedInventoryBodega
+      inventoryBodegaName(item) === selectedInventoryBodega
     );
     const vesselItems = inventoryItems.filter((item) => !selectedInventoryVesselId || item.vesselId === selectedInventoryVesselId);
+    const categoryOptions = ["All", ...uniqueValues(vesselItems.map((item) => item.itemType))];
+    const aircraftOptions = ["All", ...uniqueValues(vesselItems.map((item) => item.relatedHelicopter || "Unassigned aircraft"))];
+    const stockStatusOptions = ["All", "OK", "Low stock", "Out of stock", "Expiring soon", "Expired"];
+    const filteredBodegaItems = bodegaItems.filter((item) => {
+      const stockStatus = getLowStockStatus(item);
+      const aircraft = item.relatedHelicopter || "Unassigned aircraft";
+      return matchesInventorySearch(item, inventorySearchQuery) &&
+        (inventoryCategoryFilter === "All" || item.itemType === inventoryCategoryFilter) &&
+        (inventoryAircraftFilter === "All" || aircraft === inventoryAircraftFilter) &&
+        (inventoryStockStatusFilter === "All" || stockStatus === inventoryStockStatusFilter);
+    });
     const movementItems = bodegaItems.length ? bodegaItems : vesselItems;
     const bodegaMovements = store.stockMovements.filter((movement) => {
       const item = inventoryItems.find((record) => record.id === movement.inventoryItemId);
       if (!item) return false;
       return (!selectedInventoryVesselId || item.vesselId === selectedInventoryVesselId) &&
-        (!selectedInventoryBodega || item.storageLocation === selectedInventoryBodega || movement.fromLocation === selectedInventoryBodega || movement.toLocation === selectedInventoryBodega);
+        (!selectedInventoryBodega || inventoryBodegaName(item) === selectedInventoryBodega || movement.fromLocation === selectedInventoryBodega || movement.toLocation === selectedInventoryBodega);
     });
-    const rows = prepareCrudRows(bodegaItems, {
-      query: listQuery,
-      filter: listFilter,
+    const rows = prepareCrudRows(filteredBodegaItems, {
+      query: "",
+      filter: "All",
       sortKey,
       sortDirection,
       searchable: (item) => [item.itemName, item.itemType, item.storageLocation, item.partNumber, item.serialNumber, item.condition, item.relatedHelicopter, item.notes],
@@ -1295,6 +1310,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     });
     const summary = {
       total: bodegaItems.length,
+      totalUnits: bodegaItems.reduce((sum, item) => sum + item.quantity, 0),
       criticalSpares: bodegaItems.filter((item) => ["Component", "Kit"].includes(item.itemType)).length,
       consumables: bodegaItems.filter((item) => ["Consumable", "Oil", "Filter", "Hardware"].includes(item.itemType)).length,
       lowStock: bodegaItems.filter((item) => getLowStockStatus(item) !== "OK").length,
@@ -1319,12 +1335,17 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
     }
 
     function exportSelectedInventory() {
+      if (!selectedInventoryVesselId || !selectedInventoryBodega) {
+        setMessage(tx("Select a vessel and bodega before exporting the bodega inventory PDF."));
+        return;
+      }
       exportInventoryPdfDocument({
-        items: inventoryItems,
+        items: bodegaItems,
         store,
         vesselId: selectedInventoryVesselId,
         storageLocation: selectedInventoryBodega,
-        campaignName: selectedVessel?.campaign
+        campaignName: selectedVessel?.campaign,
+        relatedAircraft: inventoryAircraftFilter !== "All" ? inventoryAircraftFilter : selectedVessel?.assignedHelicopter
       });
     }
 
@@ -1345,6 +1366,10 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
                 <select className={inputClass} value={selectedInventoryVesselId} onChange={(event) => {
                   setSelectedInventoryVesselId(event.target.value);
                   setSelectedInventoryBodega("");
+                  setInventoryCategoryFilter("All");
+                  setInventoryAircraftFilter("All");
+                  setInventoryStockStatusFilter("All");
+                  setInventorySearchQuery("");
                 }}>
                   <option value="">{tx("Select vessel")}</option>
                   {vessels.map((vessel) => <option key={vessel.id} value={vessel.id}>{vessel.name}</option>)}
@@ -1361,8 +1386,9 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
           </div>
         </Panel>
 
-        <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-7">
           <Metric label="Total items" value={String(summary.total)} tone="blue" detail="Current records in selected bodega" />
+          <Metric label="Total units" value={formatQuantity(summary.totalUnits)} tone="teal" detail="Total quantity across selected bodega" />
           <Metric label="Critical spares" value={String(summary.criticalSpares)} tone="teal" detail="Components and kits on board" />
           <Metric label="Consumables" value={String(summary.consumables)} tone="green" detail="Consumables, oils, filters, and hardware" />
           <Metric label="Low stock" value={String(summary.lowStock)} tone={summary.lowStock ? "amber" : "green"} detail="Items at or below minimum stock" />
@@ -1385,7 +1411,7 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
               <SectionHeading title="Inventory actions" detail="Use these actions for bodega-level stock control." />
               <button className="hsv-secondary-button" type="button" onClick={exportSelectedInventory}>
                 <FileDown className="h-4 w-4" aria-hidden="true" />
-                {tx("Export PDF")}
+                {tx("Export Bodega Inventory PDF")}
               </button>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -1530,15 +1556,21 @@ export function FleetOSClient({ view, recordId, mode = "create" }: FleetOSClient
             </div>
             <button className="hsv-secondary-button" type="button" onClick={exportSelectedInventory}>
               <FileDown className="h-4 w-4" aria-hidden="true" />
-              {tx("Export PDF")}
+              {tx("Export Bodega Inventory PDF")}
             </button>
           </div>
-          <ListControls
-            query={listQuery}
-            onQueryChange={setListQuery}
-            filter={listFilter}
-            onFilterChange={setListFilter}
-            filters={["All", "OK", "Low stock", "Out of stock", "Expiring soon", "Expired", "Component", "Hardware", "Consumable", "Oil", "Filter", "Tool", "Kit", "Unassigned aircraft", ...helicopters.map((item) => item.registration), "User", "Demo"]}
+          <InventoryFilterControls
+            query={inventorySearchQuery}
+            onQueryChange={setInventorySearchQuery}
+            category={inventoryCategoryFilter}
+            onCategoryChange={setInventoryCategoryFilter}
+            categoryOptions={categoryOptions}
+            aircraft={inventoryAircraftFilter}
+            onAircraftChange={setInventoryAircraftFilter}
+            aircraftOptions={aircraftOptions}
+            stockStatus={inventoryStockStatusFilter}
+            onStockStatusChange={setInventoryStockStatusFilter}
+            stockStatusOptions={stockStatusOptions}
             sortKey={sortKey}
             onSortKeyChange={setSortKey}
             sortOptions={[["name", "Item"], ["quantity", "Quantity"], ["status", "Status"]]}
@@ -1745,6 +1777,21 @@ function prepareCrudRows<T>(rows: T[], config: {
 
 function uniqueValues(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function inventoryBodegaName(item: InventoryItem) {
+  return item.storageLocation || "Unassigned bodega";
+}
+
+function matchesInventorySearch(item: InventoryItem, query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return [item.itemName, item.partNumber, item.serialNumber]
+    .some((value) => String(value ?? "").toLowerCase().includes(needle));
+}
+
+function formatQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function inventoryStatusTone(status: string): "green" | "amber" | "red" | "blue" | "neutral" {
@@ -2002,6 +2049,92 @@ function ListControls({
         {tx("Filter")}
         <select className={inputClass} value={filter} onChange={(event) => onFilterChange(event.target.value)}>
           {[...new Set(filters)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Sort")}
+        <select className={inputClass} value={sortKey} onChange={(event) => onSortKeyChange(event.target.value)}>
+          {sortOptions.map(([value, label]) => <option key={value} value={value}>{tx(label)}</option>)}
+        </select>
+      </label>
+      <button
+        className="hsv-secondary-button h-11"
+        type="button"
+        onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
+      >
+        <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
+        {sortDirection === "asc" ? tx("Ascending") : tx("Descending")}
+      </button>
+      <p className="rounded-md border border-line bg-white px-3 py-2 text-center text-sm font-semibold text-ink-muted shadow-control dark:bg-canvas-muted">{resultCount} {tx("records")}</p>
+    </div>
+  );
+}
+
+function InventoryFilterControls({
+  query,
+  onQueryChange,
+  category,
+  onCategoryChange,
+  categoryOptions,
+  aircraft,
+  onAircraftChange,
+  aircraftOptions,
+  stockStatus,
+  onStockStatusChange,
+  stockStatusOptions,
+  sortKey,
+  onSortKeyChange,
+  sortOptions,
+  sortDirection,
+  onSortDirectionChange,
+  resultCount
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  category: string;
+  onCategoryChange: (value: string) => void;
+  categoryOptions: string[];
+  aircraft: string;
+  onAircraftChange: (value: string) => void;
+  aircraftOptions: string[];
+  stockStatus: string;
+  onStockStatusChange: (value: string) => void;
+  stockStatusOptions: string[];
+  sortKey: string;
+  onSortKeyChange: (value: string) => void;
+  sortOptions: Array<[string, string]>;
+  sortDirection: "asc" | "desc";
+  onSortDirectionChange: (value: "asc" | "desc") => void;
+  resultCount: number;
+}) {
+  const { tx } = useI18n();
+  return (
+    <div className="mb-4 grid gap-3 rounded-lg border border-line bg-canvas-muted/44 p-3 shadow-control xl:grid-cols-[minmax(220px,1.25fr)_150px_170px_160px_145px_136px_auto] xl:items-end">
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Search item, P/N, or S/N")}
+        <input
+          className={inputClass}
+          placeholder={tx("Search by item name, P/N, S/N")}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+      </label>
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Category")}
+        <select className={inputClass} value={category} onChange={(event) => onCategoryChange(event.target.value)}>
+          {[...new Set(categoryOptions)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Related aircraft")}
+        <select className={inputClass} value={aircraft} onChange={(event) => onAircraftChange(event.target.value)}>
+          {[...new Set(aircraftOptions)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Stock status")}
+        <select className={inputClass} value={stockStatus} onChange={(event) => onStockStatusChange(event.target.value)}>
+          {[...new Set(stockStatusOptions)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
         </select>
       </label>
       <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">

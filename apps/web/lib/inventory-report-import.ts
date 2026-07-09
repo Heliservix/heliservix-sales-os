@@ -376,45 +376,50 @@ export function exportInventoryPdfDocument(input: {
   vesselId?: string;
   storageLocation?: string;
   campaignName?: string;
+  relatedAircraft?: string;
 }) {
   const vessel = input.store.vessels.find((item) => item.id === input.vesselId);
   const rows = input.items.filter((item) =>
     (!input.vesselId || item.vesselId === input.vesselId) &&
-    (!input.storageLocation || item.storageLocation === input.storageLocation)
+    (!input.storageLocation || inventoryBodegaName(item) === input.storageLocation)
   );
   const generatedAt = new Date().toLocaleString();
   const summary = {
     totalItems: rows.length,
+    totalUnits: rows.reduce((sum, item) => sum + item.quantity, 0),
+    criticalSpares: rows.filter((item) => ["Component", "Kit"].includes(item.itemType)).length,
+    consumables: rows.filter((item) => ["Consumable", "Oil", "Filter", "Hardware"].includes(item.itemType)).length,
     lowStock: rows.filter((item) => item.quantity <= item.minimumStock).length,
     serialized: rows.filter((item) => item.serialNumber?.trim()).length,
     withoutSerial: rows.filter((item) => !item.serialNumber?.trim()).length
   };
   const tableRows = rows.map((item) => {
-    const itemVessel = input.store.vessels.find((v) => v.id === item.vesselId);
     return `<tr>
       <td>${escapeHtml(item.itemName)}</td>
       <td>${escapeHtml(item.partNumber || "N/A")}</td>
       <td>${escapeHtml(item.serialNumber || "N/A")}</td>
       <td>${escapeHtml(item.itemType)}</td>
-      <td>${item.quantity} ${escapeHtml(item.unitOfMeasure)}</td>
-      <td>${escapeHtml(item.storageLocation || "N/A")}</td>
-      <td>${escapeHtml(item.relatedHelicopter || "N/A")}</td>
+      <td class="number">${formatPdfQuantity(item.quantity)}</td>
+      <td>${escapeHtml(item.unitOfMeasure || "ea")}</td>
+      <td>${escapeHtml(item.relatedHelicopter || input.relatedAircraft || "N/A")}</td>
       <td>${escapeHtml(item.condition || "N/A")}</td>
       <td>${escapeHtml(item.notes || "")}</td>
-      <td>${escapeHtml(item.source ?? "Demo")}</td>
-      <td>${escapeHtml(itemVessel?.name ?? item.vesselId)}</td>
     </tr>`;
   }).join("");
   const documentHtml = `<!doctype html>
     <html>
       <head>
-        <title>HeliServiX OS Inventory PDF</title>
+        <title>HeliServiX OS Bodega Inventory PDF</title>
         <style>
+          @page { margin: 18mm 12mm 18mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); color: #607089; font-size: 9px; } }
+          * { box-sizing: border-box; }
           body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #122033; background: #fff; }
-          header { background: #071a33; color: white; padding: 28px 34px; }
+          header { background: #071a33; color: white; padding: 26px 34px; border-bottom: 5px solid #0b74d1; }
           .brand { font-size: 22px; font-weight: 800; letter-spacing: .02em; }
           .subtitle { color: #b9d8ff; margin-top: 4px; font-size: 13px; }
           main { padding: 28px 34px; }
+          h1 { margin: 0 0 8px; font-size: 22px; color: #071a33; }
+          .purpose { margin: 0 0 22px; color: #607089; font-size: 12px; line-height: 1.5; }
           .meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 22px; }
           .card { border: 1px solid #d9e3ee; border-radius: 10px; padding: 12px; background: #f8fbff; }
           .label { color: #607089; font-size: 11px; font-weight: 700; text-transform: uppercase; }
@@ -423,35 +428,58 @@ export function exportInventoryPdfDocument(input: {
           table { width: 100%; border-collapse: collapse; font-size: 11px; }
           th { background: #e8f2ff; color: #071a33; text-align: left; padding: 9px; border-bottom: 1px solid #b9d8ff; }
           td { padding: 8px 9px; border-bottom: 1px solid #edf2f7; vertical-align: top; }
+          tbody tr:nth-child(even) { background: #fbfdff; }
+          .number { text-align: right; font-variant-numeric: tabular-nums; }
+          .verification { break-inside: avoid; margin-top: 28px; border: 1px solid #d9e3ee; border-radius: 12px; overflow: hidden; }
+          .verification-title { background: #071a33; color: white; padding: 10px 12px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+          .signature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; }
+          .signature { min-height: 74px; border-top: 1px solid #d9e3ee; padding: 12px; }
+          .signature:nth-child(odd) { border-right: 1px solid #d9e3ee; }
+          .line { margin-top: 28px; border-top: 1px solid #607089; padding-top: 5px; color: #607089; font-size: 10px; }
           footer { margin-top: 24px; color: #607089; font-size: 11px; }
-          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } header { break-after: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; page-break-after: auto; } }
         </style>
       </head>
       <body>
         <header>
           <div class="brand">HeliServiX OS</div>
-          <div class="subtitle">Aircraft Operations Intelligence Platform · Vessel Inventory Report</div>
+          <div class="subtitle">Aircraft Operations Intelligence Platform · Bodega Inventory Verification</div>
         </header>
         <main>
+          <h1>Bodega Inventory Count Report</h1>
+          <p class="purpose">Prepared for review, verification, and physical inventory count. This report includes only the selected vessel bodega inventory visible in HeliServiX OS at generation time.</p>
           <section class="meta">
             <div class="card"><div class="label">Vessel</div><div class="value">${escapeHtml(vessel?.name ?? "All vessels")}</div></div>
             <div class="card"><div class="label">Bodega / Storage</div><div class="value">${escapeHtml(input.storageLocation || "All locations")}</div></div>
             <div class="card"><div class="label">Campaign / Faena</div><div class="value">${escapeHtml(input.campaignName || vessel?.campaign || "N/A")}</div></div>
-            <div class="card"><div class="label">Helicopter</div><div class="value">${escapeHtml(vessel?.assignedHelicopter || "N/A")}</div></div>
-            <div class="card"><div class="label">Report date</div><div class="value">${escapeHtml(generatedAt)}</div></div>
+            <div class="card"><div class="label">Related aircraft</div><div class="value">${escapeHtml(input.relatedAircraft || vessel?.assignedHelicopter || "N/A")}</div></div>
+            <div class="card"><div class="label">Date generated</div><div class="value">${escapeHtml(generatedAt)}</div></div>
             <div class="card"><div class="label">Data indicator</div><div class="value">${rows.some((item) => item.source === "User") ? "Real/imported and demo records" : "Demo records"}</div></div>
           </section>
           <section class="summary">
             <div class="card"><div class="label">Total items</div><div class="value">${summary.totalItems}</div></div>
+            <div class="card"><div class="label">Total units</div><div class="value">${formatPdfQuantity(summary.totalUnits)}</div></div>
+            <div class="card"><div class="label">Critical spares</div><div class="value">${summary.criticalSpares}</div></div>
+            <div class="card"><div class="label">Consumables</div><div class="value">${summary.consumables}</div></div>
             <div class="card"><div class="label">Low stock</div><div class="value">${summary.lowStock}</div></div>
             <div class="card"><div class="label">Items with S/N</div><div class="value">${summary.serialized}</div></div>
             <div class="card"><div class="label">Items without S/N</div><div class="value">${summary.withoutSerial}</div></div>
           </section>
           <table>
-            <thead><tr><th>Item</th><th>P/N</th><th>S/N</th><th>Category</th><th>Quantity</th><th>Bodega</th><th>Aircraft</th><th>Status</th><th>Notes</th><th>Source</th><th>Vessel</th></tr></thead>
-            <tbody>${tableRows || "<tr><td colspan='11'>No inventory records available.</td></tr>"}</tbody>
+            <thead><tr><th>Item name</th><th>P/N</th><th>S/N</th><th>Category</th><th>Quantity</th><th>Unit</th><th>Aircraft</th><th>Condition/status</th><th>Notes</th></tr></thead>
+            <tbody>${tableRows || "<tr><td colspan='9'>No inventory records available for the selected bodega.</td></tr>"}</tbody>
           </table>
-          <footer>Generated by HeliServiX OS. Review operational records before dispatch or procurement decisions.</footer>
+          <section class="verification">
+            <div class="verification-title">Signature / Verification</div>
+            <div class="signature-grid">
+              <div class="signature"><div class="line">Prepared by</div></div>
+              <div class="signature"><div class="line">Reviewed by</div></div>
+              <div class="signature"><div class="line">Physical count verified by</div></div>
+              <div class="signature"><div class="line">Date</div></div>
+            </div>
+            <div class="signature"><div class="line">Observations</div></div>
+          </section>
+          <footer>Generated by HeliServiX OS. Review operational records before dispatch, maintenance release, or procurement decisions.</footer>
         </main>
       </body>
     </html>`;
@@ -853,6 +881,14 @@ function matchText(value: string, pattern: RegExp) {
 
 function firstValue(values: Array<string | undefined>) {
   return values.find((value) => value && value.trim()) ?? "";
+}
+
+function inventoryBodegaName(item: InventoryItem) {
+  return item.storageLocation || "Unassigned bodega";
+}
+
+function formatPdfQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function mergeNotes(left: string, right: string) {
