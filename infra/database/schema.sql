@@ -124,7 +124,7 @@ begin
 
   new.status := case
     when new.remaining_hours <= 0
-      or coalesce(new.remaining_calendar_days, 0) <= 0
+      or (new.remaining_calendar_days is not null and new.remaining_calendar_days <= 0)
       or new.remaining_percentage <= 0 then 'Expired'
     when new.remaining_percentage < 10 then 'Critical'
     when new.remaining_percentage <= 25 then 'Monitor'
