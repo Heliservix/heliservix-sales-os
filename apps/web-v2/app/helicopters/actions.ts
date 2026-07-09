@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-const HELICOPTER_STATUSES = ["Available", "Assigned", "In Campaign", "Maintenance", "Grounded", "Retired"] as const;
-
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
 }
@@ -79,5 +77,3 @@ export async function deleteHelicopter(registration: string) {
   revalidatePath("/");
   redirect("/helicopters");
 }
-
-export const helicopterStatuses = HELICOPTER_STATUSES;

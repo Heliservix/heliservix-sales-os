@@ -2,7 +2,8 @@ import { Plane } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { createHelicopter, helicopterStatuses } from "@/app/helicopters/actions";
+import { createHelicopter } from "@/app/helicopters/actions";
+import { helicopterStatuses } from "@/app/helicopters/constants";
 
 export default function NewHelicopterPage() {
   return (

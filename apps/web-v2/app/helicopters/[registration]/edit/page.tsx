@@ -4,7 +4,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
-import { helicopterStatuses, updateHelicopter } from "@/app/helicopters/actions";
+import { updateHelicopter } from "@/app/helicopters/actions";
+import { helicopterStatuses } from "@/app/helicopters/constants";
 
 type EditHelicopterPageProps = {
   params: Promise<{ registration: string }>;
