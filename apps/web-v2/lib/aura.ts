@@ -26,6 +26,8 @@ type ComponentRow = {
   id: string;
   helicopter_registration: string;
   component_name: string;
+  part_number: string;
+  serial_number: string;
   status: "OK" | "Monitor" | "Critical" | "Expired" | "Removed";
   remaining_hours: number;
   remaining_percentage: number;
@@ -66,12 +68,40 @@ export type AuraMaintenanceForecastItem = {
   componentId: string;
   helicopterRegistration: string;
   componentName: string;
+  partNumber: string;
+  serialNumber: string;
   dueBasis: "Hours" | "Calendar" | "Hours and Calendar" | "Expired";
   dueInDays: number;
   remainingHours: number;
   remainingCalendarDays: number | null;
   confidence: number;
   evidence: string[];
+};
+
+export type HelicopterWorkItem = {
+  type: "Alert" | "Forecast";
+  label: string;
+  detail: string;
+  tone: AuraTone;
+  dueInDays: number | null;
+};
+
+export type HelicopterWorkPlan = {
+  registration: string;
+  model: string;
+  items: HelicopterWorkItem[];
+};
+
+export type ProcurementUrgency = "Immediate" | "Soon" | "Plan ahead";
+
+export type ProcurementRecommendation = {
+  helicopterRegistration: string;
+  componentName: string;
+  partNumber: string;
+  serialNumber: string;
+  dueInDays: number;
+  dueBasis: AuraMaintenanceForecastItem["dueBasis"];
+  urgency: ProcurementUrgency;
 };
 
 export type AuraPriority = "Critical" | "High" | "Medium" | "Monitor";
@@ -111,6 +141,8 @@ export type AuraAnalysis = {
   maintenanceForecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>;
   executiveRecommendations: AuraRecommendation[];
   helicopterRisks: HelicopterRisk[];
+  workByHelicopter: HelicopterWorkPlan[];
+  procurementRecommendations: ProcurementRecommendation[];
   answers: {
     expiresNext: AuraAnswer;
     inspect: AuraAnswer;
@@ -235,6 +267,8 @@ function buildMaintenanceForecastEngine(
       componentId: component.id,
       helicopterRegistration: component.helicopter_registration,
       componentName: component.component_name,
+      partNumber: component.part_number,
+      serialNumber: component.serial_number,
       dueBasis,
       dueInDays,
       remainingHours: component.remaining_hours,
@@ -373,6 +407,65 @@ function buildHelicopterRisk(helicopter: HelicopterRow, components: ComponentRow
   };
 }
 
+/** Groups open alerts and near-term forecast items per aircraft — "what do I
+ * actually need to do on THIS helicopter" instead of one fleet-wide list. */
+function buildWorkByHelicopter(
+  helicopters: HelicopterRow[],
+  alerts: AlertRow[],
+  forecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>
+): HelicopterWorkPlan[] {
+  const nearTermForecast = ([30, 60, 90, 180] as AuraForecastBucket[]).flatMap((bucket) => forecast[bucket]);
+
+  return helicopters
+    .map((helicopter) => {
+      const helicopterAlerts = alerts.filter((a) => a.helicopter_registration === helicopter.registration);
+      const alertedComponentNames = new Set(helicopterAlerts.map((a) => a.component_name));
+      const helicopterForecast = nearTermForecast.filter(
+        (f) => f.helicopterRegistration === helicopter.registration && !alertedComponentNames.has(f.componentName)
+      );
+
+      const items: HelicopterWorkItem[] = [
+        ...helicopterAlerts.map((a) => ({
+          type: "Alert" as const,
+          label: a.component_name ?? a.alert_type,
+          detail: a.description ?? a.alert_type,
+          tone: (a.severity === "Critical" || a.severity === "Grounding" ? "red" : "amber") as AuraTone,
+          dueInDays: null
+        })),
+        ...helicopterForecast.map((f) => ({
+          type: "Forecast" as const,
+          label: f.componentName,
+          detail: `Vence en ${f.dueInDays} días por ${f.dueBasis === "Hours" ? "horas" : f.dueBasis === "Calendar" ? "calendario" : f.dueBasis === "Expired" ? "vencimiento" : "horas y calendario"}.`,
+          tone: (f.bucket <= 30 ? "red" : f.bucket <= 90 ? "amber" : "blue") as AuraTone,
+          dueInDays: f.dueInDays
+        }))
+      ].sort((left, right) => (left.dueInDays ?? -1) - (right.dueInDays ?? -1));
+
+      return { registration: helicopter.registration, model: helicopter.model, items };
+    })
+    .filter((plan) => plan.items.length > 0)
+    .sort((left, right) => right.items.length - left.items.length);
+}
+
+/** Turns the maintenance forecast into "what to start sourcing now," grouped
+ * by urgency. This does NOT know whether the part is already in stock — there's
+ * no Inventory module yet — it only knows when it will be NEEDED. Treat it as
+ * a heads-up radar, not a purchase order. */
+function buildProcurementRecommendations(forecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>): ProcurementRecommendation[] {
+  const items = ([30, 60, 90, 180] as AuraForecastBucket[]).flatMap((bucket) => forecast[bucket]);
+  return items
+    .map((item) => ({
+      helicopterRegistration: item.helicopterRegistration,
+      componentName: item.componentName,
+      partNumber: item.partNumber,
+      serialNumber: item.serialNumber,
+      dueInDays: item.dueInDays,
+      dueBasis: item.dueBasis,
+      urgency: (item.dueInDays <= 30 ? "Immediate" : item.dueInDays <= 90 ? "Soon" : "Plan ahead") as ProcurementUrgency
+    }))
+    .sort((left, right) => left.dueInDays - right.dueInDays);
+}
+
 function answerExpiresNext(components: ComponentRow[]): AuraAnswer {
   const sorted = [...components].filter((c) => c.status !== "OK").sort(compareComponentExposure);
   const records = sorted.slice(0, 6).map((c) => ({
@@ -435,7 +528,9 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     supabase.from("helicopters").select("registration, model, status, current_hourmeter").eq("archived", false),
     supabase
       .from("components")
-      .select("id, helicopter_registration, component_name, status, remaining_hours, remaining_percentage, remaining_calendar_days, calendar_limit_date, life_limit_hours")
+      .select(
+        "id, helicopter_registration, component_name, part_number, serial_number, status, remaining_hours, remaining_percentage, remaining_calendar_days, calendar_limit_date, life_limit_hours"
+      )
       .neq("status", "Removed"),
     supabase.from("maintenance_alerts").select("id, helicopter_registration, component_name, severity, alert_type, description, status").neq("status", "Resolved"),
     supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours")
@@ -452,12 +547,16 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
   const helicopterRisks = helicopterRows
     .map((h) => buildHelicopterRisk(h, componentRows, alertRows))
     .sort((left, right) => right.score - left.score || left.registration.localeCompare(right.registration));
+  const workByHelicopter = buildWorkByHelicopter(helicopterRows, alertRows, maintenanceForecast);
+  const procurementRecommendations = buildProcurementRecommendations(maintenanceForecast);
 
   return {
     fleetHealth,
     maintenanceForecast,
     executiveRecommendations,
     helicopterRisks,
+    workByHelicopter,
+    procurementRecommendations,
     answers: {
       expiresNext: answerExpiresNext(componentRows),
       inspect: answerInspect(alertRows, componentRows),

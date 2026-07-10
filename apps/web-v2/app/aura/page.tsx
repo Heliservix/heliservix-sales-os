@@ -1,14 +1,16 @@
-import { Bot } from "lucide-react";
+import { Bot, ShoppingCart, Wrench } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
-import { buildAuraAnalysis, type AuraPriority, type AuraTone } from "@/lib/aura";
+import { buildAuraAnalysis, type AuraPriority, type AuraTone, type ProcurementUrgency } from "@/lib/aura";
 
 export const dynamic = "force-dynamic";
 
 const PRIORITY_TONE: Record<AuraPriority, AuraTone> = { Critical: "red", High: "amber", Medium: "blue", Monitor: "neutral" };
 const BUCKET_LABEL: Record<number, string> = { 30: "30 días", 60: "60 días", 90: "90 días", 180: "180 días", 365: "365 días" };
+const URGENCY_TONE: Record<ProcurementUrgency, AuraTone> = { Immediate: "red", Soon: "amber", "Plan ahead": "blue" };
+const URGENCY_LABEL: Record<ProcurementUrgency, string> = { Immediate: "Inmediato", Soon: "Pronto", "Plan ahead": "Planificar" };
 
 export default async function AuraPage() {
   const analysis = await buildAuraAnalysis();
@@ -99,6 +101,90 @@ export default async function AuraPage() {
                   <tr>
                     <td className="hsv-empty-state" colSpan={5}>
                       Nada pronosticado dentro de 90 días.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel className="mb-5">
+          <div className="flex items-center gap-2">
+            <Wrench className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-ink">Trabajos por helicóptero</h2>
+          </div>
+          <p className="mt-1 text-sm text-ink-subtle">
+            Alertas abiertas y vencimientos dentro de 180 días, agrupados por aeronave — qué hacer en cada máquina, no en la flota
+            en general.
+          </p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {analysis.workByHelicopter.map((plan) => (
+              <div key={plan.registration} className="rounded-xl border border-line bg-canvas-muted/30 p-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold text-ink">{plan.registration}</p>
+                  <p className="text-xs text-ink-subtle">{plan.model}</p>
+                </div>
+                <ul className="mt-3 grid gap-2">
+                  {plan.items.map((item) => (
+                    <li key={`${item.label}-${item.detail}`} className="flex items-start justify-between gap-3 rounded-lg bg-white p-2.5">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">{item.label}</p>
+                        <p className="text-xs text-ink-subtle">{item.detail}</p>
+                      </div>
+                      <StatusPill tone={item.tone}>{item.type === "Alert" ? "Alerta" : "Pronóstico"}</StatusPill>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {!analysis.workByHelicopter.length ? <p className="hsv-empty-state">Ninguna aeronave tiene trabajo pendiente detectado.</p> : null}
+          </div>
+        </Panel>
+
+        <Panel className="mb-5">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-ink">Recomendaciones de compra</h2>
+          </div>
+          <p className="mt-1 text-sm text-ink-subtle">
+            Repuestos que vas a necesitar según el pronóstico de vencimiento — pensado para adelantar la compra y no quedarte
+            parado esperando un componente. Esto todavía no sabe si ya tienes el repuesto en stock (el módulo de Inventario no
+            está construido); es un radar de cuándo lo vas a necesitar, no una orden de compra.
+          </p>
+          <div className="hsv-table-wrap mt-4">
+            <table className="hsv-table">
+              <thead className="hsv-table-head">
+                <tr>
+                  <th className="hsv-table-th">Urgencia</th>
+                  <th className="hsv-table-th">Helicóptero</th>
+                  <th className="hsv-table-th">Componente</th>
+                  <th className="hsv-table-th">P/N</th>
+                  <th className="hsv-table-th">S/N actual</th>
+                  <th className="hsv-table-th">Necesario en</th>
+                  <th className="hsv-table-th">Por</th>
+                </tr>
+              </thead>
+              <tbody className="hsv-table-body">
+                {analysis.procurementRecommendations.map((item) => (
+                  <tr key={`${item.helicopterRegistration}-${item.partNumber}-${item.serialNumber}`} className="hsv-table-row">
+                    <td className="hsv-table-cell">
+                      <StatusPill tone={URGENCY_TONE[item.urgency]}>{URGENCY_LABEL[item.urgency]}</StatusPill>
+                    </td>
+                    <td className="hsv-table-cell font-semibold text-ink">{item.helicopterRegistration}</td>
+                    <td className="hsv-table-cell text-ink-muted">{item.componentName}</td>
+                    <td className="hsv-table-cell hsv-technical-value">{item.partNumber}</td>
+                    <td className="hsv-table-cell hsv-technical-value">{item.serialNumber}</td>
+                    <td className="hsv-table-cell hsv-technical-value">{item.dueInDays} días</td>
+                    <td className="hsv-table-cell text-ink-muted">
+                      {item.dueBasis === "Hours" ? "Horas" : item.dueBasis === "Calendar" ? "Calendario" : item.dueBasis === "Expired" ? "Vencido" : "Horas y calendario"}
+                    </td>
+                  </tr>
+                ))}
+                {!analysis.procurementRecommendations.length ? (
+                  <tr>
+                    <td className="hsv-empty-state" colSpan={7}>
+                      Nada que comprar con anticipación por ahora (nada vence dentro de 180 días).
                     </td>
                   </tr>
                 ) : null}
