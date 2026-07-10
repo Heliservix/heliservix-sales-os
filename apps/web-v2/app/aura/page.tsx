@@ -148,9 +148,9 @@ export default async function AuraPage() {
             <h2 className="text-lg font-semibold text-ink">Recomendaciones de compra</h2>
           </div>
           <p className="mt-1 text-sm text-ink-subtle">
-            Repuestos que vas a necesitar según el pronóstico de vencimiento — pensado para adelantar la compra y no quedarte
-            parado esperando un componente. Esto todavía no sabe si ya tienes el repuesto en stock (el módulo de Inventario no
-            está construido); es un radar de cuándo lo vas a necesitar, no una orden de compra.
+            Repuestos que vas a necesitar según el pronóstico de vencimiento, cruzado con la bodega de cada barco y los pedidos
+            ya en curso — para no comprar dos veces algo que ya tienes o ya pediste, ni quedarte parado esperando un componente
+            sin P/N registrado.
           </p>
           <div className="hsv-table-wrap mt-4">
             <table className="hsv-table">
@@ -160,9 +160,9 @@ export default async function AuraPage() {
                   <th className="hsv-table-th">Helicóptero</th>
                   <th className="hsv-table-th">Componente</th>
                   <th className="hsv-table-th">P/N</th>
-                  <th className="hsv-table-th">S/N actual</th>
                   <th className="hsv-table-th">Necesario en</th>
                   <th className="hsv-table-th">Por</th>
+                  <th className="hsv-table-th">Cobertura</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
@@ -173,11 +173,17 @@ export default async function AuraPage() {
                     </td>
                     <td className="hsv-table-cell font-semibold text-ink">{item.helicopterRegistration}</td>
                     <td className="hsv-table-cell text-ink-muted">{item.componentName}</td>
-                    <td className="hsv-table-cell hsv-technical-value">{item.partNumber}</td>
-                    <td className="hsv-table-cell hsv-technical-value">{item.serialNumber}</td>
+                    <td className="hsv-table-cell hsv-technical-value">{item.partNumber || "—"}</td>
                     <td className="hsv-table-cell hsv-technical-value">{item.dueInDays} días</td>
                     <td className="hsv-table-cell text-ink-muted">
                       {item.dueBasis === "Hours" ? "Horas" : item.dueBasis === "Calendar" ? "Calendario" : item.dueBasis === "Expired" ? "Vencido" : "Horas y calendario"}
+                    </td>
+                    <td className="hsv-table-cell">
+                      <StatusPill tone={item.coverage === "En stock" ? "green" : item.coverage === "Pedido en curso" ? "blue" : "amber"}>
+                        {item.coverage}
+                      </StatusPill>
+                      {item.coverage === "En stock" && <p className="mt-0.5 text-xs text-ink-subtle">{item.stockOnHand} en bodega</p>}
+                      {item.coverage === "Pedido en curso" && <p className="mt-0.5 text-xs text-ink-subtle">{item.openOrderQuantity} pedido(s)</p>}
                     </td>
                   </tr>
                 ))}
@@ -216,8 +222,8 @@ export default async function AuraPage() {
 
         <Panel className="mt-5">
           <p className="text-xs text-ink-subtle">
-            AURA todavía no cubre Inventario, Compras, Cumplimiento ni Campañas — esos módulos no están construidos en este sistema
-            todavía. En cuanto existan, este mismo motor los incorpora automáticamente.
+            AURA ya cruza Inventario y Compras en las recomendaciones de arriba. Todavía no cubre Cumplimiento ni Campañas — esos
+            módulos no están construidos en este sistema todavía. En cuanto existan, este mismo motor los incorpora automáticamente.
           </p>
         </Panel>
       </div>

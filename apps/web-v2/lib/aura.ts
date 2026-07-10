@@ -9,11 +9,13 @@ import { supabase } from "@/lib/supabase";
 // model gets wired in later, it should sit ON TOP of these numbers (to explain
 // them in prose), not replace them.
 //
-// Some modules referenced by the original engine (Campaigns, Inventory,
-// Compliance, Purchasing, Technical Records) aren't built in web-v2 yet, so
-// their inputs are empty arrays for now. The scoring formulas already treat
-// "no data" as "no penalty," so nothing breaks — those signals just switch on
-// automatically once those modules exist, with zero changes to this file.
+// Some modules referenced by the original engine (Campaigns, Compliance,
+// Technical Records) aren't built in web-v2 yet, so their inputs are empty
+// arrays for now. Inventory and Purchasing ARE built and already feed the
+// procurement recommendations below (stock on hand + open orders by part
+// number). The scoring formulas treat "no data" as "no penalty," so nothing
+// breaks — remaining signals just switch on automatically once those modules
+// exist, with zero changes to this file.
 
 type HelicopterRow = {
   registration: string;
@@ -51,6 +53,23 @@ type FlightLogRow = {
   flight_date: string;
   flight_hours: number;
 };
+
+type InventoryItemRow = {
+  part_number: string | null;
+  item_name: string;
+  quantity: number;
+};
+
+type PurchaseRequestRow = {
+  part_number: string | null;
+  item_name: string;
+  quantity: number;
+  status: string;
+};
+
+// Statuses on purchase_requests that still represent "on its way, not yet
+// available to install" — mirrors app/purchasing/constants.ts.
+const OPEN_PURCHASE_STATUSES = new Set(["Requested", "Quoted", "Approved", "Ordered", "Received", "Shipped to vessel"]);
 
 export type AuraTone = "green" | "amber" | "blue" | "teal" | "red" | "neutral";
 
@@ -94,6 +113,8 @@ export type HelicopterWorkPlan = {
 
 export type ProcurementUrgency = "Immediate" | "Soon" | "Plan ahead";
 
+export type ProcurementCoverage = "En stock" | "Pedido en curso" | "Sin cobertura";
+
 export type ProcurementRecommendation = {
   helicopterRegistration: string;
   componentName: string;
@@ -102,6 +123,9 @@ export type ProcurementRecommendation = {
   dueInDays: number;
   dueBasis: AuraMaintenanceForecastItem["dueBasis"];
   urgency: ProcurementUrgency;
+  coverage: ProcurementCoverage;
+  stockOnHand: number;
+  openOrderQuantity: number;
 };
 
 export type AuraPriority = "Critical" | "High" | "Medium" | "Monitor";
@@ -448,21 +472,56 @@ function buildWorkByHelicopter(
 }
 
 /** Turns the maintenance forecast into "what to start sourcing now," grouped
- * by urgency. This does NOT know whether the part is already in stock — there's
- * no Inventory module yet — it only knows when it will be NEEDED. Treat it as
- * a heads-up radar, not a purchase order. */
-function buildProcurementRecommendations(forecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>): ProcurementRecommendation[] {
+ * by urgency, and cross-references the vessel inventory + open purchase
+ * requests so it knows whether the part is already on hand or already on
+ * order — not just when it will be needed. Matched by part number (the only
+ * reliable key across components/inventory/purchasing); items without a P/N
+ * on file always show "Sin cobertura" since there's nothing to match against. */
+function buildProcurementRecommendations(
+  forecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>,
+  inventoryItems: InventoryItemRow[],
+  purchaseRequests: PurchaseRequestRow[]
+): ProcurementRecommendation[] {
+  const stockByPartNumber = new Map<string, number>();
+  for (const item of inventoryItems) {
+    const key = (item.part_number ?? "").trim().toUpperCase();
+    if (!key) continue;
+    stockByPartNumber.set(key, (stockByPartNumber.get(key) ?? 0) + Number(item.quantity));
+  }
+
+  const openOrdersByPartNumber = new Map<string, number>();
+  for (const request of purchaseRequests) {
+    if (!OPEN_PURCHASE_STATUSES.has(request.status)) continue;
+    const key = (request.part_number ?? "").trim().toUpperCase();
+    if (!key) continue;
+    openOrdersByPartNumber.set(key, (openOrdersByPartNumber.get(key) ?? 0) + Number(request.quantity));
+  }
+
   const items = ([30, 60, 90, 180] as AuraForecastBucket[]).flatMap((bucket) => forecast[bucket]);
   return items
-    .map((item) => ({
-      helicopterRegistration: item.helicopterRegistration,
-      componentName: item.componentName,
-      partNumber: item.partNumber,
-      serialNumber: item.serialNumber,
-      dueInDays: item.dueInDays,
-      dueBasis: item.dueBasis,
-      urgency: (item.dueInDays <= 30 ? "Immediate" : item.dueInDays <= 90 ? "Soon" : "Plan ahead") as ProcurementUrgency
-    }))
+    .map((item) => {
+      const key = (item.partNumber ?? "").trim().toUpperCase();
+      const stockOnHand = key ? (stockByPartNumber.get(key) ?? 0) : 0;
+      const openOrderQuantity = key ? (openOrdersByPartNumber.get(key) ?? 0) : 0;
+      const coverage: ProcurementCoverage = stockOnHand > 0 ? "En stock" : openOrderQuantity > 0 ? "Pedido en curso" : "Sin cobertura";
+      const baseUrgency: ProcurementUrgency = item.dueInDays <= 30 ? "Immediate" : item.dueInDays <= 90 ? "Soon" : "Plan ahead";
+      // Already covered (in stock or on order) — don't shout "Immediate" for
+      // something that's already handled, but still surface it at "Plan ahead"
+      // so it stays visible for confirmation.
+      const urgency: ProcurementUrgency = coverage === "Sin cobertura" ? baseUrgency : "Plan ahead";
+      return {
+        helicopterRegistration: item.helicopterRegistration,
+        componentName: item.componentName,
+        partNumber: item.partNumber,
+        serialNumber: item.serialNumber,
+        dueInDays: item.dueInDays,
+        dueBasis: item.dueBasis,
+        urgency,
+        coverage,
+        stockOnHand,
+        openOrderQuantity
+      };
+    })
     .sort((left, right) => left.dueInDays - right.dueInDays);
 }
 
@@ -524,22 +583,27 @@ function answerHighestRisk(risks: HelicopterRisk[]): AuraAnswer {
 }
 
 export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
-  const [{ data: helicopters }, { data: components }, { data: alerts }, { data: flightLogs }] = await Promise.all([
-    supabase.from("helicopters").select("registration, model, status, current_hourmeter").eq("archived", false),
-    supabase
-      .from("components")
-      .select(
-        "id, helicopter_registration, component_name, part_number, serial_number, status, remaining_hours, remaining_percentage, remaining_calendar_days, calendar_limit_date, life_limit_hours"
-      )
-      .neq("status", "Removed"),
-    supabase.from("maintenance_alerts").select("id, helicopter_registration, component_name, severity, alert_type, description, status").neq("status", "Resolved"),
-    supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours")
-  ]);
+  const [{ data: helicopters }, { data: components }, { data: alerts }, { data: flightLogs }, { data: inventoryItems }, { data: purchaseRequests }] =
+    await Promise.all([
+      supabase.from("helicopters").select("registration, model, status, current_hourmeter").eq("archived", false),
+      supabase
+        .from("components")
+        .select(
+          "id, helicopter_registration, component_name, part_number, serial_number, status, remaining_hours, remaining_percentage, remaining_calendar_days, calendar_limit_date, life_limit_hours"
+        )
+        .neq("status", "Removed"),
+      supabase.from("maintenance_alerts").select("id, helicopter_registration, component_name, severity, alert_type, description, status").neq("status", "Resolved"),
+      supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours"),
+      supabase.from("inventory_items").select("part_number, item_name, quantity").eq("archived", false),
+      supabase.from("purchase_requests").select("part_number, item_name, quantity, status").eq("archived", false)
+    ]);
 
   const helicopterRows = (helicopters ?? []) as HelicopterRow[];
   const componentRows = (components ?? []) as ComponentRow[];
   const alertRows = (alerts ?? []) as AlertRow[];
   const flightLogRows = (flightLogs ?? []) as FlightLogRow[];
+  const inventoryItemRows = (inventoryItems ?? []) as InventoryItemRow[];
+  const purchaseRequestRows = (purchaseRequests ?? []) as PurchaseRequestRow[];
 
   const fleetHealth = buildFleetHealthEngine(helicopterRows, componentRows, alertRows);
   const maintenanceForecast = buildMaintenanceForecastEngine(componentRows, flightLogRows);
@@ -548,7 +612,7 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     .map((h) => buildHelicopterRisk(h, componentRows, alertRows))
     .sort((left, right) => right.score - left.score || left.registration.localeCompare(right.registration));
   const workByHelicopter = buildWorkByHelicopter(helicopterRows, alertRows, maintenanceForecast);
-  const procurementRecommendations = buildProcurementRecommendations(maintenanceForecast);
+  const procurementRecommendations = buildProcurementRecommendations(maintenanceForecast, inventoryItemRows, purchaseRequestRows);
 
   return {
     fleetHealth,
