@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { Gauge, Plane } from "lucide-react";
+import { Bot, Gauge, Plane } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { supabase } from "@/lib/supabase";
+import { buildAuraAnalysis } from "@/lib/aura";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ count: helicopterCount }, { count: openAlertCount }, { data: criticalAlerts }] = await Promise.all([
+  const [{ count: helicopterCount }, { count: openAlertCount }, { data: criticalAlerts }, auraAnalysis] = await Promise.all([
     supabase.from("helicopters").select("*", { count: "exact", head: true }).eq("archived", false),
     supabase.from("maintenance_alerts").select("*", { count: "exact", head: true }).neq("status", "Resolved"),
     supabase
@@ -17,8 +18,11 @@ export default async function DashboardPage() {
       .select("id, helicopter_registration, component_name, severity, description")
       .in("severity", ["Critical", "Grounding"])
       .neq("status", "Resolved")
-      .limit(5)
+      .limit(5),
+    buildAuraAnalysis()
   ]);
+
+  const topRecommendation = auraAnalysis.executiveRecommendations[0];
 
   return (
     <AppShell>
@@ -66,6 +70,34 @@ export default async function DashboardPage() {
               </div>
             </Panel>
           </section>
+
+          <Panel className="border-aviation-teal/25 bg-aviation-teal/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot className="h-5 w-5 text-aviation-teal" aria-hidden="true" />
+                <h3 className="text-base font-semibold text-ink">AURA — recomendación del día</h3>
+              </div>
+              <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/aura">
+                Ver todo en AURA →
+              </Link>
+            </div>
+            {topRecommendation ? (
+              <div className="mt-4 rounded-xl border border-line bg-white p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill tone={topRecommendation.priority === "Critical" ? "red" : topRecommendation.priority === "High" ? "amber" : "blue"}>
+                    {topRecommendation.priority}
+                  </StatusPill>
+                  <span className="text-sm font-semibold text-ink">{topRecommendation.subject}</span>
+                </div>
+                <p className="mt-2 text-sm text-ink-subtle">{topRecommendation.recommendation}</p>
+              </div>
+            ) : (
+              <p className="mt-4 hsv-empty-state">Sin recomendaciones por ahora.</p>
+            )}
+            <p className="mt-3 text-xs text-ink-subtle">
+              Salud de flota: {auraAnalysis.fleetHealth.score}% · Motor de reglas local, sin costo de IA externa.
+            </p>
+          </Panel>
 
           <Panel>
             <div className="flex items-center justify-between">

@@ -75,7 +75,7 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Aircraft Migration Center", labelKey: "nav.aircraftMigrationCenter", href: "/components", icon: FileSpreadsheet, status: "planned" },
       { label: "Lease Simulator", labelKey: "nav.leaseSimulator", href: "#lease-simulator", icon: TrendingUp, status: "planned" },
       { label: "Reports", labelKey: "nav.reports", href: "/copilot", icon: ReceiptText, status: "planned" },
-      { label: "AURA", labelKey: "nav.aura", href: "/copilot", icon: Bot, status: "planned" }
+      { label: "AURA", labelKey: "nav.aura", href: "/aura", icon: Bot, status: "ready" }
     ]
   }
 ];
