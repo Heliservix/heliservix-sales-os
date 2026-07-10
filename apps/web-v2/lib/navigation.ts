@@ -64,7 +64,7 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Supply Chain",
     labelKey: "navGroup.supplyChain",
     items: [
-      { label: "Inventory", labelKey: "nav.inventory", href: "/inventory", icon: Boxes, status: "planned" },
+      { label: "Inventory", labelKey: "nav.inventory", href: "/inventory", icon: Boxes, status: "ready" },
       { label: "Purchasing", labelKey: "nav.purchasing", href: "/purchasing", icon: ShoppingCart, status: "planned" }
     ]
   },

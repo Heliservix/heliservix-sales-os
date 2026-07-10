@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Anchor, Pencil, Plane, Trash2 } from "lucide-react";
+import { Anchor, Boxes, Pencil, Plane, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -54,6 +54,10 @@ export default async function VesselDetailPage({ params }: VesselDetailPageProps
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
+              <Link className="hsv-primary-button" href={`/vessels/${id}/inventory`}>
+                <Boxes className="h-4 w-4" aria-hidden="true" />
+                Ver bodega
+              </Link>
               <Link className="hsv-secondary-button" href={`/vessels/${id}/edit`}>
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Editar
