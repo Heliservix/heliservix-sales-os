@@ -13,8 +13,16 @@ function number(form: FormData, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
+// Must match the normalization used by the Excel importers (lib/component-import.ts,
+// lib/weekly-report-import.ts) — otherwise "HP-1804" created here and "HP-1804" typed
+// into an Excel's Matrícula cell become two different rows ("HP1804" vs "HP-1804"),
+// silently splitting one aircraft's components across two helicopter records.
+function normalizeRegistration(value: string) {
+  return value.replace(/[-\s]/g, "").toUpperCase();
+}
+
 export async function createHelicopter(formData: FormData) {
-  const registration = text(formData, "registration").toUpperCase();
+  const registration = normalizeRegistration(text(formData, "registration"));
   if (!registration) throw new Error("Registration is required.");
 
   const { error } = await supabase.from("helicopters").insert({
