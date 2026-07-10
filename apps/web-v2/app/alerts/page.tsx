@@ -54,8 +54,14 @@ function basisLabel(basis: AlertRow["trigger_basis"]) {
   }
 }
 
-export default async function AlertsPage() {
-  const [{ data, error }, schedule] = await Promise.all([
+type AlertsPageProps = {
+  searchParams: Promise<{ registration?: string }>;
+};
+
+export default async function AlertsPage({ searchParams }: AlertsPageProps) {
+  const { registration: selectedRegistration } = await searchParams;
+
+  const [{ data, error }, schedule, { data: helicopters }] = await Promise.all([
     supabase
       .from("maintenance_alerts")
       .select(
@@ -63,10 +69,15 @@ export default async function AlertsPage() {
       )
       .neq("status", "Resolved")
       .order("created_at", { ascending: true }),
-    buildMaintenanceSchedule()
+    buildMaintenanceSchedule(),
+    supabase.from("helicopters").select("registration").eq("archived", false).order("registration")
   ]);
 
-  const alerts = ((data ?? []) as unknown as AlertRow[]).sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  const allAlerts = ((data ?? []) as unknown as AlertRow[]).sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  const alerts = selectedRegistration ? allAlerts.filter((a) => a.helicopter_registration === selectedRegistration) : allAlerts;
+  const filteredSchedule = selectedRegistration
+    ? schedule.filter((item) => item.helicopterRegistration === selectedRegistration)
+    : schedule;
 
   const groundingCount = alerts.filter((a) => a.severity === "Grounding").length;
   const criticalCount = alerts.filter((a) => a.severity === "Critical").length;
@@ -81,6 +92,32 @@ export default async function AlertsPage() {
           description="Alertas generadas automáticamente cuando un componente entra en Monitor, Critical o Expired. Se abren, actualizan y cierran solas — esta vista es para decidir qué atacar primero."
           icon={AlertTriangle}
         />
+
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <Link
+            href="/alerts"
+            className={
+              !selectedRegistration
+                ? "rounded-full bg-ink px-3.5 py-1.5 text-xs font-semibold text-white"
+                : "rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:border-aviation-teal hover:text-ink"
+            }
+          >
+            Todos
+          </Link>
+          {(helicopters ?? []).map((h) => (
+            <Link
+              key={h.registration}
+              href={`/alerts?registration=${h.registration}`}
+              className={
+                selectedRegistration === h.registration
+                  ? "rounded-full bg-ink px-3.5 py-1.5 text-xs font-semibold text-white"
+                  : "rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:border-aviation-teal hover:text-ink"
+              }
+            >
+              {h.registration}
+            </Link>
+          ))}
+        </div>
 
         <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Panel className="!p-4">
@@ -162,7 +199,9 @@ export default async function AlertsPage() {
                 {!alerts.length && !error ? (
                   <tr>
                     <td className="hsv-empty-state" colSpan={8}>
-                      No hay alertas abiertas. La flota está dentro de sus límites.
+                      {selectedRegistration
+                        ? `${selectedRegistration} no tiene alertas abiertas.`
+                        : "No hay alertas abiertas. La flota está dentro de sus límites."}
                     </td>
                   </tr>
                 ) : null}
@@ -200,7 +239,7 @@ export default async function AlertsPage() {
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
-                {schedule.map((item) => (
+                {filteredSchedule.map((item) => (
                   <tr key={`${item.helicopterRegistration}-${item.maintenanceType}`} className="hsv-table-row">
                     <td className="hsv-table-cell font-semibold text-ink">{item.helicopterRegistration}</td>
                     <td className="hsv-table-cell text-ink-muted">{item.maintenanceType}</td>
@@ -218,7 +257,7 @@ export default async function AlertsPage() {
                     </td>
                   </tr>
                 ))}
-                {!schedule.length ? (
+                {!filteredSchedule.length ? (
                   <tr>
                     <td className="hsv-empty-state" colSpan={6}>
                       Todavía no hay suficiente historial de inspecciones por horas (25/50/100 HRS) para calcular esto. Aparece
