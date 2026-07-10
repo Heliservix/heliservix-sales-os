@@ -13,7 +13,10 @@ type EditHelicopterPageProps = {
 
 export default async function EditHelicopterPage({ params }: EditHelicopterPageProps) {
   const { registration } = await params;
-  const { data: helicopter } = await supabase.from("helicopters").select("*").eq("registration", registration).maybeSingle();
+  const [{ data: helicopter }, { data: vessels }] = await Promise.all([
+    supabase.from("helicopters").select("*").eq("registration", registration).maybeSingle(),
+    supabase.from("vessels").select("id, name").eq("archived", false).order("name")
+  ]);
   if (!helicopter) notFound();
 
   const boundUpdate = updateHelicopter.bind(null, registration);
@@ -55,6 +58,17 @@ export default async function EditHelicopterPage({ params }: EditHelicopterPageP
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               País / área de operación
               <input className="hsv-control" name="operationArea" defaultValue={helicopter.operation_area ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Barco asignado
+              <select className="hsv-control" name="assignedVesselId" defaultValue={helicopter.assigned_vessel_id ?? ""}>
+                <option value="">Sin asignar</option>
+                {(vessels ?? []).map((vessel) => (
+                  <option key={vessel.id} value={vessel.id}>
+                    {vessel.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas

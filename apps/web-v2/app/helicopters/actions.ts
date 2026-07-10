@@ -13,6 +13,11 @@ function number(form: FormData, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function optionalUuid(form: FormData, key: string) {
+  const value = text(form, key);
+  return value || null;
+}
+
 // Must match the normalization used by the Excel importers (lib/component-import.ts,
 // lib/weekly-report-import.ts) — otherwise "HP-1804" created here and "HP-1804" typed
 // into an Excel's Matrícula cell become two different rows ("HP1804" vs "HP-1804"),
@@ -59,6 +64,7 @@ export async function updateHelicopter(registration: string, formData: FormData)
       status: text(formData, "status") || "Available",
       owner_company: text(formData, "ownerCompany"),
       operation_area: text(formData, "operationArea"),
+      assigned_vessel_id: optionalUuid(formData, "assignedVesselId"),
       notes: text(formData, "notes")
     })
     .eq("registration", registration);
@@ -67,6 +73,7 @@ export async function updateHelicopter(registration: string, formData: FormData)
 
   revalidatePath("/helicopters");
   revalidatePath(`/helicopters/${registration}`);
+  revalidatePath("/vessels");
   revalidatePath("/");
   redirect(`/helicopters/${registration}`);
 }
