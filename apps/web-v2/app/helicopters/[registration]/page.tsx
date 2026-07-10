@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Plane, Trash2, UploadCloud } from "lucide-react";
+import { Pencil, Plane, Plus, Trash2, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -85,10 +85,16 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
         <Panel>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-ink">Componentes</h2>
-            <Link className="hsv-secondary-button" href="/helicopters/import">
-              <UploadCloud className="h-4 w-4" aria-hidden="true" />
-              Importar / actualizar desde Excel
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link className="hsv-secondary-button" href={`/helicopters/${registration}/components/new`}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Agregar componente
+              </Link>
+              <Link className="hsv-secondary-button" href="/helicopters/import">
+                <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                Importar / actualizar desde Excel
+              </Link>
+            </div>
           </div>
           <div className="hsv-table-wrap">
             <table className="hsv-table">
@@ -100,6 +106,7 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                   <th className="hsv-table-th">Remanente</th>
                   <th className="hsv-table-th">%</th>
                   <th className="hsv-table-th">Estado</th>
+                  <th className="hsv-table-th" />
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
@@ -115,12 +122,21 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                         {component.status}
                       </StatusPill>
                     </td>
+                    <td className="hsv-table-cell">
+                      <Link
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-aviation-teal hover:underline"
+                        href={`/helicopters/${registration}/components/${component.id}/edit`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Editar
+                      </Link>
+                    </td>
                   </tr>
                 ))}
                 {!components?.length ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={6}>
-                      Esta aeronave todavía no tiene componentes registrados. Usa &ldquo;Importar / actualizar desde Excel&rdquo; arriba.
+                    <td className="hsv-empty-state" colSpan={7}>
+                      Esta aeronave todavía no tiene componentes registrados. Usa &ldquo;Agregar componente&rdquo; o &ldquo;Importar / actualizar desde Excel&rdquo; arriba.
                     </td>
                   </tr>
                 ) : null}
