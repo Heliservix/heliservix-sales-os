@@ -278,8 +278,18 @@ begin
 end;
 $$ language plpgsql;
 
+-- Deliberately NOT "update of status": the app never sets `status` directly
+-- (recalculate_component_fields owns it, as a BEFORE trigger). Postgres only
+-- fires an "OF column_list" trigger when that column is an explicit target of
+-- the client's UPDATE statement — a BEFORE trigger changing NEW.status
+-- internally does not count. With "of status" here, this trigger silently
+-- never re-fired when a component's status changed as a side effect of an
+-- hours/calendar update, so alerts never auto-resolved once the underlying
+-- problem was fixed (they just sat there forever, e.g. "Expired, 0.0 hrs"
+-- long after the component showed healthy hours). Firing on every
+-- insert/update is safe: the function is cheap and idempotent.
 create trigger trg_reconcile_component_alert
-  after insert or update of status on components
+  after insert or update on components
   for each row execute function reconcile_component_alert();
 
 -- ========================================================================
