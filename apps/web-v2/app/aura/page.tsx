@@ -222,8 +222,9 @@ export default async function AuraPage() {
 
         <Panel className="mt-5">
           <p className="text-xs text-ink-subtle">
-            AURA ya cruza Inventario y Compras en las recomendaciones de arriba. Todavía no cubre Cumplimiento ni Campañas — esos
-            módulos no están construidos en este sistema todavía. En cuanto existan, este mismo motor los incorpora automáticamente.
+            AURA ya cruza Inventario, Compras y Cumplimiento en las recomendaciones de arriba. Registros Técnicos es solo
+            almacenamiento de documentos y no alimenta el puntaje. Campañas alimenta el historial de horas por faena, visible en
+            cada campaña.
           </p>
         </Panel>
       </div>

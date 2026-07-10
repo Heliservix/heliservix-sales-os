@@ -9,13 +9,13 @@ import { supabase } from "@/lib/supabase";
 // model gets wired in later, it should sit ON TOP of these numbers (to explain
 // them in prose), not replace them.
 //
-// Some modules referenced by the original engine (Campaigns, Compliance,
-// Technical Records) aren't built in web-v2 yet, so their inputs are empty
-// arrays for now. Inventory and Purchasing ARE built and already feed the
-// procurement recommendations below (stock on hand + open orders by part
-// number). The scoring formulas treat "no data" as "no penalty," so nothing
-// breaks — remaining signals just switch on automatically once those modules
-// exist, with zero changes to this file.
+// Every module referenced by the original engine (Campaigns, Inventory,
+// Purchasing, Compliance) is now built in web-v2 and feeds real signals here:
+// Inventory + Purchasing drive the procurement coverage below (stock on hand +
+// open orders by part number), Compliance drives the overdue-AD/SB executive
+// recommendation. Technical Records is document storage only and doesn't feed
+// scoring. The formulas still treat "no data" as "no penalty," so nothing
+// breaks if a table is empty.
 
 type HelicopterRow = {
   registration: string;
@@ -64,6 +64,16 @@ type PurchaseRequestRow = {
   part_number: string | null;
   item_name: string;
   quantity: number;
+  status: string;
+};
+
+type ComplianceItemRow = {
+  id: string;
+  title: string;
+  authority: string;
+  compliance_type: string;
+  due_date: string | null;
+  related_helicopter: string | null;
   status: string;
 };
 
@@ -319,6 +329,7 @@ function buildExecutiveRecommendationEngine(input: {
   fleetHealth: ReturnType<typeof buildFleetHealthEngine>;
   maintenanceForecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>;
   openAlerts: AlertRow[];
+  complianceItems: ComplianceItemRow[];
 }): AuraRecommendation[] {
   const recommendations: AuraRecommendation[] = [];
   const lowestHealth = input.fleetHealth.aircraft[0];
@@ -370,6 +381,25 @@ function buildExecutiveRecommendationEngine(input: {
       confidence: urgentForecast.confidence,
       domain: "Maintenance",
       sourceRecords: [urgentForecast.componentId, urgentForecast.helicopterRegistration]
+    });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueCompliance = input.complianceItems.filter(
+    (item) => item.due_date != null && item.due_date < today && item.status !== "Complied" && item.status !== "Not applicable"
+  );
+  if (overdueCompliance.length) {
+    recommendations.push({
+      id: "compliance-overdue",
+      priority: "Critical",
+      subject: "Cumplimiento vencido (AD / SB / requisitos)",
+      recommendation: `${overdueCompliance.length} ítem(s) de cumplimiento pasaron su fecha límite sin marcarse como cumplidos.`,
+      evidence: overdueCompliance.slice(0, 3).map((item) => `${item.related_helicopter ?? "Toda la flota"} — ${item.compliance_type} ${item.title} (venció ${item.due_date})`),
+      operationalImpact: "Operar sin cumplir una AD/SB vigente puede dejar la aeronave fuera de condición de aeronavegabilidad.",
+      recommendedAction: "Revisar el módulo de Cumplimiento y actualizar el estado tras verificar o ejecutar la acción requerida.",
+      confidence: 93,
+      domain: "Maintenance",
+      sourceRecords: overdueCompliance.map((item) => item.id)
     });
   }
 
@@ -583,20 +613,28 @@ function answerHighestRisk(risks: HelicopterRisk[]): AuraAnswer {
 }
 
 export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
-  const [{ data: helicopters }, { data: components }, { data: alerts }, { data: flightLogs }, { data: inventoryItems }, { data: purchaseRequests }] =
-    await Promise.all([
-      supabase.from("helicopters").select("registration, model, status, current_hourmeter").eq("archived", false),
-      supabase
-        .from("components")
-        .select(
-          "id, helicopter_registration, component_name, part_number, serial_number, status, remaining_hours, remaining_percentage, remaining_calendar_days, calendar_limit_date, life_limit_hours"
-        )
-        .neq("status", "Removed"),
-      supabase.from("maintenance_alerts").select("id, helicopter_registration, component_name, severity, alert_type, description, status").neq("status", "Resolved"),
-      supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours"),
-      supabase.from("inventory_items").select("part_number, item_name, quantity").eq("archived", false),
-      supabase.from("purchase_requests").select("part_number, item_name, quantity, status").eq("archived", false)
-    ]);
+  const [
+    { data: helicopters },
+    { data: components },
+    { data: alerts },
+    { data: flightLogs },
+    { data: inventoryItems },
+    { data: purchaseRequests },
+    { data: complianceItems }
+  ] = await Promise.all([
+    supabase.from("helicopters").select("registration, model, status, current_hourmeter").eq("archived", false),
+    supabase
+      .from("components")
+      .select(
+        "id, helicopter_registration, component_name, part_number, serial_number, status, remaining_hours, remaining_percentage, remaining_calendar_days, calendar_limit_date, life_limit_hours"
+      )
+      .neq("status", "Removed"),
+    supabase.from("maintenance_alerts").select("id, helicopter_registration, component_name, severity, alert_type, description, status").neq("status", "Resolved"),
+    supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours"),
+    supabase.from("inventory_items").select("part_number, item_name, quantity").eq("archived", false),
+    supabase.from("purchase_requests").select("part_number, item_name, quantity, status").eq("archived", false),
+    supabase.from("compliance_items").select("id, title, authority, compliance_type, due_date, related_helicopter, status").eq("archived", false)
+  ]);
 
   const helicopterRows = (helicopters ?? []) as HelicopterRow[];
   const componentRows = (components ?? []) as ComponentRow[];
@@ -604,10 +642,16 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
   const flightLogRows = (flightLogs ?? []) as FlightLogRow[];
   const inventoryItemRows = (inventoryItems ?? []) as InventoryItemRow[];
   const purchaseRequestRows = (purchaseRequests ?? []) as PurchaseRequestRow[];
+  const complianceItemRows = (complianceItems ?? []) as ComplianceItemRow[];
 
   const fleetHealth = buildFleetHealthEngine(helicopterRows, componentRows, alertRows);
   const maintenanceForecast = buildMaintenanceForecastEngine(componentRows, flightLogRows);
-  const executiveRecommendations = buildExecutiveRecommendationEngine({ fleetHealth, maintenanceForecast, openAlerts: alertRows });
+  const executiveRecommendations = buildExecutiveRecommendationEngine({
+    fleetHealth,
+    maintenanceForecast,
+    openAlerts: alertRows,
+    complianceItems: complianceItemRows
+  });
   const helicopterRisks = helicopterRows
     .map((h) => buildHelicopterRisk(h, componentRows, alertRows))
     .sort((left, right) => right.score - left.score || left.registration.localeCompare(right.registration));
