@@ -128,6 +128,48 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     }
   }
 
+  // 3b. Find or create the campaign/faena for this marea + aircraft, so flight
+  // hours roll up into a per-faena history (Campañas module) automatically —
+  // the technicians never have to touch that module themselves.
+  let campaignId: string | null = null;
+  if (mareaCode) {
+    const { data: existingCampaign, error: campaignLookupError } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("code", mareaCode)
+      .eq("helicopter_registration", helicopterRegistration)
+      .maybeSingle();
+
+    if (campaignLookupError) {
+      return { status: "error", message: `Error consultando la campaña/faena: ${campaignLookupError.message}` };
+    }
+
+    if (existingCampaign) {
+      campaignId = existingCampaign.id;
+    } else {
+      const { data: newCampaign, error: createCampaignError } = await supabase
+        .from("campaigns")
+        .insert({
+          code: mareaCode,
+          name: `Marea ${mareaCode}${vesselName ? ` — ${vesselName}` : ""}`,
+          vessel_id: vesselId,
+          helicopter_registration: helicopterRegistration,
+          start_date: reportDate,
+          status: "Active",
+          notes: "Creada automáticamente desde la importación del reporte semanal.",
+          source: "User"
+        })
+        .select("id")
+        .single();
+      if (createCampaignError) {
+        // Non-fatal — the flight log can still be applied without a campaign link.
+        warnings.push(`No se pudo crear la campaña/faena "${mareaCode}": ${createCampaignError.message}`);
+      } else {
+        campaignId = newCampaign.id;
+      }
+    }
+  }
+
   // 4. Insert the flight_logs row. trg_apply_flight_log then bumps the helicopter's
   // hourmeter and deducts these hours from every active component automatically.
   const weeklyNotes = [
@@ -141,6 +183,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   const { error: flightLogError } = await supabase.from("flight_logs").insert({
     helicopter_registration: helicopterRegistration,
     vessel_id: vesselId,
+    campaign_id: campaignId,
     marea_code: mareaCode || null,
     week_number: weekNumber,
     flight_date: reportDate ?? new Date().toISOString().slice(0, 10),
@@ -350,6 +393,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       quantity: request.quantity > 0 ? request.quantity : 1,
       related_helicopter: helicopterRegistration,
       related_vessel_id: vesselId,
+      related_campaign_id: campaignId,
       related_maintenance_event: mareaCode || null,
       status: "Requested" as const,
       notes: request.observationUrgency || null,
@@ -367,12 +411,14 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   revalidatePath("/helicopters");
   revalidatePath(`/helicopters/${helicopterRegistration}`);
   revalidatePath("/inventory");
+  revalidatePath("/campaigns");
+  if (campaignId) revalidatePath(`/campaigns/${campaignId}`);
   if (vesselId) revalidatePath(`/vessels/${vesselId}/inventory`);
   revalidatePath("/");
 
   return {
     status: "success",
-    message: `Listo. Se aplicaron ${flightHoursThisWeek.toFixed(1)} hrs a ${helicopterRegistration} (Semana ${weekNumber}) y se dedujeron de todos sus componentes activos.`,
+    message: `Listo. Se aplicaron ${flightHoursThisWeek.toFixed(1)} hrs a ${helicopterRegistration} (Semana ${weekNumber}${mareaCode ? `, Marea ${mareaCode}` : ""}) y se dedujeron de todos sus componentes activos.`,
     registration: helicopterRegistration,
     flightHoursApplied: flightHoursThisWeek,
     maintenanceLogsCreated,

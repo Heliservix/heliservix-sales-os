@@ -46,7 +46,7 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Fleet", labelKey: "nav.fleet", href: "/helicopters", icon: Plane, status: "ready" },
       { label: "Aircraft", labelKey: "nav.aircraft", href: "/digital-twin", icon: Radar, status: "planned" },
       { label: "Vessels", labelKey: "nav.vessels", href: "/vessels", icon: Anchor, status: "ready" },
-      { label: "Campaigns", labelKey: "nav.campaigns", href: "/campaigns", icon: CalendarRange, status: "planned" }
+      { label: "Campaigns", labelKey: "nav.campaigns", href: "/campaigns", icon: CalendarRange, status: "ready" }
     ]
   },
   {
