@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
+import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
 import { supabase } from "@/lib/supabase";
 import { updateAlertStatus } from "@/app/alerts/actions";
 import { buildMaintenanceSchedule, type ScheduledInspection } from "@/lib/maintenance-schedule";
@@ -83,6 +84,15 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   const criticalCount = alerts.filter((a) => a.severity === "Critical").length;
   const monitorCount = alerts.filter((a) => a.severity === "Monitor").length;
 
+  const alertsByHelicopter = new Map<string, number>();
+  for (const alert of allAlerts) {
+    alertsByHelicopter.set(alert.helicopter_registration, (alertsByHelicopter.get(alert.helicopter_registration) ?? 0) + 1);
+  }
+  const alertsByHelicopterBars: BarChartDatum[] = Array.from(alertsByHelicopter.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value, tone: value >= 3 ? "red" : value >= 1 ? "amber" : "neutral" }));
+
   return (
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
@@ -119,18 +129,26 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
           ))}
         </div>
 
-        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Panel className="!p-4">
-            <p className="text-xs font-semibold uppercase text-ink-subtle">En tierra (Grounding)</p>
-            <p className="mt-1 text-2xl font-semibold text-aviation-red">{groundingCount}</p>
-          </Panel>
-          <Panel className="!p-4">
-            <p className="text-xs font-semibold uppercase text-ink-subtle">Críticas</p>
-            <p className="mt-1 text-2xl font-semibold text-aviation-red">{criticalCount}</p>
-          </Panel>
-          <Panel className="!p-4">
-            <p className="text-xs font-semibold uppercase text-ink-subtle">En monitoreo</p>
-            <p className="mt-1 text-2xl font-semibold text-aviation-amber">{monitorCount}</p>
+        <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Panel className="!p-4">
+              <p className="text-xs font-semibold uppercase text-ink-subtle">En tierra (Grounding)</p>
+              <p className="mt-1 text-2xl font-semibold text-aviation-red">{groundingCount}</p>
+            </Panel>
+            <Panel className="!p-4">
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Críticas</p>
+              <p className="mt-1 text-2xl font-semibold text-aviation-red">{criticalCount}</p>
+            </Panel>
+            <Panel className="!p-4">
+              <p className="text-xs font-semibold uppercase text-ink-subtle">En monitoreo</p>
+              <p className="mt-1 text-2xl font-semibold text-aviation-amber">{monitorCount}</p>
+            </Panel>
+          </div>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Alertas abiertas por helicóptero</p>
+            <div className="mt-3">
+              <HorizontalBarChart data={alertsByHelicopterBars} />
+            </div>
           </Panel>
         </div>
 

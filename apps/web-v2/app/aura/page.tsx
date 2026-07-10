@@ -3,7 +3,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
-import { buildAuraAnalysis, type AuraPriority, type AuraTone, type ProcurementUrgency } from "@/lib/aura";
+import { ScoreGauge } from "@/components/charts/score-gauge";
+import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
+import { buildAuraAnalysis, type AuraPriority, type AuraTone, type ProcurementUrgency, type AuraForecastBucket } from "@/lib/aura";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,13 @@ export default async function AuraPage() {
     ...analysis.maintenanceForecast[90]
   ].slice(0, 10);
 
+  const forecastBuckets: AuraForecastBucket[] = [30, 60, 90, 180, 365];
+  const forecastBars: BarChartDatum[] = forecastBuckets.map((bucket) => ({
+    label: BUCKET_LABEL[bucket],
+    value: analysis.maintenanceForecast[bucket].length,
+    tone: bucket <= 30 ? "red" : bucket <= 90 ? "amber" : "teal"
+  }));
+
   return (
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
@@ -30,14 +39,18 @@ export default async function AuraPage() {
           icon={Bot}
         />
 
-        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Panel className="!p-4">
+        <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Panel>
             <p className="text-xs font-semibold uppercase text-ink-subtle">Salud de flota</p>
-            <p className="mt-1 text-2xl font-semibold text-ink">{analysis.fleetHealth.score}%</p>
+            <div className="mt-3">
+              <ScoreGauge score={analysis.fleetHealth.score} label={`${nearForecast.length} vencimiento(s) próximo(s) (≤90 días)`} size={112} />
+            </div>
           </Panel>
-          <Panel className="!p-4">
-            <p className="text-xs font-semibold uppercase text-ink-subtle">Vencimientos próximos (≤90 días)</p>
-            <p className="mt-1 text-2xl font-semibold text-ink">{nearForecast.length}</p>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Pronóstico de vencimientos por ventana</p>
+            <div className="mt-3">
+              <HorizontalBarChart data={forecastBars} />
+            </div>
           </Panel>
         </div>
 

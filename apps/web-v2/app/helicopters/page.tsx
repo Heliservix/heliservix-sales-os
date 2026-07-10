@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
+import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
 import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,14 +18,35 @@ type HelicopterRow = {
   vessels: { name: string } | null;
 };
 
+const COMPONENT_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
+  OK: "green",
+  Monitor: "amber",
+  Critical: "red",
+  Expired: "red"
+};
+const COMPONENT_STATUS_ORDER = ["OK", "Monitor", "Critical", "Expired"];
+
 export default async function HelicoptersPage() {
-  const { data, error } = await supabase
-    .from("helicopters")
-    .select("registration, model, current_hourmeter, status, assigned_vessel_id, vessels(name)")
-    .eq("archived", false)
-    .order("registration");
+  const [{ data, error }, { data: componentStatusRows }] = await Promise.all([
+    supabase
+      .from("helicopters")
+      .select("registration, model, current_hourmeter, status, assigned_vessel_id, vessels(name)")
+      .eq("archived", false)
+      .order("registration"),
+    supabase.from("components").select("status").neq("status", "Removed")
+  ]);
 
   const helicopters = (data ?? []) as unknown as HelicopterRow[];
+
+  const componentStatusCounts = new Map<string, number>();
+  for (const row of componentStatusRows ?? []) {
+    componentStatusCounts.set(row.status, (componentStatusCounts.get(row.status) ?? 0) + 1);
+  }
+  const componentStatusSlices: DonutSlice[] = COMPONENT_STATUS_ORDER.filter((status) => componentStatusCounts.has(status)).map((status) => ({
+    label: status,
+    value: componentStatusCounts.get(status) ?? 0,
+    tone: COMPONENT_STATUS_TONE[status] ?? "neutral"
+  }));
 
   return (
     <AppShell>
@@ -35,6 +57,16 @@ export default async function HelicoptersPage() {
           description="Matrícula, modelo, horómetro y estado — datos reales de Supabase, no de un archivo en tu navegador."
           icon={Plane}
         />
+
+        {componentStatusSlices.length ? (
+          <Panel className="mb-5">
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Estado de componentes — toda la flota</p>
+            <div className="mt-3">
+              <DonutChart slices={componentStatusSlices} size={112} centerLabel="componentes" />
+            </div>
+          </Panel>
+        ) : null}
+
         <Panel>
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>

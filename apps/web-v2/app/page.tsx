@@ -4,25 +4,66 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { BrandLockup } from "@/components/brand/brand-lockup";
+import { ScoreGauge } from "@/components/charts/score-gauge";
+import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
+import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
 import { supabase } from "@/lib/supabase";
 import { buildAuraAnalysis } from "@/lib/aura";
 
 export const dynamic = "force-dynamic";
 
+const FLEET_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
+  Available: "green",
+  Assigned: "teal",
+  "In Campaign": "teal",
+  Maintenance: "amber",
+  Grounded: "red",
+  Retired: "neutral"
+};
+
+const SEVERITY_TONE: Record<string, BarChartDatum["tone"]> = {
+  Info: "neutral",
+  Monitor: "amber",
+  Critical: "red",
+  Grounding: "red"
+};
+
 export default async function DashboardPage() {
-  const [{ count: helicopterCount }, { count: openAlertCount }, { data: criticalAlerts }, auraAnalysis] = await Promise.all([
-    supabase.from("helicopters").select("*", { count: "exact", head: true }).eq("archived", false),
-    supabase.from("maintenance_alerts").select("*", { count: "exact", head: true }).neq("status", "Resolved"),
-    supabase
-      .from("maintenance_alerts")
-      .select("id, helicopter_registration, component_name, severity, description")
-      .in("severity", ["Critical", "Grounding"])
-      .neq("status", "Resolved")
-      .limit(5),
-    buildAuraAnalysis()
-  ]);
+  const [{ count: helicopterCount }, { count: openAlertCount }, { data: criticalAlerts }, { data: fleetStatusRows }, { data: openAlertsBySeverity }, auraAnalysis] =
+    await Promise.all([
+      supabase.from("helicopters").select("*", { count: "exact", head: true }).eq("archived", false),
+      supabase.from("maintenance_alerts").select("*", { count: "exact", head: true }).neq("status", "Resolved"),
+      supabase
+        .from("maintenance_alerts")
+        .select("id, helicopter_registration, component_name, severity, description")
+        .in("severity", ["Critical", "Grounding"])
+        .neq("status", "Resolved")
+        .limit(5),
+      supabase.from("helicopters").select("status").eq("archived", false),
+      supabase.from("maintenance_alerts").select("severity").neq("status", "Resolved"),
+      buildAuraAnalysis()
+    ]);
 
   const topRecommendation = auraAnalysis.executiveRecommendations[0];
+
+  const fleetStatusCounts = new Map<string, number>();
+  for (const row of fleetStatusRows ?? []) {
+    fleetStatusCounts.set(row.status, (fleetStatusCounts.get(row.status) ?? 0) + 1);
+  }
+  const fleetStatusSlices: DonutSlice[] = Array.from(fleetStatusCounts.entries()).map(([label, value]) => ({
+    label,
+    value,
+    tone: FLEET_STATUS_TONE[label] ?? "neutral"
+  }));
+
+  const severityCounts = new Map<string, number>();
+  for (const row of openAlertsBySeverity ?? []) {
+    severityCounts.set(row.severity, (severityCounts.get(row.severity) ?? 0) + 1);
+  }
+  const severityOrder = ["Grounding", "Critical", "Monitor", "Info"];
+  const severityBars: BarChartDatum[] = severityOrder
+    .filter((severity) => severityCounts.has(severity))
+    .map((severity) => ({ label: severity, value: severityCounts.get(severity) ?? 0, tone: SEVERITY_TONE[severity] ?? "neutral" }));
 
   return (
     <AppShell>
@@ -71,6 +112,27 @@ export default async function DashboardPage() {
             </Panel>
           </section>
 
+          <section className="grid gap-4 lg:grid-cols-3">
+            <Panel>
+              <h3 className="text-sm font-semibold text-ink">Salud de flota</h3>
+              <div className="mt-4">
+                <ScoreGauge score={auraAnalysis.fleetHealth.score} label="Motor de reglas local" size={112} />
+              </div>
+            </Panel>
+            <Panel>
+              <h3 className="text-sm font-semibold text-ink">Estado de la flota</h3>
+              <div className="mt-4">
+                <DonutChart slices={fleetStatusSlices} size={112} centerLabel="helicópteros" />
+              </div>
+            </Panel>
+            <Panel>
+              <h3 className="text-sm font-semibold text-ink">Alertas abiertas por severidad</h3>
+              <div className="mt-4">
+                <HorizontalBarChart data={severityBars} />
+              </div>
+            </Panel>
+          </section>
+
           <Panel className="border-aviation-teal/25 bg-aviation-teal/5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -94,9 +156,6 @@ export default async function DashboardPage() {
             ) : (
               <p className="mt-4 hsv-empty-state">Sin recomendaciones por ahora.</p>
             )}
-            <p className="mt-3 text-xs text-ink-subtle">
-              Salud de flota: {auraAnalysis.fleetHealth.score}% · Motor de reglas local, sin costo de IA externa.
-            </p>
           </Panel>
 
           <Panel>
