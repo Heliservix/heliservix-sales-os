@@ -9,6 +9,7 @@ import {
   buildColumnIndex,
   findColumn
 } from "@/lib/excel-parsing";
+import { parseInventoryRows, type ParsedInventoryRow } from "@/lib/inventory-import";
 
 // Parses the weekly operations report ("INFORME SEMANAL DE OPERACIONES") that
 // mechanics deliver every Monday per vessel/marea. Sheets that matter:
@@ -21,6 +22,10 @@ import {
 //     vessel's inventory ("bodega") as stock movements.
 //   - PEDIDOS: parts the technicians are requesting be ordered — feeds
 //     purchase_requests for the office to action.
+//   - INVENTARIO BODEGA: the full parts count currently in the vessel's
+//     bodega (added later than the other sheets) — reconciles the vessel's
+//     inventory_items directly, same as the standalone Excel upload on the
+//     bodega page.
 //
 // This does NOT auto-mutate the live components table. It (a) creates a
 // flight_logs row, which the existing trg_apply_flight_log trigger uses to bump
@@ -129,6 +134,7 @@ export type ParsedWeeklyReport = {
   filterChanges: FilterChange[];
   materialsConsumed: ConsumedMaterial[];
   purchaseRequests: RequestedPurchase[];
+  inventoryCount: ParsedInventoryRow[];
   detectedComponentChanges: DetectedComponentChange[];
   warnings: string[];
 };
@@ -435,6 +441,18 @@ export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
   const pedidosSheetName = workbook.SheetNames.find((name) => normalize(name).includes("pedidos"));
   const purchaseRequests = pedidosSheetName ? parsePedidos(sheetRows(workbook, pedidosSheetName)) : [];
 
+  const inventorySheetName = workbook.SheetNames.find((name) => normalize(name).includes("inventario"));
+  let inventoryCount: ParsedInventoryRow[] = [];
+  if (inventorySheetName) {
+    try {
+      inventoryCount = parseInventoryRows(sheetRows(workbook, inventorySheetName)).rows;
+    } catch {
+      // Sheet exists but doesn't have the expected header — skip silently,
+      // the rest of the weekly report import still goes through.
+      warnings.push(`La hoja "${inventorySheetName}" no tiene el formato esperado — no se actualizó la bodega.`);
+    }
+  }
+
   const detectedComponentChanges: DetectedComponentChange[] = [];
   for (const inspection of informe.routineInspections) {
     const found = extractComponentChange(inspection.description, `Inspección rutinaria (${inspection.inspectionType})`, inspection.date);
@@ -450,5 +468,5 @@ export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
     warnings.push("No se encontraron inspecciones, no-rutinas ni cambios de filtro en el archivo — solo se aplicarán las horas de vuelo.");
   }
 
-  return { ...informe, nonRoutineEvents, filterChanges, materialsConsumed, purchaseRequests, detectedComponentChanges, warnings };
+  return { ...informe, nonRoutineEvents, filterChanges, materialsConsumed, purchaseRequests, inventoryCount, detectedComponentChanges, warnings };
 }

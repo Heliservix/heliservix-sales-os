@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
-import { recordStockMovement } from "@/app/vessels/[id]/inventory/actions";
+import { recordStockMovement, clearVesselInventory } from "@/app/vessels/[id]/inventory/actions";
 import { stockMovementTypes } from "@/app/vessels/[id]/inventory/constants";
 
 type VesselInventoryPageProps = {
@@ -29,6 +29,7 @@ export default async function VesselInventoryPage({ params }: VesselInventoryPag
   const totalUnits = list.reduce((sum, item) => sum + Number(item.quantity), 0);
 
   const boundRecordMovement = recordStockMovement.bind(null, id);
+  const boundClearInventory = clearVesselInventory.bind(null, id);
 
   return (
     <AppShell>
@@ -148,12 +149,26 @@ export default async function VesselInventoryPage({ params }: VesselInventoryPag
           </div>
         </Panel>
 
-        <Panel>
+        <Panel className="mb-5">
           <p className="text-xs leading-6 text-ink-subtle">
             Cada movimiento (Recibido, Usado, Instalado, Consumido, Transferido, Ajustado) queda registrado y ajusta automáticamente
             la cantidad disponible — así queda un historial de por qué cambió el número, igual que en la hoja{" "}
             <span className="hsv-technical-value font-semibold text-ink">CONSUMO MATERIALES</span> del reporte semanal que envían los técnicos.
           </p>
+        </Panel>
+
+        <Panel>
+          <h2 className="text-sm font-semibold text-ink">Zona de riesgo</h2>
+          <p className="mt-1 text-sm text-ink-subtle">
+            Borra todos los ítems de esta bodega (por ejemplo, para deshacer una carga de Excel equivocada). No se puede
+            deshacer. Escribe el nombre exacto del barco (<span className="font-semibold">{vessel.name}</span>) para confirmar.
+          </p>
+          <form action={boundClearInventory} className="mt-4 flex flex-wrap items-center gap-3">
+            <input className="hsv-control !w-auto" name="confirmName" placeholder={vessel.name} required />
+            <button className="hsv-danger-button" type="submit">
+              Vaciar bodega
+            </button>
+          </form>
         </Panel>
       </div>
     </AppShell>

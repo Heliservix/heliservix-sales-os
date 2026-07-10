@@ -96,6 +96,28 @@ export async function deleteInventoryItem(vesselId: string, itemId: string) {
   redirect(`/vessels/${vesselId}/inventory`);
 }
 
+/** Wipes every inventory item for this vessel (stock_movements cascade with
+ * it) — for undoing a bad Excel import, not for routine use. Requires the
+ * vessel's exact name typed in the form as a confirmation guard against an
+ * accidental click. */
+export async function clearVesselInventory(vesselId: string, formData: FormData) {
+  const { data: vessel, error: vesselError } = await supabase.from("vessels").select("name").eq("id", vesselId).maybeSingle();
+  if (vesselError) throw new Error(vesselError.message);
+  if (!vessel) throw new Error("Barco no encontrado.");
+
+  const confirmation = text(formData, "confirmName");
+  if (confirmation.trim().toLowerCase() !== vessel.name.trim().toLowerCase()) {
+    throw new Error(`Escribe exactamente "${vessel.name}" para confirmar. No se borró nada.`);
+  }
+
+  const { error } = await supabase.from("inventory_items").delete().eq("vessel_id", vesselId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/vessels/${vesselId}/inventory`);
+  revalidatePath("/inventory");
+  redirect(`/vessels/${vesselId}/inventory`);
+}
+
 /** Records a stock movement — trg_apply_stock_movement adjusts inventory_items.quantity automatically. */
 export async function recordStockMovement(vesselId: string, formData: FormData) {
   const inventoryItemId = text(formData, "inventoryItemId");

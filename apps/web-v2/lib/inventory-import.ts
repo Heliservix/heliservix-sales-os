@@ -2,14 +2,21 @@ import * as XLSX from "xlsx";
 import { normalize, cellText, parseNumber, parseFlexibleDate, findHeaderRowIndex, buildColumnIndex, findColumn } from "@/lib/excel-parsing";
 import { inventoryItemTypes } from "@/app/vessels/[id]/inventory/constants";
 
-// Parses a flat inventory spreadsheet for a vessel's bodega. Unlike the
-// weekly report or Control Maestro, there's no pre-existing fixed format for
-// this — technicians don't currently track a full parts count in Excel, so
-// this importer defines a simple template (also downloadable from the
-// "Exportar" button on the vessel inventory page, which produces a file in
-// exactly this format for re-upload). One flat table, header row first, no
-// metadata block: Ítem | Tipo | P/N | S/N | Lote | Cantidad | Unidad |
-// Mínimo | Ubicación | Condición | Vencimiento | Helicóptero | Notas.
+// Parses a vessel's bodega inventory count. Two column layouts are accepted:
+//
+//   1. The real "INVENTARIO BODEGA" sheet technicians started including in
+//      the weekly report workbook: ÍTEM (row number) | DESCRIPCIÓN (name) |
+//      P/N | C/A (secondary reference) | CANTIDAD | CONDICIÓN | UBICACIÓN,
+//      with a "FAENA <marea>" / "FECHA" metadata block above the header.
+//   2. This system's own export template (Exportar button on the vessel
+//      inventory page), which uses Ítem as the name column directly plus a
+//      few extra fields (Tipo, S/N, Lote, Unidad, Mínimo, Vencimiento,
+//      Helicóptero, Notas) that the real file doesn't have.
+//
+// Column detection is alias-based (like every other importer here) so both
+// layouts resolve through the same code: DESCRIPCIÓN wins for the name
+// column when present (layout 1); otherwise ÍTEM itself is the name
+// (layout 2).
 
 export type ParsedInventoryRow = {
   itemName: string;
@@ -37,13 +44,25 @@ function normalizeItemType(raw: string): string {
   return match ?? "Other";
 }
 
+/** Picks the inventory sheet out of a workbook: prefers one named like
+ * "INVENTARIO BODEGA" (the real weekly-report sheet), falls back to the
+ * first sheet for a single-sheet template/export file. */
+function pickInventorySheet(workbook: XLSX.WorkBook): string {
+  const candidate = workbook.SheetNames.find((name) => normalize(name).includes("inventario"));
+  return candidate ?? workbook.SheetNames[0];
+}
+
 export function parseInventoryWorkbook(buffer: Buffer): ParsedInventoryWorkbook {
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-  const sheetName = workbook.SheetNames[0];
+  const sheetName = pickInventorySheet(workbook);
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) throw new Error("El archivo no tiene ninguna hoja.");
 
   const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+  return parseInventoryRows(rows);
+}
+
+export function parseInventoryRows(rows: unknown[][]): ParsedInventoryWorkbook {
   const warnings: string[] = [];
 
   const headerRowIndex = findHeaderRowIndex(rows, ["item", "descripcion"]);
@@ -52,10 +71,22 @@ export function parseInventoryWorkbook(buffer: Buffer): ParsedInventoryWorkbook 
   }
   const headerIndex = buildColumnIndex(rows[headerRowIndex]);
 
+  // DESCRIPCIÓN wins when present (real "INVENTARIO BODEGA" sheet: ÍTEM is
+  // just a row number there). Otherwise ÍTEM itself is the name column
+  // (this system's own simpler export template).
+  const descCol = findColumn(headerIndex, ["descripcion"]);
+  const itemCol = findColumn(headerIndex, ["item"]);
+  const nameCol = descCol !== -1 ? descCol : itemCol;
+
   const col = {
-    item: findColumn(headerIndex, ["item", "descripcion"]),
+    name: nameCol,
     tipo: findColumn(headerIndex, ["tipo"]),
     pn: findColumn(headerIndex, ["p/n"]),
+    // "C/A" shows up on the real sheet as a secondary reference (not
+    // consistently populated, meaning varies by row) — kept in notes rather
+    // than guessed into a specific field. "S/N" from this system's own
+    // template still maps straight to serial_number.
+    ca: findColumn(headerIndex, ["c/a"]),
     sn: findColumn(headerIndex, ["s/n"]),
     lote: findColumn(headerIndex, ["lote"]),
     cantidad: findColumn(headerIndex, ["cantidad"]),
@@ -65,11 +96,11 @@ export function parseInventoryWorkbook(buffer: Buffer): ParsedInventoryWorkbook 
     condicion: findColumn(headerIndex, ["condicion"]),
     vencimiento: findColumn(headerIndex, ["vencimiento"]),
     helicoptero: findColumn(headerIndex, ["helicoptero"]),
-    notas: findColumn(headerIndex, ["notas"])
+    notas: findColumn(headerIndex, ["notas", "observacion"])
   };
 
-  if (col.item === -1) {
-    throw new Error("La tabla no tiene una columna 'Ítem'. Usa la plantilla exportada desde el sistema.");
+  if (col.name === -1) {
+    throw new Error("La tabla no tiene una columna 'Ítem' o 'Descripción'. Usa la plantilla exportada desde el sistema.");
   }
 
   const parsedRows: ParsedInventoryRow[] = [];
@@ -77,7 +108,7 @@ export function parseInventoryWorkbook(buffer: Buffer): ParsedInventoryWorkbook 
 
   for (let r = headerRowIndex + 1; r < rows.length; r++) {
     const row = rows[r] ?? [];
-    const itemName = cellText(row[col.item]);
+    const itemName = cellText(row[col.name]);
     if (!itemName) {
       blankStreak += 1;
       if (blankStreak >= 5) break;
@@ -87,6 +118,9 @@ export function parseInventoryWorkbook(buffer: Buffer): ParsedInventoryWorkbook 
 
     const helicopterRaw = col.helicoptero !== -1 ? cellText(row[col.helicoptero]) : "";
     const relatedHelicopter = helicopterRaw.replace(/[-\s]/g, "").toUpperCase();
+
+    const caValue = col.ca !== -1 ? cellText(row[col.ca]) : "";
+    const notesParts = [col.notas !== -1 ? cellText(row[col.notas]) : "", caValue ? `C/A: ${caValue}` : ""].filter(Boolean);
 
     parsedRows.push({
       itemName,
@@ -101,7 +135,7 @@ export function parseInventoryWorkbook(buffer: Buffer): ParsedInventoryWorkbook 
       condition: col.condicion !== -1 ? cellText(row[col.condicion]) : "",
       expirationDate: col.vencimiento !== -1 ? parseFlexibleDate(row[col.vencimiento]) : null,
       relatedHelicopter,
-      notes: col.notas !== -1 ? cellText(row[col.notas]) : ""
+      notes: notesParts.join(" — ")
     });
   }
 

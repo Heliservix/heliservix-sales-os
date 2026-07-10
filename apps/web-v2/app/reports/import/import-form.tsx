@@ -28,9 +28,10 @@ export function WeeklyImportForm() {
         </label>
         <p className="text-sm text-ink-muted">
           Acepta el archivo tal como lo entregan los mecánicos: hojas &ldquo;INFORME SEMANAL&rdquo;, &ldquo;NO RUTINAS&rdquo;,
-          &ldquo;CAMBIO FILTROS&rdquo;, &ldquo;CONSUMO MATERIALES&rdquo; y &ldquo;PEDIDOS&rdquo;. El helicóptero debe existir
-          ya en el sistema. Las horas de la semana se descuentan automáticamente de todos sus componentes activos, el
-          consumo de materiales se descuenta de la bodega del barco, y los pedidos quedan registrados en Compras.
+          &ldquo;CAMBIO FILTROS&rdquo;, &ldquo;CONSUMO MATERIALES&rdquo;, &ldquo;PEDIDOS&rdquo; e &ldquo;INVENTARIO
+          BODEGA&rdquo;. El helicóptero debe existir ya en el sistema. Las horas de la semana se descuentan automáticamente
+          de todos sus componentes activos, el consumo de materiales se descuenta de la bodega del barco, los pedidos quedan
+          registrados en Compras, y si el archivo trae el conteo completo de bodega, la actualiza directamente.
         </p>
         <div>
           <SubmitButton />
@@ -60,12 +61,17 @@ export function WeeklyImportForm() {
               </ul>
             </div>
           )}
-          {(state.materialsConsumedApplied != null || state.purchaseRequestsCreated != null) && (
+          {(state.materialsConsumedApplied != null || state.purchaseRequestsCreated != null || state.inventoryCountSynced) && (
             <p className="mt-2">
               {state.materialsConsumedApplied != null && (
                 <>Se aplicaron {state.materialsConsumedApplied} consumos de materiales a la bodega del barco. </>
               )}
-              {state.purchaseRequestsCreated != null && <>Se registraron {state.purchaseRequestsCreated} pedidos en Compras.</>}
+              {state.purchaseRequestsCreated != null && <>Se registraron {state.purchaseRequestsCreated} pedidos en Compras. </>}
+              {state.inventoryCountSynced && (
+                <>
+                  Conteo de bodega: {state.inventoryCountSynced.created} ítem(s) nuevo(s), {state.inventoryCountSynced.updated} actualizado(s).
+                </>
+              )}
             </p>
           )}
           {state.materialsConsumedReview && state.materialsConsumedReview.length > 0 && (

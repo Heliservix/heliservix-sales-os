@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import { parseWeeklyReportWorkbook } from "@/lib/weekly-report-import";
+import { syncVesselInventory } from "@/lib/inventory-sync";
 
 export type WeeklyImportState = {
   status: "idle" | "success" | "error";
@@ -15,6 +16,7 @@ export type WeeklyImportState = {
   materialsConsumedApplied?: number;
   materialsConsumedReview?: string[];
   purchaseRequestsCreated?: number;
+  inventoryCountSynced?: { created: number; updated: number };
   warnings?: string[];
 };
 
@@ -49,6 +51,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     filterChanges,
     materialsConsumed,
     purchaseRequests,
+    inventoryCount,
     detectedComponentChanges,
     warnings
   } = parsed;
@@ -408,6 +411,21 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     }
   }
 
+  // 9. Full bodega count ("INVENTARIO BODEGA") — reconciles the vessel's
+  // inventory directly (sets quantity/condition/location from the sheet,
+  // same rule as the standalone "Cargar Excel" button), since this sheet
+  // represents a physical recount, not an incremental change.
+  let inventoryCountSynced: { created: number; updated: number } | undefined;
+  if (inventoryCount.length > 0) {
+    if (!vesselId) {
+      materialsConsumedReview.push("No se pudo actualizar la bodega desde 'INVENTARIO BODEGA' porque no se identificó un barco en el reporte.");
+    } else {
+      const { created, updated, warnings: syncWarnings } = await syncVesselInventory(vesselId, inventoryCount);
+      inventoryCountSynced = { created, updated };
+      materialsConsumedReview.push(...syncWarnings);
+    }
+  }
+
   revalidatePath("/helicopters");
   revalidatePath(`/helicopters/${helicopterRegistration}`);
   revalidatePath("/inventory");
@@ -427,6 +445,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     materialsConsumedApplied,
     materialsConsumedReview,
     purchaseRequestsCreated,
+    inventoryCountSynced,
     warnings
   };
 }
