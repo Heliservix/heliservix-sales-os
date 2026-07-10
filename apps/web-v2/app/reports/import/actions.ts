@@ -12,6 +12,9 @@ export type WeeklyImportState = {
   maintenanceLogsCreated?: number;
   componentChangesDetected?: number;
   componentChangesReview?: string[];
+  materialsConsumedApplied?: number;
+  materialsConsumedReview?: string[];
+  purchaseRequestsCreated?: number;
   warnings?: string[];
 };
 
@@ -44,6 +47,8 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     routineInspections,
     nonRoutineEvents,
     filterChanges,
+    materialsConsumed,
+    purchaseRequests,
     detectedComponentChanges,
     warnings
   } = parsed;
@@ -249,8 +254,120 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     }
   }
 
+  // 7. Materials consumed ("CONSUMO MATERIALES") — deduct from the vessel's
+  // bodega. Matched by P/N when present, otherwise by item name (case-insensitive)
+  // within that vessel's inventory. If nothing matches, auto-create a placeholder
+  // item at quantity 0 so the movement still has somewhere to attach — that way
+  // nothing is silently dropped, and the user sees it flagged for review.
+  const materialsConsumedReview: string[] = [];
+  let materialsConsumedApplied = 0;
+  if (materialsConsumed.length > 0) {
+    if (!vesselId) {
+      materialsConsumedReview.push(
+        `No se pudo vincular el consumo de materiales a una bodega porque no se identificó un barco en el reporte.`
+      );
+    } else {
+      for (const material of materialsConsumed) {
+        let inventoryItemId: string | null = null;
+
+        if (material.partNumber) {
+          const { data: match } = await supabase
+            .from("inventory_items")
+            .select("id")
+            .eq("vessel_id", vesselId)
+            .eq("archived", false)
+            .ilike("part_number", material.partNumber)
+            .maybeSingle();
+          inventoryItemId = match?.id ?? null;
+        }
+        if (!inventoryItemId) {
+          const { data: match } = await supabase
+            .from("inventory_items")
+            .select("id")
+            .eq("vessel_id", vesselId)
+            .eq("archived", false)
+            .ilike("item_name", material.description)
+            .maybeSingle();
+          inventoryItemId = match?.id ?? null;
+        }
+
+        let autoCreated = false;
+        if (!inventoryItemId) {
+          const { data: created, error: createError } = await supabase
+            .from("inventory_items")
+            .insert({
+              vessel_id: vesselId,
+              item_name: material.description,
+              part_number: material.partNumber || null,
+              item_type: "Consumable",
+              quantity: 0,
+              related_helicopter: helicopterRegistration,
+              notes: `Creado automáticamente desde reporte semanal (Marea ${mareaCode || "N/A"}, Semana ${weekNumber}) — revisar y completar datos.`,
+              source: "User"
+            })
+            .select("id")
+            .single();
+          if (createError) {
+            materialsConsumedReview.push(`No se pudo registrar "${material.description}": ${createError.message}`);
+            continue;
+          }
+          inventoryItemId = created.id;
+          autoCreated = true;
+        }
+
+        const { error: movementError } = await supabase.from("stock_movements").insert({
+          inventory_item_id: inventoryItemId,
+          movement_type: "Consumed",
+          quantity: material.quantity > 0 ? material.quantity : 0.0001,
+          movement_date: reportDate ?? new Date().toISOString().slice(0, 10),
+          related_maintenance_event: mareaCode || null,
+          notes: material.observation || null,
+          source: "User"
+        });
+
+        if (movementError) {
+          materialsConsumedReview.push(`No se pudo aplicar el consumo de "${material.description}": ${movementError.message}`);
+          continue;
+        }
+
+        materialsConsumedApplied += 1;
+        if (autoCreated) {
+          materialsConsumedReview.push(`"${material.description}" no estaba en la bodega — se creó y se le aplicó el consumo. Revisa P/N, mínimo y ubicación.`);
+        }
+      }
+    }
+  }
+
+  // 8. Purchase requests ("PEDIDOS") — logged as purchase_requests for the office
+  // to quote/order/track. Supplier is left as a placeholder since technicians
+  // don't choose a supplier in the field.
+  let purchaseRequestsCreated = 0;
+  if (purchaseRequests.length > 0) {
+    const rows = purchaseRequests.map((request) => ({
+      supplier: "Pendiente de asignar",
+      item_name: request.description,
+      part_number: request.partNumber || null,
+      quantity: request.quantity > 0 ? request.quantity : 1,
+      related_helicopter: helicopterRegistration,
+      related_vessel_id: vesselId,
+      related_maintenance_event: mareaCode || null,
+      status: "Requested" as const,
+      notes: request.observationUrgency || null,
+      source: "User" as const
+    }));
+
+    const { error: purchaseError, data } = await supabase.from("purchase_requests").insert(rows).select("id");
+    if (purchaseError) {
+      materialsConsumedReview.push(`No se pudieron registrar los pedidos: ${purchaseError.message}`);
+    } else {
+      purchaseRequestsCreated = data?.length ?? rows.length;
+    }
+  }
+
   revalidatePath("/helicopters");
   revalidatePath(`/helicopters/${helicopterRegistration}`);
+  revalidatePath("/inventory");
+  if (vesselId) revalidatePath(`/vessels/${vesselId}/inventory`);
   revalidatePath("/");
 
   return {
@@ -261,6 +378,9 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     maintenanceLogsCreated,
     componentChangesDetected: detectedComponentChanges.length,
     componentChangesReview,
+    materialsConsumedApplied,
+    materialsConsumedReview,
+    purchaseRequestsCreated,
     warnings
   };
 }

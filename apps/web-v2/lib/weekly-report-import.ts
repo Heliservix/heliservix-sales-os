@@ -11,12 +11,16 @@ import {
 } from "@/lib/excel-parsing";
 
 // Parses the weekly operations report ("INFORME SEMANAL DE OPERACIONES") that
-// mechanics deliver every Monday per vessel/marea. Three sheets matter:
+// mechanics deliver every Monday per vessel/marea. Sheets that matter:
 //   - INFORME SEMANAL: aircraft/marea identification, hourmeter readout for the
 //     current week, and the routine inspections performed.
 //   - NO RUTINAS: unscheduled findings, one numbered block per event, each with
 //     an optional "MATERIAL UTILIZADO" table.
 //   - CAMBIO FILTROS: filter replacement log.
+//   - CONSUMO MATERIALES: oil/fuel/parts consumed during the marea — feeds the
+//     vessel's inventory ("bodega") as stock movements.
+//   - PEDIDOS: parts the technicians are requesting be ordered — feeds
+//     purchase_requests for the office to action.
 //
 // This does NOT auto-mutate the live components table. It (a) creates a
 // flight_logs row, which the existing trg_apply_flight_log trigger uses to bump
@@ -91,6 +95,24 @@ export type FilterChange = {
   comments: string;
 };
 
+export type ConsumedMaterial = {
+  itemNumber: number | null;
+  description: string;
+  partNumber: string;
+  reference: string;
+  quantity: number;
+  observation: string;
+};
+
+export type RequestedPurchase = {
+  itemNumber: number | null;
+  description: string;
+  partNumber: string;
+  reference: string;
+  quantity: number;
+  observationUrgency: string;
+};
+
 export type ParsedWeeklyReport = {
   helicopterRegistration: string;
   vesselName: string;
@@ -105,6 +127,8 @@ export type ParsedWeeklyReport = {
   routineInspections: RoutineInspection[];
   nonRoutineEvents: NonRoutineEvent[];
   filterChanges: FilterChange[];
+  materialsConsumed: ConsumedMaterial[];
+  purchaseRequests: RequestedPurchase[];
   detectedComponentChanges: DetectedComponentChange[];
   warnings: string[];
 };
@@ -318,6 +342,78 @@ function parseCambioFiltros(rows: unknown[][]): FilterChange[] {
   return changes;
 }
 
+/** "CONSUMO MATERIALES": materials/consumables used during the marea (oil, fuel,
+ * filters, small parts) — feeds the vessel's inventory as a "Consumed" stock movement. */
+function parseConsumoMateriales(rows: unknown[][]): ConsumedMaterial[] {
+  const headerIdx = findRowIndexByFirstCell(rows, ["item"]);
+  if (headerIdx === -1) return [];
+  const headerIndex = buildColumnIndex(rows[headerIdx]);
+  const descCol = findColumn(headerIndex, ["descripcion"]);
+  const pnCol = findColumn(headerIndex, ["p/n"]);
+  const refCol = findColumn(headerIndex, ["referencia"]);
+  const qtyCol = findColumn(headerIndex, ["cantidad"]);
+  const obsCol = findColumn(headerIndex, ["observacion"]);
+
+  const materials: ConsumedMaterial[] = [];
+  let blankStreak = 0;
+  for (let r = headerIdx + 1; r < rows.length; r++) {
+    const row = rows[r] ?? [];
+    const description = descCol !== -1 ? cellText(row[descCol]) : "";
+    if (!description) {
+      blankStreak += 1;
+      if (blankStreak >= 5) break;
+      continue;
+    }
+    blankStreak = 0;
+    const itemNumber = parseNumberOrNull(row[0]);
+    materials.push({
+      itemNumber,
+      description,
+      partNumber: pnCol !== -1 ? cellText(row[pnCol]) : "",
+      reference: refCol !== -1 ? cellText(row[refCol]) : "",
+      quantity: qtyCol !== -1 ? (parseNumberOrNull(row[qtyCol]) ?? 0) : 0,
+      observation: obsCol !== -1 ? cellText(row[obsCol]) : ""
+    });
+  }
+  return materials;
+}
+
+/** "PEDIDOS": purchase requests raised during the marea (parts running low or
+ * needed) — feeds purchase_requests so the office can order/track them. */
+function parsePedidos(rows: unknown[][]): RequestedPurchase[] {
+  const headerIdx = findRowIndexByFirstCell(rows, ["item"]);
+  if (headerIdx === -1) return [];
+  const headerIndex = buildColumnIndex(rows[headerIdx]);
+  const descCol = findColumn(headerIndex, ["descripcion"]);
+  const pnCol = findColumn(headerIndex, ["p/n"]);
+  const refCol = findColumn(headerIndex, ["referencia"]);
+  const qtyCol = findColumn(headerIndex, ["cantidad"]);
+  const obsCol = findColumn(headerIndex, ["observacion"]);
+
+  const requests: RequestedPurchase[] = [];
+  let blankStreak = 0;
+  for (let r = headerIdx + 1; r < rows.length; r++) {
+    const row = rows[r] ?? [];
+    const description = descCol !== -1 ? cellText(row[descCol]) : "";
+    if (!description) {
+      blankStreak += 1;
+      if (blankStreak >= 5) break;
+      continue;
+    }
+    blankStreak = 0;
+    const itemNumber = parseNumberOrNull(row[0]);
+    requests.push({
+      itemNumber,
+      description,
+      partNumber: pnCol !== -1 ? cellText(row[pnCol]) : "",
+      reference: refCol !== -1 ? cellText(row[refCol]) : "",
+      quantity: qtyCol !== -1 ? (parseNumberOrNull(row[qtyCol]) ?? 0) : 0,
+      observationUrgency: obsCol !== -1 ? cellText(row[obsCol]) : ""
+    });
+  }
+  return requests;
+}
+
 export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const warnings: string[] = [];
@@ -332,6 +428,12 @@ export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
 
   const filtrosSheetName = workbook.SheetNames.find((name) => normalize(name).includes("cambio filtros"));
   const filterChanges = filtrosSheetName ? parseCambioFiltros(sheetRows(workbook, filtrosSheetName)) : [];
+
+  const consumoSheetName = workbook.SheetNames.find((name) => normalize(name).includes("consumo materiales"));
+  const materialsConsumed = consumoSheetName ? parseConsumoMateriales(sheetRows(workbook, consumoSheetName)) : [];
+
+  const pedidosSheetName = workbook.SheetNames.find((name) => normalize(name).includes("pedidos"));
+  const purchaseRequests = pedidosSheetName ? parsePedidos(sheetRows(workbook, pedidosSheetName)) : [];
 
   const detectedComponentChanges: DetectedComponentChange[] = [];
   for (const inspection of informe.routineInspections) {
@@ -348,5 +450,5 @@ export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
     warnings.push("No se encontraron inspecciones, no-rutinas ni cambios de filtro en el archivo — solo se aplicarán las horas de vuelo.");
   }
 
-  return { ...informe, nonRoutineEvents, filterChanges, detectedComponentChanges, warnings };
+  return { ...informe, nonRoutineEvents, filterChanges, materialsConsumed, purchaseRequests, detectedComponentChanges, warnings };
 }

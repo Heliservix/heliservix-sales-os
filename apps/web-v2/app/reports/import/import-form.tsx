@@ -27,9 +27,10 @@ export function WeeklyImportForm() {
           <input className="hsv-control" type="file" name="file" accept=".xlsx,.xls" required />
         </label>
         <p className="text-sm text-ink-muted">
-          Acepta el archivo tal como lo entregan los mecánicos: hojas &ldquo;INFORME SEMANAL&rdquo;, &ldquo;NO RUTINAS&rdquo; y
-          &ldquo;CAMBIO FILTROS&rdquo;. El helicóptero debe existir ya en el sistema. Las horas de la semana se
-          descuentan automáticamente de todos sus componentes activos.
+          Acepta el archivo tal como lo entregan los mecánicos: hojas &ldquo;INFORME SEMANAL&rdquo;, &ldquo;NO RUTINAS&rdquo;,
+          &ldquo;CAMBIO FILTROS&rdquo;, &ldquo;CONSUMO MATERIALES&rdquo; y &ldquo;PEDIDOS&rdquo;. El helicóptero debe existir
+          ya en el sistema. Las horas de la semana se descuentan automáticamente de todos sus componentes activos, el
+          consumo de materiales se descuenta de la bodega del barco, y los pedidos quedan registrados en Compras.
         </p>
         <div>
           <SubmitButton />
@@ -54,6 +55,24 @@ export function WeeklyImportForm() {
               <p className="font-semibold">Posibles cambios de componentes detectados — revisar manualmente:</p>
               <ul className="mt-2 list-disc pl-5">
                 {state.componentChangesReview.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(state.materialsConsumedApplied != null || state.purchaseRequestsCreated != null) && (
+            <p className="mt-2">
+              {state.materialsConsumedApplied != null && (
+                <>Se aplicaron {state.materialsConsumedApplied} consumos de materiales a la bodega del barco. </>
+              )}
+              {state.purchaseRequestsCreated != null && <>Se registraron {state.purchaseRequestsCreated} pedidos en Compras.</>}
+            </p>
+          )}
+          {state.materialsConsumedReview && state.materialsConsumedReview.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <p className="font-semibold">Avisos sobre materiales / pedidos — revisar:</p>
+              <ul className="mt-2 list-disc pl-5">
+                {state.materialsConsumedReview.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
