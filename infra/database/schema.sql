@@ -110,8 +110,19 @@ create index idx_components_status on components(status) where archived = false;
 
 -- Recalculate remaining_percentage and status server-side, once, instead
 -- of in five different places in the frontend.
+--
+-- Status is the WORSE of two independent readings: hours remaining and
+-- calendar days remaining. A component can have 90% of its life left in
+-- hours but still be a month from its calendar expiry (e.g. a part with a
+-- 12-year calendar limit that just doesn't fly much) — that must surface
+-- as Critical/Monitor too, not get hidden behind a healthy hours number.
+-- Components with no calendar limit at all (LIFE / ON CONDITION / N/A —
+-- remaining_calendar_days is null) are judged on hours only.
 create or replace function recalculate_component_fields()
 returns trigger as $$
+declare
+  hours_status text;
+  calendar_status text;
 begin
   if new.status = 'Removed' then
     return new;
@@ -122,12 +133,25 @@ begin
     else greatest(0, least(100, (new.remaining_hours / new.life_limit_hours) * 100))
   end;
 
-  new.status := case
-    when new.remaining_hours <= 0
-      or (new.remaining_calendar_days is not null and new.remaining_calendar_days <= 0)
-      or new.remaining_percentage <= 0 then 'Expired'
+  hours_status := case
+    when new.remaining_hours <= 0 or new.remaining_percentage <= 0 then 'Expired'
     when new.remaining_percentage < 10 then 'Critical'
     when new.remaining_percentage <= 25 then 'Monitor'
+    else 'OK'
+  end;
+
+  calendar_status := case
+    when new.remaining_calendar_days is null then 'OK'
+    when new.remaining_calendar_days <= 0 then 'Expired'
+    when new.remaining_calendar_days < 90 then 'Critical'
+    when new.remaining_calendar_days <= 180 then 'Monitor'
+    else 'OK'
+  end;
+
+  new.status := case
+    when hours_status = 'Expired' or calendar_status = 'Expired' then 'Expired'
+    when hours_status = 'Critical' or calendar_status = 'Critical' then 'Critical'
+    when hours_status = 'Monitor' or calendar_status = 'Monitor' then 'Monitor'
     else 'OK'
   end;
 
@@ -182,6 +206,9 @@ returns trigger as $$
 declare
   computed_severity text;
   computed_alert_type text;
+  hours_status text;
+  calendar_status text;
+  computed_basis text;
 begin
   if new.status in ('Monitor','Critical','Expired') then
     computed_alert_type := new.status || ' component threshold';
@@ -191,6 +218,24 @@ begin
       else 'Monitor'
     end;
 
+    -- Mirror recalculate_component_fields' hours-vs-calendar comparison so the
+    -- alert says WHY it fired: a component can be Critical purely because its
+    -- calendar limit is near even though it has plenty of hours left.
+    hours_status := case
+      when new.remaining_hours <= 0 or new.remaining_percentage <= 0 then 'Expired'
+      when new.remaining_percentage < 10 then 'Critical'
+      when new.remaining_percentage <= 25 then 'Monitor'
+      else 'OK'
+    end;
+    calendar_status := case
+      when new.remaining_calendar_days is null then 'OK'
+      when new.remaining_calendar_days <= 0 then 'Expired'
+      when new.remaining_calendar_days < 90 then 'Critical'
+      when new.remaining_calendar_days <= 180 then 'Monitor'
+      else 'OK'
+    end;
+    computed_basis := case when calendar_status = new.status then 'Calendar' else 'Hours' end;
+
     insert into maintenance_alerts (
       helicopter_registration, component_id, component_name, alert_type,
       severity, trigger_basis, remaining_hours, remaining_calendar_days,
@@ -198,14 +243,12 @@ begin
     ) values (
       new.helicopter_registration, new.id, new.component_name, computed_alert_type,
       computed_severity,
-      case
-        when new.remaining_hours <= 0 then 'Hours'
-        when new.remaining_calendar_days is not null and new.remaining_calendar_days <= 0 then 'Calendar'
-        else 'Forecast'
-      end,
+      computed_basis,
       new.remaining_hours, new.remaining_calendar_days, new.calendar_limit_date,
       'Maintenance Chief', 'Open',
-      new.component_name || ' is ' || new.status || '. Review hour, calendar, and evidence records before dispatch.',
+      new.component_name || ' is ' || new.status || ' (' || computed_basis || '). ' ||
+        new.remaining_hours::text || ' hrs remaining, ' ||
+        coalesce(new.remaining_calendar_days::text || ' calendar days remaining', 'no calendar limit') || '.',
       new.source
     )
     on conflict (component_id, alert_type) where status <> 'Resolved'

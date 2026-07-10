@@ -1,12 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Plane, Plus, Trash2, UploadCloud } from "lucide-react";
+import { Download, Pencil, Plane, Plus, Trash2, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { deleteHelicopter } from "@/app/helicopters/actions";
+
+// A component is "calendar-driven" when its calendar expiry is the tighter
+// constraint than its hours remaining — i.e. exactly the case where a part
+// looks healthy by hours but is quietly approaching a hard calendar deadline.
+function isCalendarDriven(remainingCalendarDays: number | null) {
+  return remainingCalendarDays != null && remainingCalendarDays <= 180;
+}
+
+function formatCalendarDue(calendarLimitDate: string | null, remainingCalendarDays: number | null) {
+  if (!calendarLimitDate) return "Sin límite de calendario";
+  const days = remainingCalendarDays != null ? `${remainingCalendarDays} días` : "";
+  return `${calendarLimitDate}${days ? ` · ${days}` : ""}`;
+}
 
 type HelicopterDetailPageProps = {
   params: Promise<{ registration: string }>;
@@ -24,7 +37,9 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
 
   const { data: components } = await supabase
     .from("components")
-    .select("id, component_name, part_number, serial_number, remaining_hours, remaining_percentage, status")
+    .select(
+      "id, component_name, part_number, serial_number, remaining_hours, remaining_percentage, status, calendar_limit_date, remaining_calendar_days"
+    )
     .eq("helicopter_registration", registration)
     .neq("status", "Removed")
     .order("remaining_hours", { ascending: true });
@@ -94,6 +109,10 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                 <UploadCloud className="h-4 w-4" aria-hidden="true" />
                 Importar / actualizar desde Excel
               </Link>
+              <a className="hsv-secondary-button" href={`/helicopters/${registration}/components/export`}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Exportar a Excel
+              </a>
             </div>
           </div>
           <div className="hsv-table-wrap">
@@ -103,8 +122,9 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                   <th className="hsv-table-th">Componente</th>
                   <th className="hsv-table-th">P/N</th>
                   <th className="hsv-table-th">S/N</th>
-                  <th className="hsv-table-th">Remanente</th>
+                  <th className="hsv-table-th">Remanente (hrs)</th>
                   <th className="hsv-table-th">%</th>
+                  <th className="hsv-table-th">Vence (calendario)</th>
                   <th className="hsv-table-th">Estado</th>
                   <th className="hsv-table-th" />
                 </tr>
@@ -117,6 +137,14 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                     <td className="hsv-table-cell text-ink-muted">{component.serial_number}</td>
                     <td className="hsv-table-cell hsv-technical-value">{Number(component.remaining_hours).toFixed(1)} hrs</td>
                     <td className="hsv-table-cell hsv-technical-value">{Number(component.remaining_percentage).toFixed(1)}%</td>
+                    <td className="hsv-table-cell">
+                      <span className={isCalendarDriven(component.remaining_calendar_days) ? "font-semibold text-aviation-amber" : "text-ink-muted"}>
+                        {formatCalendarDue(component.calendar_limit_date, component.remaining_calendar_days)}
+                      </span>
+                      {isCalendarDriven(component.remaining_calendar_days) ? (
+                        <p className="mt-0.5 text-xs text-aviation-amber">Vence por calendario antes que por horas</p>
+                      ) : null}
+                    </td>
                     <td className="hsv-table-cell">
                       <StatusPill tone={component.status === "OK" ? "green" : component.status === "Monitor" ? "amber" : "red"}>
                         {component.status}
@@ -135,7 +163,7 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
                 ))}
                 {!components?.length ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={7}>
+                    <td className="hsv-empty-state" colSpan={8}>
                       Esta aeronave todavía no tiene componentes registrados. Usa &ldquo;Agregar componente&rdquo; o &ldquo;Importar / actualizar desde Excel&rdquo; arriba.
                     </td>
                   </tr>
