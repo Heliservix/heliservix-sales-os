@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, Boxes, Plus } from "lucide-react";
+import { AlertTriangle, Boxes, Download, Plus, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -61,10 +61,20 @@ export default async function VesselInventoryPage({ params }: VesselInventoryPag
               <Boxes className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               <h2 className="text-lg font-semibold text-ink">Ítems</h2>
             </div>
-            <Link className="hsv-primary-button" href={`/vessels/${id}/inventory/new`}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Agregar ítem
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <a className="hsv-secondary-button" href={`/vessels/${id}/inventory/export`}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Exportar
+              </a>
+              <Link className="hsv-secondary-button" href={`/vessels/${id}/inventory/import`}>
+                <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                Cargar Excel
+              </Link>
+              <Link className="hsv-primary-button" href={`/vessels/${id}/inventory/new`}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Agregar ítem
+              </Link>
+            </div>
           </div>
           <div className="hsv-table-wrap">
             <table className="hsv-table">
