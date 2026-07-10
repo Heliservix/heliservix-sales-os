@@ -155,9 +155,9 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       helicopter_registration: helicopterRegistration,
       log_date: inspection.date,
       maintenance_type: inspection.inspectionType,
+      hourmeter: inspection.hourmeter,
       description: inspection.description,
       notes: [
-        inspection.hourmeter != null ? `Horómetro: ${inspection.hourmeter}` : null,
         inspection.aircraftHours != null ? `Hrs aeronave: ${inspection.aircraftHours}` : null,
         inspection.engineHours != null ? `Hrs motor: ${inspection.engineHours}` : null
       ]
@@ -169,6 +169,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       helicopter_registration: helicopterRegistration,
       log_date: event.date,
       maintenance_type: "No Rutina",
+      hourmeter: event.hobbs,
       description: event.novelty || null,
       technician: event.technician,
       action_taken: event.managementAction || null,
@@ -181,8 +182,9 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       helicopter_registration: helicopterRegistration,
       log_date: change.date,
       maintenance_type: "Cambio de Filtro",
+      hourmeter: change.hourmeter,
       description: `Filtro ${change.filterType || "N/A"}${change.reason ? ` — motivo: ${change.reason}` : ""}`,
-      notes: [change.hourmeter != null ? `Horómetro: ${change.hourmeter}` : null, change.comments || null].filter(Boolean).join(" · "),
+      notes: change.comments || null,
       source: "User" as const
     }))
   ];

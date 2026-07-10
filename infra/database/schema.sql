@@ -366,6 +366,10 @@ create table maintenance_logs (
   helicopter_registration text not null references helicopters(registration) on delete cascade,
   log_date date,
   maintenance_type text not null,
+  -- Aircraft hourmeter reading at the time of this event. Needed (not just
+  -- nice-to-have) so the scheduled-inspection view can compute "next 100 HRS
+  -- due at X" from history instead of parsing free-text notes.
+  hourmeter numeric,
   description text,
   technician text,
   related_component_id uuid references components(id),
@@ -375,6 +379,8 @@ create table maintenance_logs (
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now()
 );
+
+create index idx_maintenance_logs_helicopter_type on maintenance_logs(helicopter_registration, maintenance_type, log_date desc);
 
 create table component_changes (
   id uuid primary key default gen_random_uuid(),

@@ -1,10 +1,18 @@
-import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CalendarClock, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateAlertStatus } from "@/app/alerts/actions";
+import { buildMaintenanceSchedule, type ScheduledInspection } from "@/lib/maintenance-schedule";
+
+const SCHEDULE_TONE: Record<ScheduledInspection["status"], "red" | "amber" | "green"> = {
+  Overdue: "red",
+  "Due soon": "amber",
+  OK: "green"
+};
 
 export const dynamic = "force-dynamic";
 
@@ -47,13 +55,16 @@ function basisLabel(basis: AlertRow["trigger_basis"]) {
 }
 
 export default async function AlertsPage() {
-  const { data, error } = await supabase
-    .from("maintenance_alerts")
-    .select(
-      "id, helicopter_registration, component_name, alert_type, severity, trigger_basis, remaining_hours, remaining_calendar_days, due_date, status, description, helicopters(model)"
-    )
-    .neq("status", "Resolved")
-    .order("created_at", { ascending: true });
+  const [{ data, error }, schedule] = await Promise.all([
+    supabase
+      .from("maintenance_alerts")
+      .select(
+        "id, helicopter_registration, component_name, alert_type, severity, trigger_basis, remaining_hours, remaining_calendar_days, due_date, status, description, helicopters(model)"
+      )
+      .neq("status", "Resolved")
+      .order("created_at", { ascending: true }),
+    buildMaintenanceSchedule()
+  ]);
 
   const alerts = ((data ?? []) as unknown as AlertRow[]).sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 
@@ -152,6 +163,66 @@ export default async function AlertsPage() {
                   <tr>
                     <td className="hsv-empty-state" colSpan={8}>
                       No hay alertas abiertas. La flota está dentro de sus límites.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel className="mt-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-ink">Inspecciones programadas (manual Robinson)</h2>
+            </div>
+            <Link className="hsv-secondary-button" href="/maintenance/new">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Registrar mantenimiento en hangar
+            </Link>
+          </div>
+          <p className="mb-4 text-sm text-ink-subtle">
+            Calculado solo de tu historial real: detecta los tipos de inspección por horas (25 HRS, 50 HRS, 100 HRS, etc.) que ya
+            registraste y avisa cuándo toca la próxima según el horómetro actual de cada máquina. No depende de una lista fija —
+            si cambia el ciclo, esto se ajusta solo.
+          </p>
+          <div className="hsv-table-wrap">
+            <table className="hsv-table">
+              <thead className="hsv-table-head">
+                <tr>
+                  <th className="hsv-table-th">Helicóptero</th>
+                  <th className="hsv-table-th">Inspección</th>
+                  <th className="hsv-table-th">Última vez</th>
+                  <th className="hsv-table-th">Próxima a</th>
+                  <th className="hsv-table-th">Faltan</th>
+                  <th className="hsv-table-th">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="hsv-table-body">
+                {schedule.map((item) => (
+                  <tr key={`${item.helicopterRegistration}-${item.maintenanceType}`} className="hsv-table-row">
+                    <td className="hsv-table-cell font-semibold text-ink">{item.helicopterRegistration}</td>
+                    <td className="hsv-table-cell text-ink-muted">{item.maintenanceType}</td>
+                    <td className="hsv-table-cell hsv-technical-value">
+                      {item.lastDoneAtHourmeter.toFixed(1)} hrs {item.lastDoneDate ? `(${item.lastDoneDate})` : ""}
+                    </td>
+                    <td className="hsv-table-cell hsv-technical-value">{item.nextDueAtHourmeter.toFixed(1)} hrs</td>
+                    <td className="hsv-table-cell hsv-technical-value">
+                      {item.hoursRemaining > 0 ? `${item.hoursRemaining.toFixed(1)} hrs` : `vencida hace ${Math.abs(item.hoursRemaining).toFixed(1)} hrs`}
+                    </td>
+                    <td className="hsv-table-cell">
+                      <StatusPill tone={SCHEDULE_TONE[item.status]}>
+                        {item.status === "Overdue" ? "Vencida" : item.status === "Due soon" ? "Se acerca" : "OK"}
+                      </StatusPill>
+                    </td>
+                  </tr>
+                ))}
+                {!schedule.length ? (
+                  <tr>
+                    <td className="hsv-empty-state" colSpan={6}>
+                      Todavía no hay suficiente historial de inspecciones por horas (25/50/100 HRS) para calcular esto. Aparece
+                      solo cuando subes reportes semanales con esa información.
                     </td>
                   </tr>
                 ) : null}
