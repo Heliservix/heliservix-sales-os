@@ -139,10 +139,22 @@ export type ParsedWeeklyReport = {
   warnings: string[];
 };
 
-function parseInformeSemanal(rows: unknown[][], warnings: string[]) {
+function parseInformeSemanal(rows: unknown[][], warnings: string[], fallbackRegistration: string) {
   const registrationRaw = cellText(findLabelValue(rows, ["matricula"]));
-  const helicopterRegistration = registrationRaw.replace(/[-\s]/g, "").toUpperCase();
-  if (!helicopterRegistration) throw new Error("No se encontró la matrícula del helicóptero en 'INFORME SEMANAL'.");
+  let helicopterRegistration = registrationRaw.replace(/[-\s]/g, "").toUpperCase();
+  if (!helicopterRegistration && fallbackRegistration) {
+    // The technician left "Matrícula" blank in INFORME SEMANAL itself — not
+    // uncommon — but the other sheets in the same workbook (CONSUMO
+    // MATERIALES, PEDIDOS, INVENTARIO BODEGA) usually repeat it in their own
+    // metadata block. Real case: VENTUARI M04-2026 semana 1 shipped with this
+    // field empty in INFORME SEMANAL but "HP-1768" present in CONSUMO
+    // MATERIALES.
+    helicopterRegistration = fallbackRegistration;
+    warnings.push(
+      `La 'Matrícula' venía vacía en la hoja 'INFORME SEMANAL' — se tomó ${fallbackRegistration} de otra hoja del mismo archivo. Verifica que sea correcta.`
+    );
+  }
+  if (!helicopterRegistration) throw new Error("No se encontró la matrícula del helicóptero en 'INFORME SEMANAL' ni en ninguna otra hoja del archivo.");
 
   const vesselRaw = cellText(findLabelValue(rows, ["b/m atunero", "atunero", "buque"]));
   const vesselName = cleanVesselName(vesselRaw) || vesselRaw;
@@ -420,6 +432,21 @@ function parsePedidos(rows: unknown[][]): RequestedPurchase[] {
   return requests;
 }
 
+/** Scans the other per-marea sheets (they each repeat "Matrícula:" in their
+ * own metadata block) for a registration, to use as a fallback when INFORME
+ * SEMANAL's own field was left blank. */
+function findRegistrationFallback(workbook: XLSX.WorkBook): string {
+  const candidateSheetNames = ["consumo materiales", "pedidos", "inventario", "no rutinas", "cambio filtros"];
+  for (const candidate of candidateSheetNames) {
+    const sheetName = workbook.SheetNames.find((name) => normalize(name).includes(candidate));
+    if (!sheetName) continue;
+    const raw = cellText(findLabelValue(sheetRows(workbook, sheetName), ["matricula"]));
+    const registration = raw.replace(/[-\s]/g, "").toUpperCase();
+    if (registration) return registration;
+  }
+  return "";
+}
+
 export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const warnings: string[] = [];
@@ -427,7 +454,7 @@ export function parseWeeklyReportWorkbook(buffer: Buffer): ParsedWeeklyReport {
   const informeSheetName = workbook.SheetNames.find((name) => normalize(name).includes("informe semanal"));
   if (!informeSheetName) throw new Error("No se encontró la hoja 'INFORME SEMANAL' en el archivo.");
   const informeRows = sheetRows(workbook, informeSheetName);
-  const informe = parseInformeSemanal(informeRows, warnings);
+  const informe = parseInformeSemanal(informeRows, warnings, findRegistrationFallback(workbook));
 
   const noRutinasSheetName = workbook.SheetNames.find((name) => normalize(name).includes("no rutinas"));
   const nonRoutineEvents = noRutinasSheetName ? parseNoRutinas(sheetRows(workbook, noRutinasSheetName)) : [];
