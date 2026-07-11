@@ -18,6 +18,12 @@ type HelicopterRow = {
   vessels: { name: string } | null;
 };
 
+type ComponentRemainingRow = {
+  helicopter_registration: string;
+  remaining_hours: number;
+  status: string;
+};
+
 const COMPONENT_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
   OK: "green",
   Monitor: "amber",
@@ -27,13 +33,14 @@ const COMPONENT_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
 const COMPONENT_STATUS_ORDER = ["OK", "Monitor", "Critical", "Expired"];
 
 export default async function HelicoptersPage() {
-  const [{ data, error }, { data: componentStatusRows }] = await Promise.all([
+  const [{ data, error }, { data: componentStatusRows }, { data: componentRemainingRows }] = await Promise.all([
     supabase
       .from("helicopters")
       .select("registration, model, current_hourmeter, status, assigned_vessel_id, vessels(name)")
       .eq("archived", false)
       .order("registration"),
-    supabase.from("components").select("status").neq("status", "Removed")
+    supabase.from("components").select("status").neq("status", "Removed"),
+    supabase.from("components").select("helicopter_registration, remaining_hours, status").neq("status", "Removed")
   ]);
 
   const helicopters = (data ?? []) as unknown as HelicopterRow[];
@@ -47,6 +54,17 @@ export default async function HelicoptersPage() {
     value: componentStatusCounts.get(status) ?? 0,
     tone: COMPONENT_STATUS_TONE[status] ?? "neutral"
   }));
+
+  // The single most limiting component per aircraft — the one that will need
+  // a replacement/overhaul kit soonest. This is what "cuándo debo comprar un
+  // kit" actually depends on: not the average, the bottleneck.
+  const limitingComponentByHelicopter = new Map<string, ComponentRemainingRow>();
+  for (const row of (componentRemainingRows ?? []) as ComponentRemainingRow[]) {
+    const current = limitingComponentByHelicopter.get(row.helicopter_registration);
+    if (!current || Number(row.remaining_hours) < Number(current.remaining_hours)) {
+      limitingComponentByHelicopter.set(row.helicopter_registration, row);
+    }
+  }
 
   return (
     <AppShell>
@@ -99,6 +117,7 @@ export default async function HelicoptersPage() {
                   <th className="hsv-table-th">Matrícula</th>
                   <th className="hsv-table-th">Modelo</th>
                   <th className="hsv-table-th">Horómetro</th>
+                  <th className="hsv-table-th">Horas remanentes</th>
                   <th className="hsv-table-th">Estado</th>
                   <th className="hsv-table-th">Barco asignado</th>
                 </tr>
@@ -114,6 +133,23 @@ export default async function HelicoptersPage() {
                     <td className="hsv-table-cell text-ink-muted">{helicopter.model}</td>
                     <td className="hsv-table-cell hsv-technical-value">{Number(helicopter.current_hourmeter).toFixed(1)}</td>
                     <td className="hsv-table-cell">
+                      {(() => {
+                        const limiting = limitingComponentByHelicopter.get(helicopter.registration);
+                        if (!limiting) return <span className="text-ink-muted">—</span>;
+                        const tone =
+                          limiting.status === "Expired" || limiting.status === "Critical"
+                            ? "text-status-red"
+                            : limiting.status === "Monitor"
+                              ? "text-amber-600"
+                              : "text-ink-muted";
+                        return (
+                          <span className={`hsv-technical-value font-semibold ${tone}`}>
+                            {Number(limiting.remaining_hours).toFixed(1)} hrs
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="hsv-table-cell">
                       <StatusPill tone={helicopter.status === "Grounded" ? "red" : helicopter.status === "Maintenance" ? "amber" : "teal"}>
                         {helicopter.status}
                       </StatusPill>
@@ -123,7 +159,7 @@ export default async function HelicoptersPage() {
                 ))}
                 {!helicopters.length && !error ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={5}>
+                    <td className="hsv-empty-state" colSpan={6}>
                       Todavía no hay helicópteros. Crea el primero con el botón de arriba.
                     </td>
                   </tr>
