@@ -18,6 +18,7 @@ type CampaignRow = {
   tons_captured_final: number | null;
   tons_captured_estimate: number | null;
   fishing_days: number | null;
+  total_flight_hours: number | null;
 };
 
 type FlightLogRow = {
@@ -56,7 +57,9 @@ export default async function CampaignsSummaryPage() {
   const [{ data: campaignData, error: campaignError }, { data: flightLogData, error: flightLogError }] = await Promise.all([
     supabase
       .from("campaigns")
-      .select("id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, tons_captured_final, tons_captured_estimate, fishing_days")
+      .select(
+        "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
+      )
       .eq("archived", false)
       .order("code"),
     supabase
@@ -70,7 +73,11 @@ export default async function CampaignsSummaryPage() {
 
   const rows = campaigns.map((campaign) => {
     const matched = matchLogsForCampaign(campaign, flightLogs);
-    const hours = matched.reduce((sum, log) => sum + Number(log.flight_hours), 0);
+    const loggedHours = matched.reduce((sum, log) => sum + Number(log.flight_hours), 0);
+    // Bulk-loaded historical faenas have no linked flight_logs — fall back to
+    // the manually-entered total so ratios still compute (see campaign
+    // detail page for why this never goes through flight_logs itself).
+    const hours = loggedHours > 0 ? loggedHours : Number(campaign.total_flight_hours ?? 0);
     const fuel = matched.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
     const fuelWeeksReported = matched.filter((log) => log.fuel_consumption_gals != null).length;
     const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;

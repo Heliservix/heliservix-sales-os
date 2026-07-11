@@ -551,6 +551,14 @@ create table campaigns (
   tons_captured_final numeric,
   fishing_days numeric,
   catch_weighin_date date,
+  -- Historical/manual total flight hours for a faena that predates
+  -- flight_logs tracking (e.g. bulk-loaded from an office spreadsheet).
+  -- Deliberately NOT inserted as flight_logs rows: that table's
+  -- trg_apply_flight_log trigger deducts hours from whatever components are
+  -- CURRENTLY installed, which is wrong for hours flown in the past on
+  -- possibly-different components. Used by the Faenas summary/detail pages
+  -- as a fallback only when no flight_logs are linked to the campaign.
+  total_flight_hours numeric,
   -- Ad hoc cash advances given outside the standard 80% ton-bonus advance
   -- (e.g. the crew asked for extra cash mid-marea) — netted against the
   -- final settlement, matching how the office's own payroll sheet tracks

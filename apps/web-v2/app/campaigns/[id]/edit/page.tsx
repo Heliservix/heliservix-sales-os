@@ -110,6 +110,10 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
               <input className="hsv-control" type="number" step="1" name="fishingDays" defaultValue={campaign.fishing_days ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Horas de vuelo (histórico, opcional)
+              <input className="hsv-control" type="number" step="0.1" name="totalFlightHours" defaultValue={campaign.total_flight_hours ?? ""} placeholder="Solo si no viene de reportes semanales" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Toneladas capturadas (estimado)
               <input className="hsv-control" type="number" step="0.01" name="tonsCapturedEstimate" defaultValue={campaign.tons_captured_estimate ?? ""} />
             </label>

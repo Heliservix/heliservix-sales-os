@@ -71,6 +71,7 @@ export async function createCampaign(formData: FormData) {
       catch_weighin_date: optionalText(formData, "catchWeighinDate"),
       pilot_anticipos: optionalNumber(formData, "pilotAnticipos"),
       mechanic_anticipos: optionalNumber(formData, "mechanicAnticipos"),
+      total_flight_hours: optionalNumber(formData, "totalFlightHours"),
       notes: optionalText(formData, "notes"),
       source: "User"
     })
@@ -114,6 +115,7 @@ export async function updateCampaign(id: string, formData: FormData) {
       catch_weighin_date: optionalText(formData, "catchWeighinDate"),
       pilot_anticipos: optionalNumber(formData, "pilotAnticipos"),
       mechanic_anticipos: optionalNumber(formData, "mechanicAnticipos"),
+      total_flight_hours: optionalNumber(formData, "totalFlightHours"),
       notes: optionalText(formData, "notes"),
       updated_at: new Date().toISOString()
     })

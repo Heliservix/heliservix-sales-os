@@ -56,7 +56,12 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
     return true;
   });
 
-  const totalHours = flightLogs.reduce((sum, log) => sum + Number(log.flight_hours), 0);
+  const loggedHours = flightLogs.reduce((sum, log) => sum + Number(log.flight_hours), 0);
+  // Historical faenas bulk-loaded before flight_logs tracking existed have no
+  // linked rows here — fall back to the manually-entered total so ratios
+  // still compute, without ever running those hours through
+  // trg_apply_flight_log (which would deduct from CURRENT components).
+  const totalHours = loggedHours > 0 ? loggedHours : Number(campaign.total_flight_hours ?? 0);
   const totalFuelGals = flightLogs.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
   const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;
   const tonsEstimate = campaign.tons_captured_estimate != null ? Number(campaign.tons_captured_estimate) : null;
@@ -281,8 +286,12 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-ink">Historial de horas de vuelo por faena</h2>
             <p className="text-sm text-ink-muted">
-              Total: <span className="hsv-technical-value font-semibold text-ink">{totalHours.toFixed(1)} hrs</span> en{" "}
-              {flightLogs.length} semana{flightLogs.length === 1 ? "" : "s"}
+              Total: <span className="hsv-technical-value font-semibold text-ink">{totalHours.toFixed(1)} hrs</span>
+              {loggedHours > 0
+                ? ` en ${flightLogs.length} semana${flightLogs.length === 1 ? "" : "s"}`
+                : totalHours > 0
+                  ? " (histórico, sin reportes semanales vinculados)"
+                  : ""}
             </p>
           </div>
           <div className="hsv-table-wrap">

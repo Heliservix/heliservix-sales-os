@@ -104,6 +104,10 @@ export default async function NewCampaignPage() {
               <input className="hsv-control" type="number" step="1" name="fishingDays" placeholder="Se llena al cerrar la marea" />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Horas de vuelo (histórico, opcional)
+              <input className="hsv-control" type="number" step="0.1" name="totalFlightHours" placeholder="Solo si no viene de reportes semanales" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Toneladas capturadas (estimado)
               <input className="hsv-control" type="number" step="0.01" name="tonsCapturedEstimate" placeholder="Aproximado durante la marea" />
             </label>
