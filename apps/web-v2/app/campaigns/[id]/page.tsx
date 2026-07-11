@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarRange, Pencil, Trash2 } from "lucide-react";
+import { CalendarRange, Pencil, Trash2, Wallet } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { archiveCampaign } from "@/app/campaigns/actions";
+import { calculatePayroll } from "@/lib/payroll";
 
 type CampaignDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -58,11 +59,52 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   const totalHours = flightLogs.reduce((sum, log) => sum + Number(log.flight_hours), 0);
   const totalFuelGals = flightLogs.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
   const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;
+  const tonsEstimate = campaign.tons_captured_estimate != null ? Number(campaign.tons_captured_estimate) : null;
   const fishingDays = campaign.fishing_days != null ? Number(campaign.fishing_days) : null;
   const tonsPerHour = tonsFinal != null && totalHours > 0 ? tonsFinal / totalHours : null;
   const tonsPerDay = tonsFinal != null && fishingDays != null && fishingDays > 0 ? tonsFinal / fishingDays : null;
   const galsPerHour = totalFuelGals > 0 && totalHours > 0 ? totalFuelGals / totalHours : null;
   const boundArchive = archiveCampaign.bind(null, id);
+
+  const [{ data: pilotPerson }, { data: mechanicPerson }] = await Promise.all([
+    campaign.pilot_id
+      ? supabase.from("personnel").select("full_name, monthly_salary, rate_per_ton").eq("id", campaign.pilot_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    campaign.mechanic_id
+      ? supabase.from("personnel").select("full_name, monthly_salary, rate_per_ton").eq("id", campaign.mechanic_id).maybeSingle()
+      : Promise.resolve({ data: null })
+  ]);
+
+  const payrollRows = [
+    pilotPerson
+      ? {
+          role: "Piloto",
+          name: pilotPerson.full_name,
+          breakdown: calculatePayroll({
+            monthlySalary: pilotPerson.monthly_salary != null ? Number(pilotPerson.monthly_salary) : null,
+            ratePerTon: pilotPerson.rate_per_ton != null ? Number(pilotPerson.rate_per_ton) : null,
+            fishingDays,
+            tonsCapturedEstimate: tonsEstimate,
+            tonsCapturedFinal: tonsFinal,
+            extraAdvance: campaign.pilot_anticipos != null ? Number(campaign.pilot_anticipos) : null
+          })
+        }
+      : null,
+    mechanicPerson
+      ? {
+          role: "Mecánico",
+          name: mechanicPerson.full_name,
+          breakdown: calculatePayroll({
+            monthlySalary: mechanicPerson.monthly_salary != null ? Number(mechanicPerson.monthly_salary) : null,
+            ratePerTon: mechanicPerson.rate_per_ton != null ? Number(mechanicPerson.rate_per_ton) : null,
+            fishingDays,
+            tonsCapturedEstimate: tonsEstimate,
+            tonsCapturedFinal: tonsFinal,
+            extraAdvance: campaign.mechanic_anticipos != null ? Number(campaign.mechanic_anticipos) : null
+          })
+        }
+      : null
+  ].filter((row): row is NonNullable<typeof row> => row != null);
 
   return (
     <AppShell>
@@ -169,6 +211,70 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
               Faltan datos para completar la comparación — agrega toneladas capturadas y/o días de pesca desde &ldquo;Editar&rdquo;.
             </p>
           ) : null}
+        </Panel>
+
+        <Panel className="mb-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-ink">Nómina de la faena</h2>
+          </div>
+          {payrollRows.length ? (
+            <div className="hsv-table-wrap">
+              <table className="hsv-table">
+                <thead className="hsv-table-head">
+                  <tr>
+                    <th className="hsv-table-th">Rol</th>
+                    <th className="hsv-table-th">Nombre</th>
+                    <th className="hsv-table-th">Salario prorateado</th>
+                    <th className="hsv-table-th">Anticipo 80% (aprox.)</th>
+                    <th className="hsv-table-th">Saldo 20% (peso final)</th>
+                    <th className="hsv-table-th">Anticipos extra</th>
+                    <th className="hsv-table-th">Pago al cierre</th>
+                    <th className="hsv-table-th">Pago final</th>
+                    <th className="hsv-table-th">Total faena</th>
+                  </tr>
+                </thead>
+                <tbody className="hsv-table-body">
+                  {payrollRows.map((row) => (
+                    <tr key={row.role} className="hsv-table-row">
+                      <td className="hsv-table-cell text-ink-muted">{row.role}</td>
+                      <td className="hsv-table-cell font-semibold text-ink">{row.name}</td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {row.breakdown.proratedSalary != null ? `$${row.breakdown.proratedSalary.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {row.breakdown.tonBonusAdvance != null ? `$${row.breakdown.tonBonusAdvance.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {row.breakdown.tonBonusRemainder != null ? `$${row.breakdown.tonBonusRemainder.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {row.breakdown.extraAdvance ? `$${row.breakdown.extraAdvance.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">
+                        {row.breakdown.firstPayment != null ? `$${row.breakdown.firstPayment.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">
+                        {row.breakdown.finalPayment != null ? `$${row.breakdown.finalPayment.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">
+                        {row.breakdown.total != null ? `$${row.breakdown.total.toFixed(2)}` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-ink-subtle">
+              Asigna un piloto y/o mecánico desde &ldquo;Editar&rdquo; (con su salario y tarifa por tonelada en Personal) para ver el cálculo de nómina.
+            </p>
+          )}
+          <p className="mt-4 text-xs text-ink-subtle">
+            Salario prorateado = salario mensual ÷ 30 × días de pesca. El bono por tonelada se paga en dos partes: 80% sobre lo capturado
+            aproximado (pago al cierre de la faena) y el saldo una vez llega el pesaje final de la planta — no un 20% fijo del total, sino
+            lo que falte para completar el bono calculado sobre el peso final.
+          </p>
         </Panel>
 
         <Panel>

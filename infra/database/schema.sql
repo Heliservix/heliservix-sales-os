@@ -551,6 +551,12 @@ create table campaigns (
   tons_captured_final numeric,
   fishing_days numeric,
   catch_weighin_date date,
+  -- Ad hoc cash advances given outside the standard 80% ton-bonus advance
+  -- (e.g. the crew asked for extra cash mid-marea) — netted against the
+  -- final settlement, matching how the office's own payroll sheet tracks
+  -- "Anticipos" separately from the formula-driven 80/20 split.
+  pilot_anticipos numeric,
+  mechanic_anticipos numeric,
   notes text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),

@@ -121,6 +121,14 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
               Fecha de pesaje final
               <input className="hsv-control" type="date" name="catchWeighinDate" defaultValue={campaign.catch_weighin_date ?? ""} />
             </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Anticipos entregados al piloto (USD)
+              <input className="hsv-control" type="number" step="0.01" name="pilotAnticipos" defaultValue={campaign.pilot_anticipos ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Anticipos entregados al mecánico (USD)
+              <input className="hsv-control" type="number" step="0.01" name="mechanicAnticipos" defaultValue={campaign.mechanic_anticipos ?? ""} />
+            </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
               <textarea className="hsv-textarea" name="notes" defaultValue={campaign.notes ?? ""} />

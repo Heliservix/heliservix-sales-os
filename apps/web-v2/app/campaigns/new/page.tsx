@@ -115,6 +115,14 @@ export default async function NewCampaignPage() {
               Fecha de pesaje final
               <input className="hsv-control" type="date" name="catchWeighinDate" />
             </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Anticipos entregados al piloto (USD)
+              <input className="hsv-control" type="number" step="0.01" name="pilotAnticipos" placeholder="Adelantos fuera del 80/20, si los hubo" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Anticipos entregados al mecánico (USD)
+              <input className="hsv-control" type="number" step="0.01" name="mechanicAnticipos" placeholder="Adelantos fuera del 80/20, si los hubo" />
+            </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
               <textarea className="hsv-textarea" name="notes" />

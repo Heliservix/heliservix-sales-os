@@ -69,6 +69,8 @@ export async function createCampaign(formData: FormData) {
       tons_captured_final: optionalNumber(formData, "tonsCapturedFinal"),
       fishing_days: optionalNumber(formData, "fishingDays"),
       catch_weighin_date: optionalText(formData, "catchWeighinDate"),
+      pilot_anticipos: optionalNumber(formData, "pilotAnticipos"),
+      mechanic_anticipos: optionalNumber(formData, "mechanicAnticipos"),
       notes: optionalText(formData, "notes"),
       source: "User"
     })
@@ -110,6 +112,8 @@ export async function updateCampaign(id: string, formData: FormData) {
       tons_captured_final: optionalNumber(formData, "tonsCapturedFinal"),
       fishing_days: optionalNumber(formData, "fishingDays"),
       catch_weighin_date: optionalText(formData, "catchWeighinDate"),
+      pilot_anticipos: optionalNumber(formData, "pilotAnticipos"),
+      mechanic_anticipos: optionalNumber(formData, "mechanicAnticipos"),
       notes: optionalText(formData, "notes"),
       updated_at: new Date().toISOString()
     })
