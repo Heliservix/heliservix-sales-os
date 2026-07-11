@@ -66,7 +66,11 @@ export async function GET() {
         status: "Not reviewed",
         notes: "Agregado automáticamente desde robinsonheli.com/publications. Revisar el PDF completo para confirmar si aplica a una aeronave específica y su ventana de cumplimiento.",
         attachment_placeholder: item.attachmentUrl,
-        source: "System"
+        // The "source" column only allows 'Demo' | 'User' at the database
+        // level (infra/database/schema.sql) — there's no 'System' value, so
+        // auto-synced rows are still recorded as 'User'. Provenance is kept
+        // in the notes field instead ("Agregado automáticamente...").
+        source: "User"
       }))
     );
     if (insertError) {
