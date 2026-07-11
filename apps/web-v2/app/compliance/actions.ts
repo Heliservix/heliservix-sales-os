@@ -17,6 +17,13 @@ function normalizeRegistration(value: string) {
   return value.replace(/[-\s]/g, "").toUpperCase();
 }
 
+function optionalHours(form: FormData, key: string) {
+  const value = text(form, key);
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function createComplianceItem(formData: FormData) {
   const title = text(formData, "title");
   if (!title) throw new Error("El título es obligatorio.");
@@ -29,6 +36,7 @@ export async function createComplianceItem(formData: FormData) {
     title,
     effective_date: optionalText(formData, "effectiveDate"),
     due_date: optionalText(formData, "dueDate"),
+    due_hours: optionalHours(formData, "dueHours"),
     applicability: optionalText(formData, "applicability"),
     related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
     status: text(formData, "status") || "Not reviewed",
@@ -56,6 +64,7 @@ export async function updateComplianceItem(id: string, formData: FormData) {
       title,
       effective_date: optionalText(formData, "effectiveDate"),
       due_date: optionalText(formData, "dueDate"),
+      due_hours: optionalHours(formData, "dueHours"),
       applicability: optionalText(formData, "applicability"),
       related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
       status: text(formData, "status") || "Not reviewed",

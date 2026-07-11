@@ -544,6 +544,12 @@ create table technical_records (
   created_at timestamptz not null default now()
 );
 
+-- due_hours: absolute target hourmeter reading for compliance items that come
+-- due by usage rather than calendar (e.g. Robinson's 2200-hour inspection kit
+-- for R44 Raven I/Clipper I). Only meaningful when related_helicopter is set --
+-- an hourmeter target only makes sense against one specific aircraft's
+-- current_hourmeter. due_date and due_hours can both be set (whichever comes
+-- first governs); either can be left null.
 create table compliance_items (
   id uuid primary key default gen_random_uuid(),
   authority text not null check (authority in ('AAC Panama','DGAC Ecuador','FAA','Robinson','Other')),
@@ -552,6 +558,7 @@ create table compliance_items (
   title text not null,
   effective_date date,
   due_date date,
+  due_hours numeric,
   applicability text,
   related_helicopter text references helicopters(registration),
   related_component_id uuid references components(id),

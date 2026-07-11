@@ -73,6 +73,7 @@ type ComplianceItemRow = {
   authority: string;
   compliance_type: string;
   due_date: string | null;
+  due_hours: number | null;
   related_helicopter: string | null;
   status: string;
 };
@@ -330,6 +331,7 @@ function buildExecutiveRecommendationEngine(input: {
   maintenanceForecast: Record<AuraForecastBucket, AuraMaintenanceForecastItem[]>;
   openAlerts: AlertRow[];
   complianceItems: ComplianceItemRow[];
+  helicopters: HelicopterRow[];
 }): AuraRecommendation[] {
   const recommendations: AuraRecommendation[] = [];
   const lowestHealth = input.fleetHealth.aircraft[0];
@@ -385,16 +387,29 @@ function buildExecutiveRecommendationEngine(input: {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const overdueCompliance = input.complianceItems.filter(
-    (item) => item.due_date != null && item.due_date < today && item.status !== "Complied" && item.status !== "Not applicable"
-  );
+  const hourmeterByRegistration = new Map(input.helicopters.map((h) => [h.registration, h.current_hourmeter]));
+  const isOpenCompliance = (item: ComplianceItemRow) => item.status !== "Complied" && item.status !== "Not applicable";
+  const overdueCompliance = input.complianceItems.filter((item) => {
+    if (!isOpenCompliance(item)) return false;
+    const dateOverdue = item.due_date != null && item.due_date < today;
+    const currentHourmeter = item.related_helicopter ? hourmeterByRegistration.get(item.related_helicopter) : undefined;
+    const hoursOverdue = item.due_hours != null && currentHourmeter != null && currentHourmeter >= item.due_hours;
+    return dateOverdue || hoursOverdue;
+  });
   if (overdueCompliance.length) {
     recommendations.push({
       id: "compliance-overdue",
       priority: "Critical",
       subject: "Cumplimiento vencido (AD / SB / requisitos)",
-      recommendation: `${overdueCompliance.length} ítem(s) de cumplimiento pasaron su fecha límite sin marcarse como cumplidos.`,
-      evidence: overdueCompliance.slice(0, 3).map((item) => `${item.related_helicopter ?? "Toda la flota"} — ${item.compliance_type} ${item.title} (venció ${item.due_date})`),
+      recommendation: `${overdueCompliance.length} ítem(s) de cumplimiento pasaron su fecha límite o su horómetro objetivo sin marcarse como cumplidos.`,
+      evidence: overdueCompliance.slice(0, 3).map((item) => {
+        const currentHourmeter = item.related_helicopter ? hourmeterByRegistration.get(item.related_helicopter) : undefined;
+        const basis =
+          item.due_date != null && item.due_date < today
+            ? `venció ${item.due_date}`
+            : `venció a las ${item.due_hours} hrs (actual ${currentHourmeter?.toFixed(1)} hrs)`;
+        return `${item.related_helicopter ?? "Toda la flota"} — ${item.compliance_type} ${item.title} (${basis})`;
+      }),
       operationalImpact: "Operar sin cumplir una AD/SB vigente puede dejar la aeronave fuera de condición de aeronavegabilidad.",
       recommendedAction: "Revisar el módulo de Cumplimiento y actualizar el estado tras verificar o ejecutar la acción requerida.",
       confidence: 93,
@@ -633,7 +648,7 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours"),
     supabase.from("inventory_items").select("part_number, item_name, quantity").eq("archived", false),
     supabase.from("purchase_requests").select("part_number, item_name, quantity, status").eq("archived", false),
-    supabase.from("compliance_items").select("id, title, authority, compliance_type, due_date, related_helicopter, status").eq("archived", false)
+    supabase.from("compliance_items").select("id, title, authority, compliance_type, due_date, due_hours, related_helicopter, status").eq("archived", false)
   ]);
 
   const helicopterRows = (helicopters ?? []) as HelicopterRow[];
@@ -650,7 +665,8 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     fleetHealth,
     maintenanceForecast,
     openAlerts: alertRows,
-    complianceItems: complianceItemRows
+    complianceItems: complianceItemRows,
+    helicopters: helicopterRows
   });
   const helicopterRisks = helicopterRows
     .map((h) => buildHelicopterRisk(h, componentRows, alertRows))

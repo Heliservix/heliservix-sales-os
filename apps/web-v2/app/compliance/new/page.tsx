@@ -62,6 +62,14 @@ export default async function NewComplianceItemPage() {
               <input className="hsv-control" type="date" name="dueDate" />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Vencimiento por horas (horómetro)
+              <input className="hsv-control" type="number" step="0.1" name="dueHours" placeholder="Ej. 2200" />
+            </label>
+            <p className="self-end text-xs text-ink-subtle">
+              Solo aplica si eliges un helicóptero específico arriba (no &ldquo;Toda la flota&rdquo;). Ej.: el kit de
+              inspección de 2200 horas de Robinson para R44 Raven I/Clipper I.
+            </p>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Estado
               <select className="hsv-control" name="status" defaultValue="Not reviewed">
                 {complianceStatuses.map((status) => (

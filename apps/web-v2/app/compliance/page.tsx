@@ -15,9 +15,12 @@ type ComplianceItemRow = {
   reference_number: string | null;
   title: string;
   due_date: string | null;
+  due_hours: number | null;
   related_helicopter: string | null;
   status: string;
 };
+
+type Tone = "green" | "amber" | "red" | "neutral";
 
 const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "neutral"> = {
   "Not reviewed": "neutral",
@@ -28,33 +31,65 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
   Overdue: "red"
 };
 
+// Fixed hour buffer for "due soon" — there's no interval scale on a
+// compliance item the way there is on a component (life_limit_hours), just an
+// absolute target hourmeter, so a flat buffer is the simplest honest signal.
+const HOURS_DUE_SOON_BUFFER = 50;
+
 function daysUntil(dueDate: string | null): number | null {
   if (!dueDate) return null;
   const diff = new Date(`${dueDate}T00:00:00Z`).getTime() - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z").getTime();
   return Math.round(diff / 86400000);
 }
 
-function dueTone(days: number | null): "green" | "amber" | "red" | "neutral" {
+function dateTone(days: number | null): Tone {
   if (days == null) return "neutral";
   if (days < 0) return "red";
   if (days <= 30) return "amber";
   return "green";
 }
 
+function hoursTone(hoursRemaining: number | null): Tone {
+  if (hoursRemaining == null) return "neutral";
+  if (hoursRemaining <= 0) return "red";
+  if (hoursRemaining <= HOURS_DUE_SOON_BUFFER) return "amber";
+  return "green";
+}
+
+const TONE_RANK: Record<Tone, number> = { red: 0, amber: 1, green: 2, neutral: 3 };
+
+function worseTone(a: Tone, b: Tone): Tone {
+  return TONE_RANK[a] <= TONE_RANK[b] ? a : b;
+}
+
 export default async function CompliancePage() {
-  const { data, error } = await supabase
-    .from("compliance_items")
-    .select("id, authority, compliance_type, reference_number, title, due_date, related_helicopter, status")
-    .eq("archived", false)
-    .order("due_date", { ascending: true, nullsFirst: false });
+  const [{ data, error }, { data: helicopters }] = await Promise.all([
+    supabase
+      .from("compliance_items")
+      .select("id, authority, compliance_type, reference_number, title, due_date, due_hours, related_helicopter, status")
+      .eq("archived", false)
+      .order("due_date", { ascending: true, nullsFirst: false }),
+    supabase.from("helicopters").select("registration, current_hourmeter").eq("archived", false)
+  ]);
+
+  const hourmeterByRegistration = new Map((helicopters ?? []).map((h) => [h.registration, Number(h.current_hourmeter)]));
 
   const items = (data ?? []) as ComplianceItemRow[];
   const openItems = items.filter((item) => item.status !== "Complied" && item.status !== "Not applicable");
-  const overdue = openItems.filter((item) => (daysUntil(item.due_date) ?? 1) < 0);
-  const dueSoon = openItems.filter((item) => {
-    const days = daysUntil(item.due_date);
-    return days != null && days >= 0 && days <= 30;
-  });
+
+  function hoursRemainingFor(item: ComplianceItemRow): number | null {
+    if (item.due_hours == null || !item.related_helicopter) return null;
+    const currentHourmeter = hourmeterByRegistration.get(item.related_helicopter);
+    if (currentHourmeter == null) return null;
+    return item.due_hours - currentHourmeter;
+  }
+
+  function combinedTone(item: ComplianceItemRow): Tone {
+    return worseTone(dateTone(daysUntil(item.due_date)), hoursTone(hoursRemainingFor(item)));
+  }
+
+  const overdue = openItems.filter((item) => combinedTone(item) === "red");
+  const dueSoon = openItems.filter((item) => combinedTone(item) === "amber");
 
   return (
     <AppShell>
@@ -111,7 +146,9 @@ export default async function CompliancePage() {
               <tbody className="hsv-table-body">
                 {items.map((item) => {
                   const days = daysUntil(item.due_date);
-                  const tone = dueTone(days);
+                  const hoursRemaining = hoursRemainingFor(item);
+                  const tone = combinedTone(item);
+                  const textClass = tone === "red" ? "font-semibold text-status-red" : tone === "amber" ? "font-semibold text-amber-600" : "text-ink-muted";
                   return (
                     <tr key={item.id} className="hsv-table-row">
                       <td className="hsv-table-cell text-ink-muted">{item.authority}</td>
@@ -132,9 +169,23 @@ export default async function CompliancePage() {
                         )}
                       </td>
                       <td className="hsv-table-cell">
-                        {item.due_date ? (
-                          <span className={tone === "red" ? "font-semibold text-status-red" : tone === "amber" ? "font-semibold text-amber-600" : "text-ink-muted"}>
-                            {item.due_date} {days != null ? `(${days < 0 ? `${Math.abs(days)} días vencido` : `${days} días`})` : ""}
+                        {item.due_date || item.due_hours != null ? (
+                          <span className={textClass}>
+                            {item.due_date ? (
+                              <>
+                                {item.due_date}
+                                {days != null ? ` (${days < 0 ? `${Math.abs(days)} días vencido` : `${days} días`})` : ""}
+                              </>
+                            ) : null}
+                            {item.due_date && item.due_hours != null ? <br /> : null}
+                            {item.due_hours != null ? (
+                              <>
+                                {Number(item.due_hours)} hrs
+                                {hoursRemaining != null
+                                  ? ` (${hoursRemaining < 0 ? `${Math.abs(hoursRemaining).toFixed(1)} hrs vencido` : `${hoursRemaining.toFixed(1)} hrs`})`
+                                  : " (sin horómetro actual)"}
+                              </>
+                            ) : null}
                           </span>
                         ) : (
                           "—"

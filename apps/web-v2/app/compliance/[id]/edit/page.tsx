@@ -70,6 +70,13 @@ export default async function EditComplianceItemPage({ params }: EditComplianceI
               <input className="hsv-control" type="date" name="dueDate" defaultValue={item.due_date ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Vencimiento por horas (horómetro)
+              <input className="hsv-control" type="number" step="0.1" name="dueHours" defaultValue={item.due_hours ?? ""} placeholder="Ej. 2200" />
+            </label>
+            <p className="self-end text-xs text-ink-subtle">
+              Solo aplica si eliges un helicóptero específico arriba (no &ldquo;Toda la flota&rdquo;).
+            </p>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Estado
               <select className="hsv-control" name="status" defaultValue={item.status}>
                 {complianceStatuses.map((status) => (
