@@ -82,6 +82,10 @@ export default async function NewComplianceItemPage() {
               <input className="hsv-control" name="applicability" placeholder="Todos los R44 Clipper II con S/N anteriores a..." />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Enlace al documento (PDF)
+              <input className="hsv-control" type="url" name="attachmentUrl" placeholder="https://..." />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
               <textarea className="hsv-textarea" name="notes" />
             </label>

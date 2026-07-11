@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ShieldCheck } from "lucide-react";
+import { ExternalLink, Plus, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -18,6 +18,7 @@ type ComplianceItemRow = {
   due_hours: number | null;
   related_helicopter: string | null;
   status: string;
+  attachment_placeholder: string | null;
 };
 
 type Tone = "green" | "amber" | "red" | "neutral";
@@ -66,7 +67,7 @@ export default async function CompliancePage() {
   const [{ data, error }, { data: helicopters }] = await Promise.all([
     supabase
       .from("compliance_items")
-      .select("id, authority, compliance_type, reference_number, title, due_date, due_hours, related_helicopter, status")
+      .select("id, authority, compliance_type, reference_number, title, due_date, due_hours, related_helicopter, status, attachment_placeholder")
       .eq("archived", false)
       .order("due_date", { ascending: true, nullsFirst: false }),
     supabase.from("helicopters").select("registration, current_hourmeter").eq("archived", false)
@@ -155,9 +156,22 @@ export default async function CompliancePage() {
                       <td className="hsv-table-cell text-ink-muted">{item.compliance_type}</td>
                       <td className="hsv-table-cell hsv-technical-value">{item.reference_number || "—"}</td>
                       <td className="hsv-table-cell">
-                        <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/compliance/${item.id}/edit`}>
-                          {item.title}
-                        </Link>
+                        <span className="flex items-center gap-1.5">
+                          <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/compliance/${item.id}/edit`}>
+                            {item.title}
+                          </Link>
+                          {item.attachment_placeholder ? (
+                            <a
+                              href={item.attachment_placeholder}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Abrir documento (PDF)"
+                              className="text-ink-subtle hover:text-aviation-teal"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                            </a>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="hsv-table-cell text-ink-muted">
                         {item.related_helicopter ? (

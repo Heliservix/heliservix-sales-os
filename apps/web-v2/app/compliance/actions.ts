@@ -41,6 +41,7 @@ export async function createComplianceItem(formData: FormData) {
     related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
     status: text(formData, "status") || "Not reviewed",
     notes: optionalText(formData, "notes"),
+    attachment_placeholder: optionalText(formData, "attachmentUrl"),
     source: "User"
   });
 
@@ -69,6 +70,7 @@ export async function updateComplianceItem(id: string, formData: FormData) {
       related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
       status: text(formData, "status") || "Not reviewed",
       notes: optionalText(formData, "notes"),
+      attachment_placeholder: optionalText(formData, "attachmentUrl"),
       updated_at: new Date().toISOString()
     })
     .eq("id", id);

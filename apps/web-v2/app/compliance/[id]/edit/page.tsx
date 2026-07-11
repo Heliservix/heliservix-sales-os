@@ -89,6 +89,15 @@ export default async function EditComplianceItemPage({ params }: EditComplianceI
               <input className="hsv-control" name="applicability" defaultValue={item.applicability ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Enlace al documento (PDF)
+              <input className="hsv-control" type="url" name="attachmentUrl" defaultValue={item.attachment_placeholder ?? ""} placeholder="https://..." />
+              {item.attachment_placeholder ? (
+                <a className="text-xs font-semibold text-aviation-teal hover:underline" href={item.attachment_placeholder} target="_blank" rel="noreferrer">
+                  Abrir documento actual →
+                </a>
+              ) : null}
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
               <textarea className="hsv-textarea" name="notes" defaultValue={item.notes ?? ""} />
             </label>
