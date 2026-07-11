@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarRange, Plus } from "lucide-react";
+import { BarChart3, CalendarRange, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -68,10 +68,16 @@ export default async function CampaignsPage() {
               <CalendarRange className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               <h2 className="text-lg font-semibold text-ink">Campañas / Faenas</h2>
             </div>
-            <Link className="hsv-primary-button" href="/campaigns/new">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Crear campaña / faena
-            </Link>
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              <Link className="hsv-secondary-button" href="/campaigns/resumen">
+                <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                Resumen de faenas
+              </Link>
+              <Link className="hsv-primary-button" href="/campaigns/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Crear campaña / faena
+              </Link>
+            </div>
           </div>
 
           {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}

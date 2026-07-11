@@ -13,12 +13,16 @@ type EditCampaignPageProps = {
 
 export default async function EditCampaignPage({ params }: EditCampaignPageProps) {
   const { id } = await params;
-  const [{ data: campaign }, { data: helicopters }, { data: vessels }] = await Promise.all([
+  const [{ data: campaign }, { data: helicopters }, { data: vessels }, { data: personnel }] = await Promise.all([
     supabase.from("campaigns").select("*").eq("id", id).maybeSingle(),
     supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
-    supabase.from("vessels").select("id, name").eq("archived", false).order("name")
+    supabase.from("vessels").select("id, name").eq("archived", false).order("name"),
+    supabase.from("personnel").select("id, full_name, role").eq("archived", false).eq("status", "Active").order("full_name")
   ]);
   if (!campaign) notFound();
+
+  const pilots = (personnel ?? []).filter((p) => p.role === "Piloto");
+  const mechanics = (personnel ?? []).filter((p) => p.role === "Mecánico");
 
   const boundUpdate = updateCampaign.bind(null, id);
   const boundDelete = deleteCampaign.bind(null, id);
@@ -57,11 +61,21 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Piloto
-              <input className="hsv-control" name="pilot" defaultValue={campaign.pilot ?? ""} />
+              <select className="hsv-control" name="pilotId" defaultValue={campaign.pilot_id ?? ""}>
+                <option value="">Sin asignar</option>
+                {pilots.map((p) => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Mecánico
-              <input className="hsv-control" name="mechanic" defaultValue={campaign.mechanic ?? ""} />
+              <select className="hsv-control" name="mechanicId" defaultValue={campaign.mechanic_id ?? ""}>
+                <option value="">Sin asignar</option>
+                {mechanics.map((m) => (
+                  <option key={m.id} value={m.id}>{m.full_name}</option>
+                ))}
+              </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Fecha inicio
@@ -90,6 +104,22 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Días de pesca
+              <input className="hsv-control" type="number" step="1" name="fishingDays" defaultValue={campaign.fishing_days ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Toneladas capturadas (estimado)
+              <input className="hsv-control" type="number" step="0.01" name="tonsCapturedEstimate" defaultValue={campaign.tons_captured_estimate ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Toneladas capturadas (peso final)
+              <input className="hsv-control" type="number" step="0.01" name="tonsCapturedFinal" defaultValue={campaign.tons_captured_final ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha de pesaje final
+              <input className="hsv-control" type="date" name="catchWeighinDate" defaultValue={campaign.catch_weighin_date ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas

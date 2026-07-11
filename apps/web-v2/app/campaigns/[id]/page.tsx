@@ -35,13 +35,13 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   const [{ data: byCampaignId }, { data: byMareaCode }] = await Promise.all([
     supabase
       .from("flight_logs")
-      .select("id, flight_date, week_number, marea_code, hobbs_start, hobbs_end, flight_hours")
+      .select("id, flight_date, week_number, marea_code, hobbs_start, hobbs_end, flight_hours, fuel_consumption_gals")
       .eq("campaign_id", id)
       .order("flight_date", { ascending: true }),
     campaign.code && campaign.helicopter_registration
       ? supabase
           .from("flight_logs")
-          .select("id, flight_date, week_number, marea_code, hobbs_start, hobbs_end, flight_hours")
+          .select("id, flight_date, week_number, marea_code, hobbs_start, hobbs_end, flight_hours, fuel_consumption_gals")
           .eq("marea_code", campaign.code)
           .eq("helicopter_registration", campaign.helicopter_registration)
           .order("flight_date", { ascending: true })
@@ -56,6 +56,12 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   });
 
   const totalHours = flightLogs.reduce((sum, log) => sum + Number(log.flight_hours), 0);
+  const totalFuelGals = flightLogs.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
+  const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;
+  const fishingDays = campaign.fishing_days != null ? Number(campaign.fishing_days) : null;
+  const tonsPerHour = tonsFinal != null && totalHours > 0 ? tonsFinal / totalHours : null;
+  const tonsPerDay = tonsFinal != null && fishingDays != null && fishingDays > 0 ? tonsFinal / fishingDays : null;
+  const galsPerHour = totalFuelGals > 0 && totalHours > 0 ? totalFuelGals / totalHours : null;
   const boundArchive = archiveCampaign.bind(null, id);
 
   return (
@@ -126,6 +132,43 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
             </div>
           </div>
           {campaign.notes ? <p className="mt-5 text-sm leading-6 text-ink-subtle">{campaign.notes}</p> : null}
+        </Panel>
+
+        <Panel className="mb-5">
+          <h2 className="mb-4 text-lg font-semibold text-ink">Resumen de captura</h2>
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Días de pesca</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">{fishingDays ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Toneladas (estimado)</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">
+                {campaign.tons_captured_estimate != null ? Number(campaign.tons_captured_estimate).toFixed(1) : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Toneladas (peso final)</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">{tonsFinal != null ? tonsFinal.toFixed(1) : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Toneladas / hora volada</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">{tonsPerHour != null ? tonsPerHour.toFixed(2) : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Toneladas / día de pesca</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">{tonsPerDay != null ? tonsPerDay.toFixed(2) : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">AVGAS (gal/hora)</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">{galsPerHour != null ? galsPerHour.toFixed(1) : "—"}</p>
+            </div>
+          </div>
+          {tonsFinal == null || fishingDays == null ? (
+            <p className="mt-4 text-xs text-ink-subtle">
+              Faltan datos para completar la comparación — agrega toneladas capturadas y/o días de pesca desde &ldquo;Editar&rdquo;.
+            </p>
+          ) : null}
         </Panel>
 
         <Panel>

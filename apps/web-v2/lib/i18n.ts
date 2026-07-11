@@ -39,7 +39,8 @@ export const dictionary = {
       leaseSimulator: "Lease Simulator",
       reports: "Reports",
       aura: "AURA",
-      weeklyReports: "Weekly Reports"
+      weeklyReports: "Weekly Reports",
+      personnel: "Personnel"
     },
     navGroup: {
       operations: "Operations",
@@ -124,7 +125,8 @@ export const dictionary = {
       leaseSimulator: "Simulador de Arriendo",
       reports: "Reportes",
       aura: "AURA",
-      weeklyReports: "Reportes Semanales"
+      weeklyReports: "Reportes Semanales",
+      personnel: "Personal"
     },
     navGroup: {
       operations: "Operaciones",

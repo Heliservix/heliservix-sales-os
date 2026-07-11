@@ -309,6 +309,11 @@ create table flight_logs (
   hobbs_start numeric not null,
   hobbs_end numeric not null,
   flight_hours numeric generated always as (greatest(0, hobbs_end - hobbs_start)) stored,
+  -- Self-reported from the weekly report's "Consumo combustible/aceite" row.
+  -- Structured columns (not just text in `notes`) so AVGAS consumption can be
+  -- summed/aggregated per aircraft, vessel, or year for the annual report.
+  fuel_consumption_gals numeric,
+  oil_consumption_qts numeric,
   notes text,
   approval_status text not null default 'Approved' check (approval_status in ('Draft','Submitted','Approved')),
   source text not null default 'User' check (source in ('Demo','User')),
@@ -493,6 +498,30 @@ create table purchase_requests (
 );
 
 -- ========================================================================
+-- Personnel (Recursos Humanos)
+-- ========================================================================
+-- Pilots and mechanics as real records instead of free-text names on
+-- campaigns/flight_logs, so a faena can be assigned to a specific person and
+-- that person's own pay terms (monthly_salary, rate_per_ton) can drive the
+-- payroll calculation. Contract terms vary per person — there is no single
+-- fleet-wide rate — so these are plain nullable numeric columns filled in
+-- per person, not constants in code.
+create table personnel (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  role text not null check (role in ('Piloto','Mecánico')),
+  monthly_salary numeric,
+  rate_per_ton numeric,
+  phone text,
+  notes text,
+  status text not null default 'Active' check (status in ('Active','Inactive')),
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ========================================================================
 -- Campaigns
 -- ========================================================================
 
@@ -505,12 +534,23 @@ create table campaigns (
   helicopter_registration text references helicopters(registration),
   pilot text,
   mechanic text,
+  pilot_id uuid references personnel(id),
+  mechanic_id uuid references personnel(id),
   start_date date,
   end_date date,
   operation_area text,
   contract_reference text,
   status text not null default 'Draft'
     check (status in ('Draft','Planned','Readiness Review','Approved','Active','Suspended','Completed','Cancelled','Archived')),
+  -- Catch data: the weekly report template has a spot for this, but crews
+  -- rarely fill it in on the field, so the office enters it manually once
+  -- the faena closes. "Estimate" is what's radioed in during the marea;
+  -- "final" is the official cannery weigh-in — the payroll ton-bonus (see
+  -- personnel.rate_per_ton) is calculated on "final", not "estimate".
+  tons_captured_estimate numeric,
+  tons_captured_final numeric,
+  fishing_days numeric,
+  catch_weighin_date date,
   notes text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
@@ -627,7 +667,7 @@ begin
       'vessels','helicopters','components','maintenance_alerts','flight_logs',
       'replacement_events','maintenance_logs','component_changes','inventory_items',
       'stock_movements','purchase_requests','campaigns','technical_records',
-      'compliance_items','compliance_alerts','migration_logs'
+      'compliance_items','compliance_alerts','migration_logs','personnel'
     ])
   loop
     execute format('alter table %I enable row level security;', t);

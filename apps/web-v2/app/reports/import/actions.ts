@@ -192,6 +192,8 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     flight_date: reportDate ?? new Date().toISOString().slice(0, 10),
     hobbs_start: hobbsStart,
     hobbs_end: hobbsEnd,
+    fuel_consumption_gals: fuelConsumptionGals,
+    oil_consumption_qts: oilConsumptionQts,
     notes: weeklyNotes,
     source: "User"
   });

@@ -7,10 +7,14 @@ import { createCampaign } from "@/app/campaigns/actions";
 import { campaignStatuses } from "@/app/campaigns/constants";
 
 export default async function NewCampaignPage() {
-  const [{ data: helicopters }, { data: vessels }] = await Promise.all([
+  const [{ data: helicopters }, { data: vessels }, { data: personnel }] = await Promise.all([
     supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
-    supabase.from("vessels").select("id, name").eq("archived", false).order("name")
+    supabase.from("vessels").select("id, name").eq("archived", false).order("name"),
+    supabase.from("personnel").select("id, full_name, role").eq("archived", false).eq("status", "Active").order("full_name")
   ]);
+
+  const pilots = (personnel ?? []).filter((p) => p.role === "Piloto");
+  const mechanics = (personnel ?? []).filter((p) => p.role === "Mecánico");
 
   return (
     <AppShell>
@@ -51,11 +55,21 @@ export default async function NewCampaignPage() {
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Piloto
-              <input className="hsv-control" name="pilot" />
+              <select className="hsv-control" name="pilotId" defaultValue="">
+                <option value="">Sin asignar</option>
+                {pilots.map((p) => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Mecánico
-              <input className="hsv-control" name="mechanic" />
+              <select className="hsv-control" name="mechanicId" defaultValue="">
+                <option value="">Sin asignar</option>
+                {mechanics.map((m) => (
+                  <option key={m.id} value={m.id}>{m.full_name}</option>
+                ))}
+              </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Fecha inicio
@@ -84,6 +98,22 @@ export default async function NewCampaignPage() {
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Días de pesca
+              <input className="hsv-control" type="number" step="1" name="fishingDays" placeholder="Se llena al cerrar la marea" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Toneladas capturadas (estimado)
+              <input className="hsv-control" type="number" step="0.01" name="tonsCapturedEstimate" placeholder="Aproximado durante la marea" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Toneladas capturadas (peso final)
+              <input className="hsv-control" type="number" step="0.01" name="tonsCapturedFinal" placeholder="Pesaje oficial al final" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha de pesaje final
+              <input className="hsv-control" type="date" name="catchWeighinDate" />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
