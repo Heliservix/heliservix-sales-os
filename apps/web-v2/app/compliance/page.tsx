@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
+import { SyncRobinsonButton } from "@/app/compliance/sync-robinson-button";
 
 export const dynamic = "force-dynamic";
 
@@ -123,10 +124,13 @@ export default async function CompliancePage() {
               <ShieldCheck className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               <h2 className="text-lg font-semibold text-ink">Ítems de cumplimiento</h2>
             </div>
-            <Link className="hsv-primary-button" href="/compliance/new">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Agregar ítem
-            </Link>
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              <SyncRobinsonButton />
+              <Link className="hsv-primary-button" href="/compliance/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Agregar ítem
+              </Link>
+            </div>
           </div>
 
           {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}

@@ -72,6 +72,7 @@ type ComplianceItemRow = {
   title: string;
   authority: string;
   compliance_type: string;
+  reference_number: string | null;
   due_date: string | null;
   due_hours: number | null;
   related_helicopter: string | null;
@@ -418,6 +419,30 @@ function buildExecutiveRecommendationEngine(input: {
     });
   }
 
+  // Bulletins/ADs/SLs loaded (manually or via the Robinson sync) but not yet
+  // checked against a specific aircraft's serial number. Distinct from
+  // "compliance-overdue" above: nothing here has a confirmed due date/hours
+  // yet, so it can't be "overdue" — it's "unknown, go find out." Surfaced on
+  // its own so it doesn't silently sit at the bottom of the Cumplimiento list
+  // forever once due_date/due_hours are both null.
+  const unreviewedCompliance = input.complianceItems.filter((item) => item.status === "Not reviewed");
+  if (unreviewedCompliance.length) {
+    recommendations.push({
+      id: "compliance-unreviewed",
+      priority: "High",
+      subject: "Publicaciones sin revisar (AD / SB / SL)",
+      recommendation: `${unreviewedCompliance.length} publicación(es) de cumplimiento están cargadas pero todavía no se confirmó si aplican a alguna de tus aeronaves.`,
+      evidence: unreviewedCompliance
+        .slice(0, 4)
+        .map((item) => `${item.authority} ${item.compliance_type} ${item.reference_number ?? ""} — ${item.title}`.replace(/\s+/g, " ").trim()),
+      operationalImpact: "Mientras no se revise cada publicación contra el número de serie de cada aeronave, no se puede confirmar si un requisito de aeronavegabilidad está pendiente.",
+      recommendedAction: "Abrir Cumplimiento, revisar el PDF de cada ítem 'Not reviewed' y marcarlo como Aplicable (con fecha o vencimiento por horas) o No aplicable.",
+      confidence: 80,
+      domain: "Maintenance",
+      sourceRecords: unreviewedCompliance.map((item) => item.id)
+    });
+  }
+
   const groundingAlerts = input.openAlerts.filter((a) => a.severity === "Grounding");
   if (groundingAlerts.length) {
     recommendations.push({
@@ -648,7 +673,10 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     supabase.from("flight_logs").select("helicopter_registration, flight_date, flight_hours"),
     supabase.from("inventory_items").select("part_number, item_name, quantity").eq("archived", false),
     supabase.from("purchase_requests").select("part_number, item_name, quantity, status").eq("archived", false),
-    supabase.from("compliance_items").select("id, title, authority, compliance_type, due_date, due_hours, related_helicopter, status").eq("archived", false)
+    supabase
+      .from("compliance_items")
+      .select("id, title, authority, compliance_type, reference_number, due_date, due_hours, related_helicopter, status")
+      .eq("archived", false)
   ]);
 
   const helicopterRows = (helicopters ?? []) as HelicopterRow[];
