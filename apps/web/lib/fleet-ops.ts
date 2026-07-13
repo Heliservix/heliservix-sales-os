@@ -15,11 +15,14 @@ import type {
   ComponentStatus,
   DigitalTwinSummary,
   FleetStore,
+  FlightLog,
   HelicopterComponent,
   InventoryItem,
   MaintenanceAlert,
   MaintenanceTimelineEvent,
-  PurchaseStatus
+  PurchaseRequest,
+  PurchaseStatus,
+  StockMovement
 } from "@/types/fleet";
 
 export const fleetStorageKey = "hsv-os-fleet-0.2";
@@ -50,7 +53,7 @@ export function deductFlightHoursFromComponents(componentsToUpdate: HelicopterCo
   return componentsToUpdate.map((component) => {
     if (component.status === "Removed" || component.archived) return component;
     const remainingHours = Math.max(0, component.remainingHours - flightHours);
-    const tsoHours = component.tsoHours + flightHours;
+    const tsoHours = Math.max(0, component.tsoHours + flightHours);
     const remainingPercentage = calculateRemainingPercentage(remainingHours, component.lifeLimitHours);
     const status = calculateComponentStatus({
       remainingHours,
@@ -90,6 +93,133 @@ export function createAlertsForComponents(componentsToCheck: HelicopterComponent
         source: "User"
       };
     });
+}
+
+export function recalculateComponent(component: HelicopterComponent): HelicopterComponent {
+  if (component.status === "Removed" || component.archived) return component;
+  const remainingHours = Math.max(0, component.remainingHours);
+  const remainingPercentage = calculateRemainingPercentage(remainingHours, component.lifeLimitHours);
+  return {
+    ...component,
+    remainingHours,
+    remainingPercentage,
+    status: calculateComponentStatus({
+      remainingHours,
+      remainingCalendarDays: component.remainingCalendarDays,
+      remainingPercentage
+    })
+  };
+}
+
+export function reconcileMaintenanceAlerts(existingAlerts: MaintenanceAlert[], changedComponents: HelicopterComponent[]) {
+  const changedIds = new Set(changedComponents.map((component) => component.id));
+  const retained = existingAlerts.filter((alert) =>
+    !alert.componentId ||
+    !changedIds.has(alert.componentId) ||
+    alert.status === "Resolved"
+  );
+  const nextAlerts = createAlertsForComponents(changedComponents.map(recalculateComponent));
+  return [...retained, ...nextAlerts];
+}
+
+export function applyFlightLogRules(current: FleetStore, log: FlightLog, mode: "create" | "edit") {
+  const previousLog = current.flightLogs.find((item) => item.id === log.id);
+  const affectedRegistrations = new Set([log.helicopterRegistration, previousLog?.helicopterRegistration].filter(Boolean));
+  let nextComponents = current.components;
+
+  if (mode === "edit" && previousLog) {
+    nextComponents = nextComponents.map((component) =>
+      component.helicopterRegistration === previousLog.helicopterRegistration
+        ? deductFlightHoursFromComponents([component], -previousLog.flightHours)[0]
+        : component
+    );
+  }
+
+  const appliedComponents = deductFlightHoursFromComponents(
+    nextComponents.filter((component) => component.helicopterRegistration === log.helicopterRegistration),
+    log.flightHours
+  );
+  const appliedIds = new Set(appliedComponents.map((component) => component.id));
+  nextComponents = nextComponents.map((component) => appliedIds.has(component.id) ? appliedComponents.find((item) => item.id === component.id)! : component);
+
+  const nextFlightLogs = mode === "edit"
+    ? current.flightLogs.map((item) => item.id === log.id ? log : item)
+    : [...current.flightLogs, log];
+
+  const nextHelicopters = current.helicopters.map((helicopter) => {
+    if (!affectedRegistrations.has(helicopter.registration)) return helicopter;
+    const relatedLogs = nextFlightLogs.filter((item) => item.helicopterRegistration === helicopter.registration);
+    const latestLoggedHourmeter = relatedLogs.length
+      ? Math.max(...relatedLogs.map((item) => item.hobbsEnd))
+      : previousLog?.hobbsStart ?? helicopter.currentHourmeter;
+    const previousLogControlledHourmeter = previousLog?.helicopterRegistration === helicopter.registration && helicopter.currentHourmeter === previousLog.hobbsEnd;
+    const currentLogControlledHourmeter = helicopter.registration === log.helicopterRegistration;
+    const preserveManualHigherValue = !previousLogControlledHourmeter && helicopter.currentHourmeter > latestLoggedHourmeter;
+    if (!currentLogControlledHourmeter && !previousLogControlledHourmeter) return helicopter;
+    return {
+      ...helicopter,
+      currentHourmeter: preserveManualHigherValue ? helicopter.currentHourmeter : latestLoggedHourmeter
+    };
+  });
+
+  const changedComponents = nextComponents.filter((component) => affectedRegistrations.has(component.helicopterRegistration));
+  return {
+    ...current,
+    flightLogs: nextFlightLogs,
+    helicopters: nextHelicopters,
+    components: nextComponents,
+    maintenanceAlerts: reconcileMaintenanceAlerts(current.maintenanceAlerts, changedComponents)
+  };
+}
+
+export function applyStockMovementRules(items: InventoryItem[], movement: StockMovement): InventoryItem[] {
+  const subtract = ["Used", "Installed", "Consumed", "Transferred"].includes(movement.movementType);
+  return items.map((item) =>
+    item.id === movement.inventoryItemId
+      ? { ...item, quantity: subtract ? Math.max(0, item.quantity - movement.quantity) : item.quantity + movement.quantity }
+      : item
+  );
+}
+
+export function applyPurchaseInventoryRules(current: FleetStore, request: PurchaseRequest): InventoryItem[] {
+  if (!["Received", "Shipped to vessel", "Stored", "Installed", "Consumed", "Closed"].includes(request.status)) {
+    return current.inventoryItems;
+  }
+  const existing = current.inventoryItems.find((item) =>
+    item.partNumber === request.partNumber &&
+    item.itemName === request.itemName &&
+    item.relatedHelicopter === request.relatedHelicopter &&
+    item.vesselId === request.relatedVessel &&
+    item.source === "User"
+  );
+  if (existing) {
+    return current.inventoryItems.map((item) =>
+      item.id === existing.id ? { ...item, quantity: Math.max(item.quantity, request.quantity) } : item
+    );
+  }
+  const inventoryItem: InventoryItem = {
+    id: generateId("inv"),
+    vesselId: request.relatedVessel || "",
+    storageLocation: request.status === "Installed" || request.status === "Consumed" ? "Maintenance usage" : "Pending storage assignment",
+    itemType: "Component",
+    itemName: request.itemName,
+    partNumber: request.partNumber,
+    quantity: ["Installed", "Consumed"].includes(request.status) ? 0 : request.quantity,
+    unitOfMeasure: "ea",
+    minimumStock: 0,
+    condition: "Pending inspection",
+    relatedHelicopter: request.relatedHelicopter,
+    notes: `Created from purchase request ${request.id}. ${request.notes}`,
+    source: "User"
+  };
+  return [...current.inventoryItems, inventoryItem];
+}
+
+export function getForecastComponents(componentsToReview: HelicopterComponent[]) {
+  return componentsToReview
+    .map(recalculateComponent)
+    .filter((component) => component.status !== "OK" && component.status !== "Removed" && !component.archived)
+    .sort((a, b) => a.remainingHours - b.remainingHours);
 }
 
 export function getLowStockStatus(item: InventoryItem) {
@@ -459,6 +589,7 @@ export function initialFleetStore(): FleetStore {
         description: "Demo compliance alert. Review applicability before campaign readiness approval.",
         source: "Demo"
       }
-    ]
+    ],
+    migrationLogs: []
   };
 }

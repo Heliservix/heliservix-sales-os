@@ -1,15 +1,19 @@
 import {
   AlertTriangle,
   Anchor,
+  Bot,
   Boxes,
   CalendarRange,
   ClipboardCheck,
   ClipboardList,
   FileText,
+  FileSpreadsheet,
   GitBranch,
   Gauge,
   LayoutDashboard,
   Plane,
+  Radar,
+  ReceiptText,
   ShoppingCart,
   ShieldCheck,
   TrendingUp,
@@ -27,22 +31,55 @@ export type NavigationItem = {
   status?: "ready" | "planned";
 };
 
-export const primaryNavigation: NavigationItem[] = [
-  { label: "Dashboard", labelKey: "nav.dashboard", href: "/", icon: LayoutDashboard, status: "ready" },
-  { label: "Campaigns", labelKey: "nav.campaigns", href: "/campaigns", icon: CalendarRange, status: "ready" },
-  { label: "Aircraft Operations Center", labelKey: "nav.aircraftOperationsCenter", href: "/digital-twin", icon: GitBranch, status: "ready" },
-  { label: "Helicopters", labelKey: "nav.helicopters", href: "/helicopters", icon: Plane, status: "ready" },
-  { label: "Vessels", labelKey: "nav.vessels", href: "/vessels", icon: Anchor, status: "ready" },
-  { label: "Components", labelKey: "nav.components", href: "/components", icon: Wrench, status: "ready" },
-  { label: "Flight Log", labelKey: "nav.flightLog", href: "/flight-log", icon: ClipboardList, status: "ready" },
-  { label: "Maintenance Crew", labelKey: "nav.maintenanceCrew", href: "/crew-portal", icon: UserRoundCog, status: "ready" },
-  { label: "Vessel Inventory", labelKey: "nav.vesselInventory", href: "/inventory", icon: Boxes, status: "ready" },
-  { label: "Purchasing", labelKey: "nav.purchasing", href: "/purchasing", icon: ShoppingCart, status: "ready" },
-  { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "ready" },
-  { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "ready" },
-  { label: "Alerts", labelKey: "nav.alerts", href: "/alerts", icon: AlertTriangle, status: "ready" },
-  { label: "Forecast", labelKey: "nav.forecast", href: "/forecast", icon: TrendingUp, status: "ready" }
+export type NavigationGroup = {
+  label: string;
+  labelKey: TranslationKey;
+  items: NavigationItem[];
+};
+
+export const navigationGroups: NavigationGroup[] = [
+  {
+    label: "Operations",
+    labelKey: "navGroup.operations",
+    items: [
+      { label: "Operations Command Center", labelKey: "nav.operationsCommandCenter", href: "/", icon: Gauge, status: "ready" },
+      { label: "Fleet", labelKey: "nav.fleet", href: "/helicopters", icon: Plane, status: "ready" },
+      { label: "Aircraft", labelKey: "nav.aircraft", href: "/digital-twin", icon: Radar, status: "ready" },
+      { label: "Vessels", labelKey: "nav.vessels", href: "/vessels", icon: Anchor, status: "ready" },
+      { label: "Campaigns", labelKey: "nav.campaigns", href: "/campaigns", icon: CalendarRange, status: "ready" }
+    ]
+  },
+  {
+    label: "Maintenance",
+    labelKey: "navGroup.maintenance",
+    items: [
+      { label: "Components", labelKey: "nav.components", href: "/components", icon: Wrench, status: "ready" },
+      { label: "Maintenance", labelKey: "nav.maintenance", href: "/alerts", icon: AlertTriangle, status: "ready" },
+      { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "ready" },
+      { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "ready" }
+    ]
+  },
+  {
+    label: "Supply Chain",
+    labelKey: "navGroup.supplyChain",
+    items: [
+      { label: "Inventory", labelKey: "nav.inventory", href: "/inventory", icon: Boxes, status: "ready" },
+      { label: "Purchasing", labelKey: "nav.purchasing", href: "/purchasing", icon: ShoppingCart, status: "ready" }
+    ]
+  },
+  {
+    label: "Tools",
+    labelKey: "navGroup.tools",
+    items: [
+      { label: "Aircraft Migration Center", labelKey: "nav.aircraftMigrationCenter", href: "/components", icon: FileSpreadsheet, status: "ready" },
+      { label: "Lease Simulator", labelKey: "nav.leaseSimulator", href: "#lease-simulator", icon: TrendingUp, status: "planned" },
+      { label: "Reports", labelKey: "nav.reports", href: "/copilot", icon: ReceiptText, status: "ready" },
+      { label: "AURA", labelKey: "nav.aura", href: "/copilot", icon: Bot, status: "ready" }
+    ]
+  }
 ];
+
+export const primaryNavigation: NavigationItem[] = navigationGroups.flatMap((group) => group.items);
 
 export const quickActions = [
   { label: "Create campaign", labelKey: "actions.createCampaign" as const, icon: CalendarRange },

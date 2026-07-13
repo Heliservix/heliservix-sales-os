@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { MaintenanceAlert } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
 import { alertTone } from "@/components/fleet/status-utils";
@@ -6,7 +7,7 @@ type AlertsListProps = {
   alerts: MaintenanceAlert[];
 };
 
-export function AlertsList({ alerts }: AlertsListProps) {
+function AlertsListComponent({ alerts }: AlertsListProps) {
   return (
     <div className="grid gap-3">
       {alerts.map((alert) => (
@@ -36,3 +37,5 @@ export function AlertsList({ alerts }: AlertsListProps) {
     </div>
   );
 }
+
+export const AlertsList = memo(AlertsListComponent);

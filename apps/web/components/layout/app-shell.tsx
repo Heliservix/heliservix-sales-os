@@ -10,10 +10,10 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen lg:flex">
       <Sidebar />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 lg:pl-0">
         <TopNav />
         <DemoDataBanner />
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">{children}</main>
       </div>
     </div>
   );

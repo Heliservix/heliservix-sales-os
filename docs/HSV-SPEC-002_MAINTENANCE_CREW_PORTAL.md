@@ -86,6 +86,37 @@ Permissions must be tenant-scoped and operation-scoped. Users with maintenance-o
 
 ## Core Workflows
 
+### HSV OS 0.2 RC1 Weekly Operations/Maintenance Report Import
+
+Maintenance users may import a weekly vessel operations and maintenance report from `.xlsx` files through the existing inventory, vessel, or campaign workflow. This is intended for technician reports sent during tuna-vessel campaigns, including reports similar to `M02_2026_CARONI_2_REPORTE_SEMANA_6.xlsx`.
+
+AURA must analyze the workbook before any data is applied. It should extract when available:
+
+- Vessel.
+- Helicopter.
+- Campaign/faena.
+- Week number.
+- Report date.
+- Flight hours.
+- Hobbs/hourmeter data.
+- Maintenance actions performed.
+- Components changed.
+- Inventory used.
+- Technician notes.
+
+If flight hours are detected, the user must preview and explicitly confirm before applying. Once confirmed, the flight-hour import uses the existing flight-log business rules: helicopter hourmeter updates, component remaining hours recalculate, and maintenance alerts refresh.
+
+If maintenance actions are detected, the system creates a maintenance log draft linked to the helicopter and campaign context when available. The draft is decision-support only until reviewed by maintenance personnel.
+
+If inventory consumption is detected, the system creates stock movement drafts linked to vessel, bodega, campaign, and maintenance context when available. The user must confirm before applying the stock movement.
+
+AURA must not blindly import weekly reports. It must show recommendations such as:
+
+- A detected flight-hour total requires confirmation before updating aircraft hours.
+- Maintenance notes should become a reviewed maintenance log draft.
+- Inventory consumption should become a reviewed stock movement.
+- Missing vessel, helicopter, or bodega context requires user correction before import.
+
 ### Flight-Hour Registration
 
 1. User selects helicopter.

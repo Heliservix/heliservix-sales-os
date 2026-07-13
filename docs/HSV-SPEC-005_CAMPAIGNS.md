@@ -140,6 +140,34 @@ During an active campaign:
 - Technical records and evidence attach to the relevant campaign context.
 - Alerts identify campaign impact when aircraft readiness changes.
 
+### HSV OS 0.2 RC1 Weekly Report Import in Campaign Context
+
+Campaign detail may launch `Import Weekly Operations Report` for technician `.xlsx` reports received during a tuna-vessel faena. The workflow is not a new module; it improves existing campaign, maintenance, flight-hour, and vessel inventory workflows.
+
+When the import is launched from a campaign, the preview should prefill the campaign, vessel, and helicopter context from the campaign record while still allowing the user to correct detected workbook values.
+
+AURA should detect and preview:
+
+- Vessel and campaign/faena.
+- Assigned helicopter.
+- Week number and report date.
+- Flight hours and Hobbs/hourmeter readings.
+- Maintenance actions performed.
+- Components changed.
+- Inventory used or consumed.
+- Inventory on board by bodega when present.
+- Technician observations.
+
+User confirmation is required before:
+
+- Posting flight hours.
+- Updating helicopter hourmeter and component remaining life.
+- Creating maintenance log drafts.
+- Creating stock movement drafts.
+- Updating or replacing vessel inventory for a bodega.
+
+The workflow must preserve campaign traceability. Imported inventory and stock movements should link to campaign when available, and generated maintenance drafts should include the imported report filename as evidence placeholder until production document storage exists.
+
 ### Campaign Closure
 
 Campaign closure should capture:

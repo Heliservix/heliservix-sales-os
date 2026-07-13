@@ -1,23 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Archive,
+  ArrowDownUp,
   BookOpenCheck,
   CalendarRange,
   ClipboardCheck,
   FileText,
   GitBranch,
+  Pencil,
   Plane,
+  Plus,
   Radar,
-  ShieldCheck
+  ShieldCheck,
+  Trash2
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { AircraftMigrationCenter } from "@/components/fleet/aircraft-migration-center";
+import { InventoryImportCenter } from "@/components/fleet/inventory-import-center";
 import { PageHeader } from "@/components/fleet/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { demoDataPolicy } from "@/lib/fleet-data";
+import { prepareStableCrudRows, useDeferredLocalStorageState } from "@/lib/performance";
 import {
   calculateCampaignStatus,
   calculateComplianceStatus,
@@ -62,25 +70,24 @@ type OperationsOSClientProps = {
 };
 
 const inputClass =
-  "h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted";
+  "hsv-control";
 const textareaClass =
-  "min-h-28 rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted";
+  "hsv-textarea";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "");
 const active = <T extends { archived?: boolean }>(records: T[]) => records.filter((record) => !record.archived);
 
 export function OperationsOSClient({ view, recordId, mode = "create" }: OperationsOSClientProps) {
   const { tx } = useI18n();
-  const [store, setStore] = useState<FleetStore>(() => {
-    if (typeof window === "undefined") return initialFleetStore();
-    const raw = window.localStorage.getItem(fleetStorageKey);
-    return raw ? { ...initialFleetStore(), ...JSON.parse(raw) } : initialFleetStore();
+  const [store, setStore, isReady] = useDeferredLocalStorageState<FleetStore>(fleetStorageKey, {
+    initialValue: initialFleetStore,
+    merge: (value) => ({ ...initialFleetStore(), ...value })
   });
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    window.localStorage.setItem(fleetStorageKey, JSON.stringify(store));
-  }, [store]);
+  const [listQuery, setListQuery] = useState("");
+  const [listFilter, setListFilter] = useState("All");
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const helicopters = useMemo(() => active(store.helicopters), [store.helicopters]);
   const vessels = useMemo(() => active(store.vessels), [store.vessels]);
@@ -90,12 +97,13 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   const components = useMemo(() => active(store.components), [store.components]);
   const purchaseRequests = useMemo(() => active(store.purchaseRequests), [store.purchaseRequests]);
 
-  function updateStore(updater: (current: FleetStore) => FleetStore, success: string) {
+  const updateStore = useCallback((updater: (current: FleetStore) => FleetStore, success: string) => {
     setStore((current) => updater(current));
     setMessage(success);
-  }
+  }, [setStore]);
 
   function archiveRecord(collection: "campaigns" | "technicalRecords" | "complianceItems", id: string) {
+    if (!window.confirm(tx("Archive this local record? It will be hidden but preserved in localStorage."))) return;
     updateStore(
       (current) => ({
         ...current,
@@ -105,12 +113,27 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     );
   }
 
+  function deleteRecord(collection: "campaigns" | "technicalRecords" | "complianceItems", id: string) {
+    if (!window.confirm(tx("Delete this local record permanently? This cannot be undone."))) return;
+    updateStore(
+      (current) => ({
+        ...current,
+        [collection]: current[collection].filter((record) => record.id !== id)
+      }),
+      tx("Record deleted locally.")
+    );
+  }
+
   function saveCampaign(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("camp");
     const vesselId = text(form, "vesselId");
     const vessel = vessels.find((item) => item.id === vesselId);
+    if (!text(form, "code").trim() || !text(form, "name").trim()) {
+      setMessage(tx("Campaign code and name are required."));
+      return;
+    }
     const record: Campaign = {
       id,
       code: text(form, "code"),
@@ -130,21 +153,48 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
       source: "User"
     };
 
-    updateStore((current) => ({
-      ...current,
-      campaigns: mode === "edit" ? current.campaigns.map((item) => item.id === id ? record : item) : [...current.campaigns, record],
-      helicopters: current.helicopters.map((helicopter) =>
-        helicopter.registration === record.helicopterRegistration
-          ? { ...helicopter, assignedVessel: record.vesselName, status: record.status === "Active" ? "In Campaign" : helicopter.status }
-          : helicopter
-      )
-    }), tx("Campaign saved locally and helicopter assignment preview updated."));
+    updateStore((current) => {
+      const previous = current.campaigns.find((item) => item.id === id);
+      const nextCampaigns = mode === "edit" ? current.campaigns.map((item) => item.id === id ? record : item) : [...current.campaigns, record];
+      const affectedHelicopters = new Set([previous?.helicopterRegistration, record.helicopterRegistration].filter(Boolean));
+      return {
+        ...current,
+        campaigns: nextCampaigns,
+        helicopters: current.helicopters.map((helicopter) => {
+          if (!affectedHelicopters.has(helicopter.registration)) return helicopter;
+          if (helicopter.registration === record.helicopterRegistration) {
+            return {
+              ...helicopter,
+              assignedVessel: record.vesselName,
+              status: record.status === "Active" ? "In Campaign" : helicopter.status === "Grounded" ? helicopter.status : "Assigned"
+            };
+          }
+          const remainingActiveAssignment = nextCampaigns.find((campaign) =>
+            !campaign.archived &&
+            campaign.helicopterRegistration === helicopter.registration &&
+            ["Active", "Approved", "Readiness Review", "Planned"].includes(calculateCampaignStatus(campaign))
+          );
+          return remainingActiveAssignment
+            ? { ...helicopter, assignedVessel: remainingActiveAssignment.vesselName }
+            : { ...helicopter, assignedVessel: "", status: helicopter.status === "In Campaign" ? "Available" : helicopter.status };
+        }),
+        vessels: current.vessels.map((item) => {
+          if (item.id === record.vesselId) return { ...item, assignedHelicopter: record.helicopterRegistration, campaign: record.name };
+          if (previous && item.id === previous.vesselId && previous.vesselId !== record.vesselId) return { ...item, assignedHelicopter: "", campaign: "" };
+          return item;
+        })
+      };
+    }, tx("Campaign saved locally and helicopter assignment preview updated."));
   }
 
   function saveTechnicalRecord(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("tech");
+    if (!text(form, "title").trim() || !text(form, "recordDate")) {
+      setMessage(tx("Title and date are required."));
+      return;
+    }
     const record: TechnicalRecord = {
       id,
       recordType: text(form, "recordType") as TechnicalRecord["recordType"],
@@ -171,6 +221,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = mode === "edit" && recordId ? recordId : generateId("comp");
+    if (!text(form, "referenceNumber").trim() || !text(form, "title").trim()) {
+      setMessage(tx("Reference number and title are required."));
+      return;
+    }
     const item: ComplianceItem = {
       id,
       authority: text(form, "authority") as ComplianceItem["authority"],
@@ -203,11 +257,11 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
       <div className="mx-auto max-w-[1500px]">
         <PageHeader {...header} />
         {message ? (
-          <div className="mb-5 rounded-lg border border-aviation-green/25 bg-aviation-green/10 px-4 py-3 text-sm font-medium text-aviation-green">
+          <div className="hsv-success-banner">
             {message}
           </div>
         ) : null}
-        {renderView()}
+        {!isReady ? <LoadingState /> : renderView()}
       </div>
     </AppShell>
   );
@@ -229,6 +283,15 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
 
   function renderCampaigns() {
     const activeCampaigns = campaigns.filter((campaign) => calculateCampaignStatus(campaign) === "Active").length;
+    const rows = prepareCrudRows(campaigns, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (campaign) => [campaign.code, campaign.name, campaign.clientFleetOwner, campaign.vesselName, campaign.helicopterRegistration, campaign.status, campaign.source],
+      filterValue: (campaign) => [calculateCampaignStatus(campaign), campaign.source ?? "Demo"],
+      sortValue: (campaign, key) => key === "status" ? calculateCampaignStatus(campaign) : key === "date" ? campaign.startDate : campaign.name
+    });
     return (
       <div className="grid gap-5">
         <section className="grid gap-4 md:grid-cols-4">
@@ -239,8 +302,21 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
         </section>
         <Panel>
           <ListHeader title="Campaigns" href="/campaigns/new" action="Create campaign" />
+          <ListControls
+            query={listQuery}
+            onQueryChange={setListQuery}
+            filter={listFilter}
+            onFilterChange={setListFilter}
+            filters={["All", "Draft", "Planned", "Active", "Completed", "Cancelled", "User", "Demo"]}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
+            sortOptions={[["name", "Campaign"], ["date", "Start date"], ["status", "Status"]]}
+            sortDirection={sortDirection}
+            onSortDirectionChange={setSortDirection}
+            resultCount={rows.length}
+          />
           <Table headers={["Code", "Campaign", "Client / owner", "Vessel", "Helicopter", "Dates", "Status", "Source", "Actions"]}>
-            {campaigns.map((campaign) => (
+            {rows.map((campaign) => (
               <tr key={campaign.id}>
                 <Cell muted>{campaign.code}</Cell>
                 <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${campaign.id}`}>{campaign.name}</Link></Cell>
@@ -250,9 +326,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
                 <Cell muted>{campaign.startDate} to {campaign.endDate}</Cell>
                 <Cell><StatusPill tone={campaignStatusTone(calculateCampaignStatus(campaign))}>{calculateCampaignStatus(campaign)}</StatusPill></Cell>
                 <Cell><SourcePill source={campaign.source} /></Cell>
-                <Cell><Actions edit={`/campaigns/${campaign.id}/edit`} onArchive={() => archiveRecord("campaigns", campaign.id)} /></Cell>
+                <Cell><Actions edit={`/campaigns/${campaign.id}/edit`} onArchive={() => archiveRecord("campaigns", campaign.id)} onDelete={() => deleteRecord("campaigns", campaign.id)} /></Cell>
               </tr>
             ))}
+            {!rows.length ? <EmptyTableRow colSpan={9} /> : null}
           </Table>
         </Panel>
       </div>
@@ -287,6 +364,12 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           </div>
           <p className="mt-5 text-sm leading-6 text-ink-subtle">{campaign.notes}</p>
         </Panel>
+        <InventoryImportCenter
+          compact
+          context={{ campaignId: campaign.id, vesselId: campaign.vesselId, helicopterRegistration: campaign.helicopterRegistration }}
+          store={store}
+          onApply={updateStore}
+        />
         <section className="grid gap-5 lg:grid-cols-2">
           <RelatedList title="Maintenance Events" items={maintenanceEvents.map((event) => `${event.date} / ${event.maintenanceType}`)} />
           <RelatedList title="Inventory Usage" items={inventoryUsage.map((movement) => `${movement.date} / ${movement.movementType} / ${movement.quantity}`)} />
@@ -301,14 +384,14 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
     const record = campaigns.find((item) => item.id === id);
     return (
       <FormShell onSubmit={saveCampaign}>
-        <Field name="code" label="Campaign name / code" defaultValue={record?.code ?? `HSV-CAMP-${new Date().getFullYear()}-`} />
-        <Field name="name" label="Campaign name" defaultValue={record?.name} />
-        <Field name="clientFleetOwner" label="Client or fleet owner" defaultValue={record?.clientFleetOwner} />
+        <Field name="code" label="Campaign name / code" defaultValue={record?.code ?? `HSV-CAMP-${new Date().getFullYear()}-`} required />
+        <Field name="name" label="Campaign name" defaultValue={record?.name} required />
+        <Field name="clientFleetOwner" label="Client or fleet owner" defaultValue={record?.clientFleetOwner} required />
         <Select name="vesselId" label="Vessel" defaultValue={record?.vesselId ?? vessels[0]?.id} options={vessels.map((item) => item.id)} />
         <Select name="helicopterRegistration" label="Helicopter" defaultValue={record?.helicopterRegistration ?? helicopters[0]?.registration} options={["", ...helicopters.map((item) => item.registration)]} />
         <Field name="pilot" label="Pilot" defaultValue={record?.pilot} />
         <Field name="mechanic" label="Mechanic" defaultValue={record?.mechanic} />
-        <Field name="startDate" label="Start date" defaultValue={record?.startDate} />
+        <Field name="startDate" label="Start date" defaultValue={record?.startDate} required />
         <Field name="endDate" label="End date" defaultValue={record?.endDate} />
         <Field name="operationArea" label="Country / operation area" defaultValue={record?.operationArea} />
         <Field name="contractReference" label="Contract reference" defaultValue={record?.contractReference} />
@@ -326,6 +409,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
           <Metric label="Open Compliance" value={String(complianceItems.filter((item) => !["Complied", "Not applicable"].includes(calculateComplianceStatus(item))).length)} tone="amber" detail="Applies to fleet readiness" />
           <Metric label="Timeline Events" value={String(helicopters.reduce((sum, helicopter) => sum + generateMaintenanceTimeline(store, helicopter.registration).length, 0))} tone="blue" detail="Generated from local state" />
         </section>
+        <AircraftMigrationCenter store={store} onApply={updateStore} />
         <Panel>
           <h2 className="mb-4 text-lg font-semibold text-ink">{tx("Aircraft Operations Center")}</h2>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -377,6 +461,12 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
             <Info label="Technical records" value={`${summary.technicalRecordCount} records`} />
           </div>
         </Panel>
+        <AircraftMigrationCenter
+          compact
+          preselectedRegistration={helicopter.registration}
+          store={store}
+          onApply={updateStore}
+        />
         <section className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
           <Panel>
             <h2 className="mb-4 text-lg font-semibold text-ink">Summary</h2>
@@ -394,11 +484,33 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function renderTechnicalRecords() {
+    const rows = prepareCrudRows(technicalRecords, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (record) => [record.recordType, record.title, record.relatedHelicopter, record.documentNumber, record.recordDate, record.source],
+      filterValue: (record) => [record.recordType, record.source ?? "Demo", record.relatedHelicopter],
+      sortValue: (record, key) => key === "date" ? record.recordDate : key === "type" ? record.recordType : record.title
+    });
     return (
       <Panel>
         <ListHeader title="Technical Records" href="/technical-records/new" action="Create record" />
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "8130", "Logbook page", "Work order", "Invoice", "Photo", "Certificate", "Release to service", "Inspection", "Other", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Title"], ["date", "Date"], ["type", "Type"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <Table headers={["Type", "Title", "Helicopter", "Campaign", "Date", "Document", "Source", "Actions"]}>
-          {technicalRecords.map((record) => (
+          {rows.map((record) => (
             <tr key={record.id}>
               <Cell>{record.recordType}</Cell>
               <Cell><Link className="font-semibold text-ink hover:text-aviation-teal" href={`/technical-records/${record.id}`}>{record.title}</Link></Cell>
@@ -407,9 +519,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
               <Cell muted>{record.recordDate}</Cell>
               <Cell muted>{record.documentNumber}</Cell>
               <Cell><SourcePill source={record.source} /></Cell>
-              <Cell><Actions edit={`/technical-records/${record.id}/edit`} onArchive={() => archiveRecord("technicalRecords", record.id)} /></Cell>
+              <Cell><Actions edit={`/technical-records/${record.id}/edit`} onArchive={() => archiveRecord("technicalRecords", record.id)} onDelete={() => deleteRecord("technicalRecords", record.id)} /></Cell>
             </tr>
           ))}
+          {!rows.length ? <EmptyTableRow colSpan={8} /> : null}
         </Table>
       </Panel>
     );
@@ -445,8 +558,8 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
         <Field name="relatedMaintenanceEvent" label="Related maintenance event" defaultValue={record?.relatedMaintenanceEvent} />
         <Select name="relatedCampaignId" label="Related campaign" defaultValue={record?.relatedCampaignId ?? ""} options={["", ...campaigns.map((item) => item.id)]} />
         <Select name="relatedPurchaseId" label="Related purchase" defaultValue={record?.relatedPurchaseId ?? ""} options={["", ...purchaseRequests.map((item) => item.id)]} />
-        <Field name="title" label="Title" defaultValue={record?.title} />
-        <Field name="recordDate" label="Date" defaultValue={record?.recordDate ?? new Date().toISOString().slice(0, 10)} />
+        <Field name="title" label="Title" defaultValue={record?.title} required />
+        <Field name="recordDate" label="Date" defaultValue={record?.recordDate ?? new Date().toISOString().slice(0, 10)} required />
         <Field name="documentNumber" label="Document number" defaultValue={record?.documentNumber} />
         <Field name="attachmentPlaceholder" label="Attachment placeholder" defaultValue={record?.attachmentPlaceholder} />
         <TextArea name="notes" label="Notes" defaultValue={record?.notes} />
@@ -455,11 +568,33 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function renderCompliance() {
+    const rows = prepareCrudRows(complianceItems, {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (item) => [item.authority, item.complianceType, item.referenceNumber, item.title, item.relatedHelicopter, calculateComplianceStatus(item), item.source],
+      filterValue: (item) => [item.authority, item.complianceType, calculateComplianceStatus(item), item.source ?? "Demo", item.relatedHelicopter],
+      sortValue: (item, key) => key === "due" ? item.dueDate : key === "status" ? calculateComplianceStatus(item) : item.title
+    });
     return (
       <Panel>
         <ListHeader title="Compliance Items" href="/compliance/new" action="Create compliance item" />
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "AAC Panama", "DGAC Ecuador", "FAA", "Robinson", "AD", "SB", "Not reviewed", "Applicable", "In progress", "Complied", "Overdue", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Title"], ["due", "Due date"], ["status", "Status"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={rows.length}
+        />
         <Table headers={["Authority", "Type", "Reference", "Title", "Helicopter", "Due date", "Status", "Source", "Actions"]}>
-          {complianceItems.map((item) => (
+          {rows.map((item) => (
             <tr key={item.id}>
               <Cell>{item.authority}</Cell>
               <Cell muted>{item.complianceType}</Cell>
@@ -469,9 +604,10 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
               <Cell muted>{item.dueDate}</Cell>
               <Cell><StatusPill tone={complianceStatusTone(calculateComplianceStatus(item))}>{calculateComplianceStatus(item)}</StatusPill></Cell>
               <Cell><SourcePill source={item.source} /></Cell>
-              <Cell><Actions edit={`/compliance/${item.id}/edit`} onArchive={() => archiveRecord("complianceItems", item.id)} /></Cell>
+              <Cell><Actions edit={`/compliance/${item.id}/edit`} onArchive={() => archiveRecord("complianceItems", item.id)} onDelete={() => deleteRecord("complianceItems", item.id)} /></Cell>
             </tr>
           ))}
+          {!rows.length ? <EmptyTableRow colSpan={9} /> : null}
         </Table>
       </Panel>
     );
@@ -504,8 +640,8 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
       <FormShell onSubmit={saveComplianceItem}>
         <Select name="authority" label="Authority/source" defaultValue={item?.authority ?? "Robinson"} options={["AAC Panama", "DGAC Ecuador", "FAA", "Robinson", "Other"]} />
         <Select name="complianceType" label="Type" defaultValue={item?.complianceType ?? "SB"} options={["AD", "SB", "Service Letter", "Manual Revision", "Operational Requirement", "Life Limit"]} />
-        <Field name="referenceNumber" label="Reference number" defaultValue={item?.referenceNumber} />
-        <Field name="title" label="Title" defaultValue={item?.title} />
+        <Field name="referenceNumber" label="Reference number" defaultValue={item?.referenceNumber} required />
+        <Field name="title" label="Title" defaultValue={item?.title} required />
         <Field name="effectiveDate" label="Effective date" defaultValue={item?.effectiveDate} />
         <Field name="dueDate" label="Due date" defaultValue={item?.dueDate} />
         <Select name="relatedHelicopter" label="Related helicopter" defaultValue={item?.relatedHelicopter ?? ""} options={["", ...helicopters.map((record) => record.registration)]} />
@@ -519,10 +655,31 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
   }
 
   function renderComplianceAlerts() {
-    const alerts = store.complianceAlerts.filter((alert) => alert.status !== "Resolved");
+    const alerts = prepareCrudRows(store.complianceAlerts.filter((alert) => alert.status !== "Resolved"), {
+      query: listQuery,
+      filter: listFilter,
+      sortKey,
+      sortDirection,
+      searchable: (alert) => [alert.relatedHelicopter, alert.description, alert.severity, alert.status, alert.source],
+      filterValue: (alert) => [alert.severity, alert.status, alert.source ?? "Demo", alert.relatedHelicopter],
+      sortValue: (alert, key) => key === "severity" ? alert.severity : alert.relatedHelicopter
+    });
     return (
       <Panel>
         <h2 className="mb-4 text-lg font-semibold text-ink">Compliance Alerts</h2>
+        <ListControls
+          query={listQuery}
+          onQueryChange={setListQuery}
+          filter={listFilter}
+          onFilterChange={setListFilter}
+          filters={["All", "Info", "Monitor", "Critical", "Open", "User", "Demo", ...helicopters.map((item) => item.registration)]}
+          sortKey={sortKey}
+          onSortKeyChange={setSortKey}
+          sortOptions={[["name", "Aircraft"], ["severity", "Severity"]]}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
+          resultCount={alerts.length}
+        />
         <div className="grid gap-3">
           {alerts.map((alert) => {
             const item = store.complianceItems.find((record) => record.id === alert.complianceItemId);
@@ -538,6 +695,7 @@ export function OperationsOSClient({ view, recordId, mode = "create" }: Operatio
               </div>
             );
           })}
+          {!alerts.length ? <EmptyInlineState /> : null}
         </div>
       </Panel>
     );
@@ -597,13 +755,25 @@ function emptyComplianceItem(): ComplianceItem {
   };
 }
 
+function prepareCrudRows<T>(rows: T[], config: {
+  query: string;
+  filter: string;
+  sortKey: string;
+  sortDirection: "asc" | "desc";
+  searchable: (row: T) => Array<string | number | undefined>;
+  filterValue: (row: T) => Array<string | number | undefined>;
+  sortValue: (row: T, key: string) => string | number | undefined;
+}) {
+  return prepareStableCrudRows(rows, config);
+}
+
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "amber" | "blue" | "teal" | "red" | "neutral" }) {
   const { tx } = useI18n();
   return (
-    <Panel>
+    <Panel className="transition duration-150 hover:-translate-y-0.5 hover:border-aviation-blue/25">
       <StatusPill tone={tone}>{tx(label)}</StatusPill>
-      <p className="mt-4 text-3xl font-semibold text-ink">{value}</p>
-      <p className="mt-2 text-sm text-ink-subtle">{tx(detail)}</p>
+      <p className="mt-4 text-3xl font-semibold leading-none text-ink">{value}</p>
+      <p className="mt-3 text-sm leading-6 text-ink-subtle">{tx(detail)}</p>
     </Panel>
   );
 }
@@ -616,9 +786,67 @@ function ListHeader({ title, href, action }: { title: string; href: string; acti
         <h2 className="text-lg font-semibold text-ink">{tx(title)}</h2>
         <p className="mt-1 text-sm text-ink-subtle">{t("shell.demoPolicy")}</p>
       </div>
-      <Link className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" href={href}>
+      <Link className="hsv-primary-button w-full sm:w-auto" href={href}>
+        <Plus className="h-4 w-4" aria-hidden="true" />
         {tx(action)}
       </Link>
+    </div>
+  );
+}
+
+function ListControls({
+  query,
+  onQueryChange,
+  filter,
+  onFilterChange,
+  filters,
+  sortKey,
+  onSortKeyChange,
+  sortOptions,
+  sortDirection,
+  onSortDirectionChange,
+  resultCount
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  filter: string;
+  onFilterChange: (value: string) => void;
+  filters: string[];
+  sortKey: string;
+  onSortKeyChange: (value: string) => void;
+  sortOptions: Array<[string, string]>;
+  sortDirection: "asc" | "desc";
+  onSortDirectionChange: (value: "asc" | "desc") => void;
+  resultCount: number;
+}) {
+  const { tx } = useI18n();
+  return (
+    <div className="mb-4 grid gap-3 rounded-lg border border-line bg-canvas-muted/44 p-3 shadow-control lg:grid-cols-[minmax(220px,1fr)_180px_180px_136px_auto] lg:items-end">
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Search")}
+        <input className={inputClass} placeholder={tx("Search records")} value={query} onChange={(event) => onQueryChange(event.target.value)} />
+      </label>
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Filter")}
+        <select className={inputClass} value={filter} onChange={(event) => onFilterChange(event.target.value)}>
+          {[...new Set(filters)].map((option) => <option key={option} value={option}>{tx(option)}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        {tx("Sort")}
+        <select className={inputClass} value={sortKey} onChange={(event) => onSortKeyChange(event.target.value)}>
+          {sortOptions.map(([value, label]) => <option key={value} value={value}>{tx(label)}</option>)}
+        </select>
+      </label>
+      <button
+        className="hsv-secondary-button h-11"
+        type="button"
+        onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
+      >
+        <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
+        {sortDirection === "asc" ? tx("Ascending") : tx("Descending")}
+      </button>
+      <p className="rounded-md border border-line bg-white px-3 py-2 text-center text-sm font-semibold text-ink-muted shadow-control dark:bg-canvas-muted">{resultCount} {tx("records")}</p>
     </div>
   );
 }
@@ -626,54 +854,86 @@ function ListHeader({ title, href, action }: { title: string; href: string; acti
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   const { tx } = useI18n();
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
-      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-        <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
-          <tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{tx(header)}</th>)}</tr>
+    <div className="hsv-table-wrap">
+      <table className="hsv-table min-w-[980px]">
+        <thead className="hsv-table-head">
+          <tr>{headers.map((header) => <th key={header} className="hsv-table-th">{tx(header)}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">{children}</tbody>
+        <tbody className="hsv-table-body">{children}</tbody>
       </table>
     </div>
   );
 }
 
 function Cell({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
-  return <td className={["px-4 py-3", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
+  return <td className={["hsv-table-cell", muted ? "text-ink-muted" : "font-medium text-ink"].join(" ")}>{children}</td>;
 }
 
-function Actions({ edit, onArchive }: { edit: string; onArchive: () => void }) {
+function Actions({ edit, onArchive, onDelete }: { edit: string; onArchive: () => void; onDelete: () => void }) {
   const { tx } = useI18n();
   return (
-    <div className="flex gap-3">
-      <Link className="font-semibold text-aviation-teal hover:text-ink" href={edit}>{tx("Edit")}</Link>
-      <button className="font-semibold text-aviation-red hover:text-ink" onClick={onArchive} type="button">{tx("Archive")}</button>
+    <div className="flex flex-wrap gap-1.5">
+      <Link className="hsv-ghost-button text-aviation-teal" href={edit}><Pencil className="h-4 w-4" aria-hidden="true" />{tx("Edit")}</Link>
+      <button className="hsv-ghost-button" onClick={onArchive} type="button"><Archive className="h-4 w-4" aria-hidden="true" />{tx("Archive")}</button>
+      <button className="hsv-danger-button" onClick={onDelete} type="button"><Trash2 className="h-4 w-4" aria-hidden="true" />{tx("Delete")}</button>
     </div>
   );
 }
 
 function FormShell({ children, onSubmit }: { children: React.ReactNode; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
   const { tx } = useI18n();
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   return (
     <Panel>
-      <form onSubmit={onSubmit}>
+      <form
+        onChange={() => setDirty(true)}
+        onSubmit={(event) => {
+          if (!event.currentTarget.checkValidity()) return;
+          setDirty(false);
+          onSubmit(event);
+        }}
+      >
         <div className="grid gap-4 sm:grid-cols-2">{children}</div>
         <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink-subtle">{tx("Frontend-only localStorage save. No backend, auth, database, or external service is connected.")}</p>
-          <button className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink" type="submit">
-            {tx("Save locally")}
-          </button>
+          <p className="text-sm text-ink-subtle">{tx(dirty ? "Unsaved changes" : "Frontend-only localStorage save. No backend, auth, database, or external service is connected.")}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              className="hsv-secondary-button"
+              type="reset"
+              disabled={!dirty}
+              onClick={(event) => {
+                if (!window.confirm(tx("Discard unsaved changes?"))) event.preventDefault();
+                else setDirty(false);
+              }}
+            >
+              {tx("Discard")}
+            </button>
+            <button className="hsv-primary-button" type="submit">
+              {tx("Save locally")}
+            </button>
+          </div>
         </div>
       </form>
     </Panel>
   );
 }
 
-function Field({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string | number }) {
+function Field({ name, label, defaultValue, required = false }: { name: string; label: string; defaultValue?: string | number; required?: boolean }) {
   const { tx } = useI18n();
+  const inputType = name.toLowerCase().includes("date") ? "date" : "text";
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
       {tx(label)}
-      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} />
+      <input className={inputClass} name={name} defaultValue={defaultValue ?? ""} type={inputType} required={required} />
     </label>
   );
 }
@@ -688,12 +948,12 @@ function TextArea({ name, label, defaultValue }: { name: string; label: string; 
   );
 }
 
-function Select({ name, label, options, defaultValue }: { name: string; label: string; options: string[]; defaultValue?: string }) {
+function Select({ name, label, options, defaultValue, required = false }: { name: string; label: string; options: string[]; defaultValue?: string; required?: boolean }) {
   const { tx } = useI18n();
   return (
     <label className="grid gap-2 text-sm font-medium text-ink">
       {tx(label)}
-      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""}>
+      <select className={inputClass} name={name} defaultValue={defaultValue ?? options[0] ?? ""} required={required}>
         {options.map((option) => <option key={option} value={option}>{option ? tx(option) : tx("None")}</option>)}
       </select>
     </label>
@@ -756,6 +1016,49 @@ function Empty({ title }: { title: string }) {
     <Panel>
       <p className="text-sm font-semibold text-ink">{tx(title)}</p>
       <p className="mt-2 text-sm text-ink-subtle">{tx("The local record was not found. It may have been archived or removed from localStorage.")}</p>
+    </Panel>
+  );
+}
+
+function EmptyTableRow({ colSpan }: { colSpan: number }) {
+  const { tx } = useI18n();
+  return (
+    <tr>
+      <td className="px-4 py-8" colSpan={colSpan}>
+        <div className="hsv-empty-state">
+          <p className="font-semibold text-ink">{tx("No records match the current search or filter.")}</p>
+          <p className="mt-1 text-xs text-ink-subtle">{tx("Adjust search, filters, or create a new local record.")}</p>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function EmptyInlineState() {
+  const { tx } = useI18n();
+  return (
+    <div className="hsv-empty-state">
+      <p className="font-semibold text-ink">{tx("No records match the current search or filter.")}</p>
+      <p className="mt-1 text-xs text-ink-subtle">{tx("Adjust search, filters, or create a new local record.")}</p>
+    </div>
+  );
+}
+
+function LoadingState() {
+  const { tx } = useI18n();
+  return (
+    <Panel className="overflow-hidden">
+      <div className="flex items-center justify-between gap-4">
+        <div className="hsv-skeleton-line h-3 w-36" />
+        <div className="hsv-skeleton-line h-8 w-24" />
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="hsv-skeleton-line h-24" />
+        <div className="hsv-skeleton-line h-24" />
+        <div className="hsv-skeleton-line h-24" />
+      </div>
+      <div className="mt-4 h-28 animate-pulse rounded-lg border border-line bg-canvas-muted/60" />
+      <p className="mt-4 text-sm font-medium text-ink-subtle">{tx("Loading local records...")}</p>
     </Panel>
   );
 }

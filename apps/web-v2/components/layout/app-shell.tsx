@@ -1,0 +1,18 @@
+import { Sidebar } from "@/components/layout/sidebar";
+import { TopNav } from "@/components/layout/top-nav";
+
+type AppShellProps = {
+  children: React.ReactNode;
+};
+
+export function AppShell({ children }: AppShellProps) {
+  return (
+    <div className="min-h-screen lg:flex">
+      <Sidebar />
+      <div className="min-w-0 flex-1 lg:pl-0">
+        <TopNav />
+        <main className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">{children}</main>
+      </div>
+    </div>
+  );
+}

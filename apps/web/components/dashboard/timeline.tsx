@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -14,7 +15,7 @@ type TimelineProps = {
   items: TimelineItem[];
 };
 
-export function Timeline({ items }: TimelineProps) {
+function TimelineComponent({ items }: TimelineProps) {
   return (
     <Panel>
       <div className="flex items-center justify-between gap-4">
@@ -46,3 +47,5 @@ export function Timeline({ items }: TimelineProps) {
     </Panel>
   );
 }
+
+export const Timeline = memo(TimelineComponent);

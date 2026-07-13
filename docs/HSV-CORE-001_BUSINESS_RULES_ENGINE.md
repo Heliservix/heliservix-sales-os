@@ -38,6 +38,38 @@ Rules:
 - Expired means zero or negative remaining hours, zero or negative remaining days, or past calendar limit.
 - Manual overrides require permission, reason, expiration, and audit event.
 
+### Aircraft Migration Center
+
+Rules:
+
+- Aircraft Migration Center initializes or updates component-control state from approved HeliServiX Excel workbooks.
+- The approved MVP workbook is `HSV-IMPORT-COMPONENTS-v1.xlsx`.
+- The official MVP parser profile is `HSV_IMPORT_COMPONENTS_V1`.
+- The official sheet of record is `Control Maestro`; it is preferred over `Control Maestro (2)` unless the user manually selects another worksheet.
+- Aircraft metadata is read from Row 4 headers and Row 5 values only: Matrícula, Modelo, Fecha Fabricación, S/N Aeronave, Fecha Revisión, and Horómetro.
+- Aircraft metadata must not be inferred from component rows, component names, notes, or observations.
+- `S/N Aeronave` maps to helicopter serial number; component `S/N` maps only to component serial number.
+- Component headers are read from Row 7, and component data starts at Row 8.
+- Imported records are real user data and must not be marked as demo data.
+- Supported headers must include English and Spanish variants for aircraft metadata, component identity, part number, serial number, position, installation date, TSN, TSO, life limit, remaining hours, calendar limit, remaining percentage, status, and observations.
+- Smart mapping may infer likely column matches, but the migration wizard must show mapped columns before save.
+- The wizard must show aircraft metadata and allow manual correction before import.
+- The wizard must automatically detect worksheets and helicopter registrations.
+- Users must select which detected helicopters to import.
+- The validation step must surface missing required fields, duplicate matches, invalid dates, invalid hour values, and status inconsistencies.
+- Blocking metadata validation prevents import when aircraft registration or hourmeter is missing or invalid.
+- Blocking row validation prevents saving affected component rows without component name, P/N or S/N, or at least one component limit: life limit hours, remaining hours, or calendar limit.
+- Warnings such as missing position, missing installation date, missing TSN/TSO, status inconsistency, or duplicate matches do not block import.
+- `Observaciones` is optional and must never affect import validation.
+- The wizard may force import of valid rows only when aircraft metadata is valid; invalid rows remain skipped.
+- Component matching uses helicopter registration, component name, part number, serial number, and position.
+- Replace components mode archives existing component records for selected helicopters before importing approved workbook rows.
+- Merge components mode updates matching components and adds clean new rows.
+- Skip duplicates mode preserves matching records and imports only clean new rows.
+- Migration recalculates remaining percentage and component status using HeliServiX OS rules.
+- Migration generates maintenance alerts for Monitor, Critical, and Expired components.
+- Production migration must create an execution audit record with workbook name, workbook hash, user, timestamp, selected helicopters, options selected, validation result, rows accepted, rows skipped, and records changed.
+
 ### Calendar Expiry
 
 Rules:
@@ -136,6 +168,7 @@ Rule execution records should capture:
 - Rule execution should be deterministic for the same inputs and rule version.
 - UI may display rule outputs but must not become the source of truth for production calculations.
 - Imports from spreadsheets initialize opening state; ongoing calculations come from rules and ledgers.
+- Spreadsheet import rules must be versioned separately from component status rules so legacy workbook mappings can be audited after the workbook format evolves.
 
 ## Acceptance Criteria
 
@@ -143,3 +176,4 @@ Rule execution records should capture:
 - Flight logs, component status, calendar expiry, inventory movements, purchasing traceability, maintenance events, compliance alerts, and forecasts share a consistent rule framework.
 - Rule outputs can be audited back to input data and rule version.
 - Future backend implementation can move calculations server-side without rewriting product logic.
+- Aircraft migrations can be previewed, validated, deduplicated, applied, and audited without treating imported operational data as demo data.

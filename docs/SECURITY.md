@@ -153,6 +153,10 @@ AI workflows must:
 - Mark AI-generated output.
 - Avoid training or external retention when provider settings allow control.
 - Redact secrets from prompts.
+- Limit MVP assistant context to Fleet, Maintenance, Excel import, Vessel Inventory, Flight Hours, Component Status, and directly related operational records.
+- Prevent AI from approving imports, flight logs, maintenance actions, component overrides, purchasing actions, compliance decisions, or release-to-service decisions.
+- Require AI answers to reference source records or disclose that supporting data is missing.
+- Treat AI-drafted reports as editable drafts requiring human review.
 
 ## Audit Logging
 
@@ -178,6 +182,7 @@ Audit events should include:
 - Document upload, download, and version changes.
 - Email approval and send events.
 - AI-generated draft approval and application.
+- AI Assistant MVP prompt, retrieved source record identifiers, generated daily brief, maintenance answer, import analysis, and report draft events.
 - Export events.
 - Integration credential changes.
 

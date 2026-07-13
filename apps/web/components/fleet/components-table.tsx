@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { HelicopterComponent } from "@/types/fleet";
 import { StatusPill } from "@/components/ui/status-pill";
 import { componentTone } from "@/components/fleet/status-utils";
@@ -7,51 +8,51 @@ type ComponentsTableProps = {
   compact?: boolean;
 };
 
-export function ComponentsTable({ components, compact = false }: ComponentsTableProps) {
+function ComponentsTableComponent({ components, compact = false }: ComponentsTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
-      <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
-        <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+    <div className="hsv-table-wrap">
+      <table className="hsv-table min-w-[1120px]">
+        <thead className="hsv-table-head">
           <tr>
-            <th className="px-4 py-3 font-semibold">Aircraft</th>
-            <th className="px-4 py-3 font-semibold">Component</th>
-            <th className="px-4 py-3 font-semibold">Category</th>
-            <th className="px-4 py-3 font-semibold">P/N</th>
-            <th className="px-4 py-3 font-semibold">S/N</th>
-            <th className="px-4 py-3 font-semibold">Position</th>
-            <th className="px-4 py-3 font-semibold">TSO</th>
-            <th className="px-4 py-3 font-semibold">Remaining</th>
-            <th className="px-4 py-3 font-semibold">Calendar</th>
-            <th className="px-4 py-3 font-semibold">%</th>
-            <th className="px-4 py-3 font-semibold">Status</th>
-            {!compact ? <th className="px-4 py-3 font-semibold">Docs</th> : null}
-            {!compact ? <th className="px-4 py-3 font-semibold">Actions</th> : null}
+            <th className="hsv-table-th">Aircraft</th>
+            <th className="hsv-table-th">Component</th>
+            <th className="hsv-table-th">Category</th>
+            <th className="hsv-table-th">P/N</th>
+            <th className="hsv-table-th">S/N</th>
+            <th className="hsv-table-th">Position</th>
+            <th className="hsv-table-th">TSO</th>
+            <th className="hsv-table-th">Remaining</th>
+            <th className="hsv-table-th">Calendar</th>
+            <th className="hsv-table-th">%</th>
+            <th className="hsv-table-th">Status</th>
+            {!compact ? <th className="hsv-table-th">Docs</th> : null}
+            {!compact ? <th className="hsv-table-th">Actions</th> : null}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">
+        <tbody className="hsv-table-body">
           {components.map((component) => (
             <tr key={component.id}>
-              <td className="px-4 py-3 font-medium text-ink">{component.helicopterRegistration}</td>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell font-medium text-ink">{component.helicopterRegistration}</td>
+              <td className="hsv-table-cell">
                 <a className="font-semibold text-ink hover:text-aviation-teal" href={`/components/${component.id}`}>
                   {component.componentName}
                 </a>
                 <p className="mt-1 text-xs text-ink-subtle">{component.installationDate}</p>
               </td>
-              <td className="px-4 py-3 text-ink-muted">{component.category}</td>
-              <td className="px-4 py-3 text-ink-muted">{component.partNumber}</td>
-              <td className="px-4 py-3 text-ink-muted">{component.serialNumber}</td>
-              <td className="px-4 py-3 text-ink-muted">{component.position}</td>
-              <td className="px-4 py-3 text-ink-muted">{component.tsoHours.toFixed(1)}</td>
-              <td className="px-4 py-3 font-medium text-ink">{component.remainingHours.toFixed(1)} hrs</td>
-              <td className="px-4 py-3 text-ink-muted">{component.remainingCalendarDays} days</td>
-              <td className="px-4 py-3 text-ink-muted">{component.remainingPercentage.toFixed(1)}%</td>
-              <td className="px-4 py-3">
+              <td className="hsv-table-cell text-ink-muted">{component.category}</td>
+              <td className="hsv-table-cell text-ink-muted">{component.partNumber}</td>
+              <td className="hsv-table-cell text-ink-muted">{component.serialNumber}</td>
+              <td className="hsv-table-cell text-ink-muted">{component.position}</td>
+              <td className="hsv-table-cell text-ink-muted">{component.tsoHours.toFixed(1)}</td>
+              <td className="hsv-table-cell font-medium text-ink">{component.remainingHours.toFixed(1)} hrs</td>
+              <td className="hsv-table-cell text-ink-muted">{component.remainingCalendarDays} days</td>
+              <td className="hsv-table-cell text-ink-muted">{component.remainingPercentage.toFixed(1)}%</td>
+              <td className="hsv-table-cell">
                 <StatusPill tone={componentTone(component.status)}>{component.status}</StatusPill>
               </td>
-              {!compact ? <td className="px-4 py-3 text-ink-muted">{component.documents}</td> : null}
+              {!compact ? <td className="hsv-table-cell text-ink-muted">{component.documents}</td> : null}
               {!compact ? (
-                <td className="px-4 py-3">
+                <td className="hsv-table-cell">
                   <a className="font-semibold text-aviation-teal hover:text-ink" href={`/components/${component.id}/edit`}>
                     Edit
                   </a>
@@ -64,3 +65,5 @@ export function ComponentsTable({ components, compact = false }: ComponentsTable
     </div>
   );
 }
+
+export const ComponentsTable = memo(ComponentsTableComponent);

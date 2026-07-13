@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { StatusPill } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +17,7 @@ const accentClasses = {
   teal: "from-aviation-teal/18"
 };
 
-export function MetricCard({ label, value, detail, trend, tone }: MetricCardProps) {
+function MetricCardComponent({ label, value, detail, trend, tone }: MetricCardProps) {
   return (
     <article
       className={cn(
@@ -33,3 +34,5 @@ export function MetricCard({ label, value, detail, trend, tone }: MetricCardProp
     </article>
   );
 }
+
+export const MetricCard = memo(MetricCardComponent);

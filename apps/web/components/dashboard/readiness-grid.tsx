@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -14,7 +15,7 @@ type ReadinessGridProps = {
   signals: ReadinessSignal[];
 };
 
-export function ReadinessGrid({ signals }: ReadinessGridProps) {
+function ReadinessGridComponent({ signals }: ReadinessGridProps) {
   return (
     <Panel>
       <div className="mb-5">
@@ -41,3 +42,5 @@ export function ReadinessGrid({ signals }: ReadinessGridProps) {
     </Panel>
   );
 }
+
+export const ReadinessGrid = memo(ReadinessGridComponent);

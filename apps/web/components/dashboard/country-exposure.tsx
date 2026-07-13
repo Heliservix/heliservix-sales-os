@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 
@@ -12,7 +13,7 @@ type CountryExposureProps = {
   rows: CountryExposure[];
 };
 
-export function CountryExposure({ rows }: CountryExposureProps) {
+function CountryExposureComponent({ rows }: CountryExposureProps) {
   return (
     <Panel>
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -23,23 +24,23 @@ export function CountryExposure({ rows }: CountryExposureProps) {
         <StatusPill tone="blue">LATAM</StatusPill>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-line">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-canvas-muted text-xs uppercase text-ink-subtle">
+      <div className="hsv-table-wrap">
+        <table className="hsv-table">
+          <thead className="hsv-table-head">
             <tr>
-              <th className="px-4 py-3 font-semibold">Country</th>
-              <th className="px-4 py-3 font-semibold">Accounts</th>
-              <th className="px-4 py-3 font-semibold">Value</th>
-              <th className="px-4 py-3 font-semibold">Signal</th>
+              <th className="hsv-table-th">Country</th>
+              <th className="hsv-table-th">Accounts</th>
+              <th className="hsv-table-th">Value</th>
+              <th className="hsv-table-th">Signal</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line bg-white/52 dark:bg-canvas-muted/36">
+          <tbody className="hsv-table-body">
             {rows.map((row) => (
               <tr key={row.country}>
-                <td className="px-4 py-3 font-medium text-ink">{row.country}</td>
-                <td className="px-4 py-3 text-ink-muted">{row.accounts}</td>
-                <td className="px-4 py-3 font-medium text-ink">{row.value}</td>
-                <td className="px-4 py-3 text-ink-muted">{row.level}</td>
+                <td className="hsv-table-cell font-medium text-ink">{row.country}</td>
+                <td className="hsv-table-cell text-ink-muted">{row.accounts}</td>
+                <td className="hsv-table-cell font-medium text-ink">{row.value}</td>
+                <td className="hsv-table-cell text-ink-muted">{row.level}</td>
               </tr>
             ))}
           </tbody>
@@ -48,3 +49,5 @@ export function CountryExposure({ rows }: CountryExposureProps) {
     </Panel>
   );
 }
+
+export const CountryExposure = memo(CountryExposureComponent);

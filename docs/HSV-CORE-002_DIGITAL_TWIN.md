@@ -49,6 +49,7 @@ The digital twin is assembled from:
 - Flight logs.
 - Component catalog.
 - Installed component records.
+- Excel component-control imports.
 - Component life ledger.
 - Maintenance logs.
 - Maintenance events.
@@ -72,6 +73,8 @@ Shows whether the aircraft is available, assigned, in campaign, maintenance sche
 ### Component View
 
 Shows installed components, part numbers, serial numbers, positions, life limits, remaining hours, calendar limits, status, and next limiting components.
+
+Component data may originate from approved Excel component-control imports. The Aircraft Operations Center must show imported components as user data, not demo data, and must reflect recalculated remaining percentage, recalculated component status, and generated maintenance alerts after import.
 
 ### Timeline View
 
@@ -161,6 +164,8 @@ Fields:
 - Digital twin snapshots are derived from authoritative ledgers and records.
 - A digital twin snapshot must never override source records.
 - Snapshot generation must be repeatable for a given source state.
+- Aircraft Migration Center updates the component source records that feed the digital twin; it does not directly edit the digital twin snapshot.
+- Imported component records must trigger component-status recalculation, maintenance alert generation, and timeline/forecast refresh in future backend implementations.
 - Vessel assignment history updates when campaign assignments change.
 - Maintenance timeline events must link back to source entities.
 - Forecasted timeline events must be clearly marked as forecasted, not completed.

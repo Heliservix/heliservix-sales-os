@@ -20,7 +20,7 @@ export function MockFormActions({ submitLabel }: MockFormActionsProps) {
       <div className="flex flex-wrap gap-2">
         <StatusPill tone="amber">Demo Data</StatusPill>
         <button
-          className="h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-control transition hover:opacity-92 dark:bg-white dark:text-ink"
+          className="hsv-primary-button"
           type="button"
           onClick={() => setSaved(true)}
         >

@@ -23,31 +23,31 @@ export function VesselForm({ mode, vessel }: VesselFormProps) {
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-ink">
           Vessel name
-          <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.name ?? ""} placeholder="Enter official vessel name" />
+          <input className="hsv-control" defaultValue={vessel?.name ?? ""} placeholder="Enter official vessel name" />
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Owner company
-          <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.owner ?? ""} placeholder="Enter owner company" />
+          <input className="hsv-control" defaultValue={vessel?.owner ?? ""} placeholder="Enter owner company" />
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Country
-          <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.country ?? ""} placeholder="Panama, Ecuador, etc." />
+          <input className="hsv-control" defaultValue={vessel?.country ?? ""} placeholder="Panama, Ecuador, etc." />
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Home port
-          <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.homePort ?? ""} placeholder="Enter home port" />
+          <input className="hsv-control" defaultValue={vessel?.homePort ?? ""} placeholder="Enter home port" />
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Capacity tons
-          <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.capacityTons ?? ""} inputMode="numeric" placeholder="0" />
+          <input className="hsv-control" defaultValue={vessel?.capacityTons ?? ""} inputMode="numeric" placeholder="0" />
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Current campaign
-          <input className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.campaign ?? ""} placeholder="Enter campaign" />
+          <input className="hsv-control" defaultValue={vessel?.campaign ?? ""} placeholder="Enter campaign" />
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Assigned helicopter
-          <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.assignedHelicopter ?? "Unassigned"}>
+          <select className="hsv-control" defaultValue={vessel?.assignedHelicopter ?? "Unassigned"}>
             <option>Unassigned</option>
             {helicopters.map((helicopter) => (
               <option key={helicopter.registration}>{helicopter.registration}</option>
@@ -56,7 +56,7 @@ export function VesselForm({ mode, vessel }: VesselFormProps) {
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink">
           Status
-          <select className="h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.status ?? "Prospect"}>
+          <select className="hsv-control" defaultValue={vessel?.status ?? "Prospect"}>
             <option>Prospect</option>
             <option>Active</option>
             <option>Inactive</option>
@@ -66,7 +66,7 @@ export function VesselForm({ mode, vessel }: VesselFormProps) {
         </label>
         <label className="grid gap-2 text-sm font-medium text-ink sm:col-span-2">
           Notes
-          <textarea className="min-h-28 rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-control outline-none dark:bg-canvas-muted" defaultValue={vessel?.notes ?? ""} placeholder="Enter operational notes, assignment context, and source of truth." />
+          <textarea className="hsv-textarea" defaultValue={vessel?.notes ?? ""} placeholder="Enter operational notes, assignment context, and source of truth." />
         </label>
       </div>
 

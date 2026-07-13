@@ -96,6 +96,16 @@ Required terminology:
 - AI-generated or imported text must be marked as content, not interface text, unless explicitly translated through a reviewed workflow.
 - Product branding must follow `HSV-BRAND-001_BRAND_SYSTEM.md`, including the rule that the official HeliServiX logo is not modified.
 
+## AI Assistant Language Rules
+
+The AI Assistant MVP must support bilingual report drafting in English and Spanish.
+
+- Fleet status reports, maintenance reports, component due reports, vessel inventory reports, and management summaries must be draftable in either English or Spanish.
+- HeliServiX OS must not be translated.
+- Aviation terms must follow the governed terminology list in this document.
+- User-entered data such as aircraft registrations, component names, part numbers, serial numbers, vessel names, notes, document numbers, and source-record identifiers must remain unchanged.
+- AI-generated reports must be marked as AI-drafted content and reviewed before operational use.
+
 ## Implementation Rules
 
 - The current frontend uses lightweight dictionaries for English and Spanish.
