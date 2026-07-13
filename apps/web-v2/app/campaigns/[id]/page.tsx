@@ -172,6 +172,9 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
+              <Link className="hsv-secondary-button" href={`/reports/faena/${id}`}>
+                Ver informe
+              </Link>
               <Link className="hsv-secondary-button" href={`/campaigns/${id}/edit`}>
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Editar
