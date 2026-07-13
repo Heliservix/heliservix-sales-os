@@ -7,17 +7,12 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
-  FileSpreadsheet,
-  GitBranch,
   Gauge,
-  LayoutDashboard,
   Plane,
   ReceiptText,
   ShoppingCart,
   ShieldCheck,
-  TrendingUp,
-  UserRoundCog,
-  Wrench
+  UserRoundCog
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TranslationKey } from "@/lib/i18n";
@@ -52,7 +47,6 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Maintenance",
     labelKey: "navGroup.maintenance",
     items: [
-      { label: "Components", labelKey: "nav.components", href: "/components", icon: Wrench, status: "planned" },
       { label: "Weekly Reports", labelKey: "nav.weeklyReports", href: "/reports/import", icon: ClipboardList, status: "ready" },
       { label: "Maintenance", labelKey: "nav.maintenance", href: "/alerts", icon: AlertTriangle, status: "ready" },
       { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "ready" },
@@ -71,8 +65,6 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Tools",
     labelKey: "navGroup.tools",
     items: [
-      { label: "Aircraft Migration Center", labelKey: "nav.aircraftMigrationCenter", href: "/components", icon: FileSpreadsheet, status: "planned" },
-      { label: "Lease Simulator", labelKey: "nav.leaseSimulator", href: "#lease-simulator", icon: TrendingUp, status: "planned" },
       { label: "Reports", labelKey: "nav.reports", href: "/reports", icon: ReceiptText, status: "ready" },
       { label: "AURA", labelKey: "nav.aura", href: "/aura", icon: Bot, status: "ready" }
     ]
