@@ -102,10 +102,17 @@ export function computeFaenaMetrics(campaigns: FaenaCampaignRow[], flightLogs: F
   return campaigns.map((campaign) => {
     const matched = matchLogsForCampaign(campaign, flightLogs);
     const loggedHours = matched.reduce((sum, log) => sum + Number(log.flight_hours), 0);
-    // Bulk-loaded historical faenas have no linked flight_logs — fall back to
-    // the manually-entered total so ratios still compute (see campaign
-    // detail page for why this never goes through flight_logs itself).
-    const hours = loggedHours > 0 ? loggedHours : Number(campaign.total_flight_hours ?? 0);
+    // total_flight_hours is the manually-entered hours flown BEFORE this
+    // faena started getting weekly reports uploaded through the system (a
+    // bulk-imported historical faena with zero flight_logs, or the first
+    // few weeks of a live faena that were never uploaded). It always ADDS
+    // to whatever flight_logs have been logged since — it must not be
+    // treated as an either/or fallback, or the total silently drops back
+    // down to just the most recent week the moment the first real weekly
+    // report gets uploaded (that was a real bug: uploading week 5 of a
+    // faena made the office-entered running total for weeks 1-4 disappear
+    // from every ratio on this page).
+    const hours = loggedHours + Number(campaign.total_flight_hours ?? 0);
     const fuel = matched.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
     const fuelWeeksReported = matched.filter((log) => log.fuel_consumption_gals != null).length;
     const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;

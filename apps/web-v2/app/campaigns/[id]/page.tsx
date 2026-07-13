@@ -63,11 +63,15 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   });
 
   const loggedHours = flightLogs.reduce((sum, log) => sum + Number(log.flight_hours), 0);
-  // Historical faenas bulk-loaded before flight_logs tracking existed have no
-  // linked rows here — fall back to the manually-entered total so ratios
-  // still compute, without ever running those hours through
-  // trg_apply_flight_log (which would deduct from CURRENT components).
-  const totalHours = loggedHours > 0 ? loggedHours : Number(campaign.total_flight_hours ?? 0);
+  // total_flight_hours = hours flown before this faena had weekly reports
+  // uploaded through the system (a bulk-loaded historical faena, or the
+  // first weeks of a live faena that predate this system). It always ADDS
+  // to whatever's been logged since — never an either/or fallback, or the
+  // running total silently drops the moment the first real week gets
+  // uploaded (see lib/faena-metrics.ts for the full explanation). Never run
+  // through trg_apply_flight_log (that only fires on real flight_logs
+  // inserts, which would incorrectly deduct from CURRENT components).
+  const totalHours = loggedHours + Number(campaign.total_flight_hours ?? 0);
   const totalFuelGals = flightLogs.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
   const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;
   const tonsEstimate = campaign.tons_captured_estimate != null ? Number(campaign.tons_captured_estimate) : null;
