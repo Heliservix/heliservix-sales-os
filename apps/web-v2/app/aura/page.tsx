@@ -6,7 +6,14 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { ScoreGauge } from "@/components/charts/score-gauge";
 import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
-import { buildAuraAnalysis, type AuraPriority, type AuraTone, type ProcurementUrgency, type AuraForecastBucket } from "@/lib/aura";
+import {
+  buildAuraAnalysis,
+  ROBINSON_R44_AVGAS_SPEC,
+  type AuraPriority,
+  type AuraTone,
+  type ProcurementUrgency,
+  type AuraForecastBucket
+} from "@/lib/aura";
 
 export const dynamic = "force-dynamic";
 
@@ -268,6 +275,33 @@ export default async function AuraPage() {
               <p className="hsv-empty-state">Ninguna faena cerrada se desvía de forma notable de su propio barco.</p>
             ) : null}
           </div>
+
+          {analysis.operationsInsights.fuelSpecAnomalies.length ? (
+            <div className="mt-5 border-t border-line pt-4">
+              <p className="text-sm font-semibold text-ink">Consumo fuera del manual Robinson R44 (16-17 gal/hora)</p>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Comparado contra el manual del fabricante, no contra el promedio del barco — aplica solo a helicópteros R44.
+              </p>
+              <div className="mt-3 grid gap-2">
+                {analysis.operationsInsights.fuelSpecAnomalies.slice(0, 6).map((a) => (
+                  <div key={a.flightLogId} className={`rounded-lg border p-3 ${a.direction === "Above" ? "border-aviation-red/25 bg-aviation-red/5" : "border-amber-200 bg-amber-50"}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill tone={a.direction === "Above" ? "red" : "amber"}>{a.direction === "Above" ? "Por encima" : "Por debajo"}</StatusPill>
+                      <span className="text-sm font-semibold text-ink">
+                        {a.helicopterRegistration}
+                        {a.campaignCode ? ` — Marea ${a.campaignCode}` : ""}
+                        {a.weekNumber != null ? ` — Semana ${a.weekNumber}` : ""}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-ink-subtle">
+                      {a.actualGalPerHour.toFixed(1)} gal/hora reportado el {a.flightDate} (esperado {ROBINSON_R44_AVGAS_SPEC.minGalPerHour}-
+                      {ROBINSON_R44_AVGAS_SPEC.maxGalPerHour} gal/hora).
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Panel>
 
         <div className="grid gap-5 lg:grid-cols-3">

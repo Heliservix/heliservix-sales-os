@@ -166,11 +166,39 @@ export type FaenaAnomaly = {
   tone: AuraTone;
 };
 
+// Per Adolfo (Robinson R44 manual): expect 16-17 gal/hour of AVGAS burned in
+// normal operation. This is a fixed manufacturer reference, independent of
+// any one vessel's own history — unlike the vessel-vs-vessel FuelOutlier
+// check above, this catches a bad week even on a vessel's very first faena,
+// and it also catches plain data-entry mistakes in the weekly report (wrong
+// digit typed for gallons). ±3 gal/hour tolerance absorbs normal reporting
+// noise (partial weeks, mixed ground/flight time) without flagging every
+// week that's merely 17.5 instead of 17. Only applies to aircraft whose
+// model is actually a Robinson R44 variant — a different model has a
+// different burn rate and this spec would not apply.
+export const ROBINSON_R44_AVGAS_SPEC = { minGalPerHour: 16, maxGalPerHour: 17, toleranceGalPerHour: 3 };
+
+export function isRobinsonR44(model: string | null | undefined): boolean {
+  return /r[\s-]?44/i.test(model ?? "");
+}
+
+export type FuelSpecAnomaly = {
+  flightLogId: string;
+  helicopterRegistration: string;
+  campaignId: string | null;
+  campaignCode: string | null;
+  weekNumber: number | null;
+  flightDate: string;
+  actualGalPerHour: number;
+  direction: "Above" | "Below";
+};
+
 export type OperationsInsights = {
   vesselSummaries: VesselSummary[];
   bestTonsPerHour: VesselSummary | null;
   bestTonsPerDay: VesselSummary | null;
   anomalies: FaenaAnomaly[];
+  fuelSpecAnomalies: FuelSpecAnomaly[];
 };
 
 export type HelicopterRisk = {
@@ -483,6 +511,30 @@ function buildExecutiveRecommendationEngine(input: {
   // AURA already gives maintenance. Fuel outliers rank High (often a real
   // mechanical/reporting problem worth same-week attention); underperformance
   // and missing data rank Medium (worth a look, not an emergency).
+  const fuelSpecAnomalies = input.operationsInsights.fuelSpecAnomalies;
+  if (fuelSpecAnomalies.length) {
+    const worst = [...fuelSpecAnomalies].sort(
+      (a, b) =>
+        Math.abs(b.actualGalPerHour - (b.direction === "Above" ? ROBINSON_R44_AVGAS_SPEC.maxGalPerHour : ROBINSON_R44_AVGAS_SPEC.minGalPerHour)) -
+        Math.abs(a.actualGalPerHour - (a.direction === "Above" ? ROBINSON_R44_AVGAS_SPEC.maxGalPerHour : ROBINSON_R44_AVGAS_SPEC.minGalPerHour))
+    )[0];
+    recommendations.push({
+      id: "ops-fuel-spec",
+      priority: fuelSpecAnomalies.some((a) => a.direction === "Above") ? "High" : "Medium",
+      subject: `Consumo de AVGAS fuera del manual Robinson R44 (${fuelSpecAnomalies.length} semana(s))`,
+      recommendation: `${worst.helicopterRegistration}${worst.campaignCode ? ` — Marea ${worst.campaignCode}` : ""}, semana ${worst.weekNumber ?? "?"} (${worst.flightDate}): reportó ${worst.actualGalPerHour.toFixed(1)} gal/hora, cuando el manual indica ${ROBINSON_R44_AVGAS_SPEC.minGalPerHour}-${ROBINSON_R44_AVGAS_SPEC.maxGalPerHour} gal/hora.`,
+      evidence: fuelSpecAnomalies
+        .slice(0, 4)
+        .map((a) => `${a.helicopterRegistration} sem. ${a.weekNumber ?? "?"}: ${a.actualGalPerHour.toFixed(1)} gal/hora (${a.direction === "Above" ? "por encima" : "por debajo"})`),
+      operationalImpact:
+        "Un consumo por encima del rango puede indicar una fuga o problema mecánico; por debajo puede indicar un error de reporte o combustible no registrado.",
+      recommendedAction: "Revisar el reporte semanal de esa faena y, si el número es real, inspeccionar la aeronave y el proceso de reporte del técnico.",
+      confidence: 80,
+      domain: "Operations",
+      sourceRecords: fuelSpecAnomalies.map((a) => a.flightLogId)
+    });
+  }
+
   const fuelOutlier = input.operationsInsights.anomalies.find((a) => a.type === "FuelOutlier");
   if (fuelOutlier) {
     recommendations.push({
@@ -739,7 +791,47 @@ function buildOperationsInsights(rows: FaenaMetrics[], vesselSummaries: VesselSu
     }
   }
 
-  return { vesselSummaries, bestTonsPerHour, bestTonsPerDay, anomalies };
+  return { vesselSummaries, bestTonsPerHour, bestTonsPerDay, anomalies, fuelSpecAnomalies: [] };
+}
+
+/** Flags any weekly report whose self-reported AVGAS consumption doesn't
+ * match what a Robinson R44 should burn per the manufacturer's manual (see
+ * ROBINSON_R44_AVGAS_SPEC above) — independent of vessel history, so it
+ * catches both a real mechanical problem and a plain typo in the weekly
+ * report's fuel field. */
+function buildFuelSpecAnomalies(
+  flightLogs: import("@/lib/faena-metrics").FaenaFlightLogRow[],
+  helicopters: HelicopterRow[],
+  campaigns: import("@/lib/faena-metrics").FaenaCampaignRow[]
+): FuelSpecAnomaly[] {
+  const modelByRegistration = new Map(helicopters.map((h) => [h.registration, h.model]));
+  const codeByCampaignId = new Map(campaigns.map((c) => [c.id, c.code]));
+
+  const anomalies: FuelSpecAnomaly[] = [];
+  for (const log of flightLogs) {
+    if (!log.helicopter_registration || log.fuel_consumption_gals == null) continue;
+    const hours = Number(log.flight_hours);
+    if (!(hours > 0)) continue;
+    if (!isRobinsonR44(modelByRegistration.get(log.helicopter_registration))) continue;
+
+    const actual = Number(log.fuel_consumption_gals) / hours;
+    const low = ROBINSON_R44_AVGAS_SPEC.minGalPerHour - ROBINSON_R44_AVGAS_SPEC.toleranceGalPerHour;
+    const high = ROBINSON_R44_AVGAS_SPEC.maxGalPerHour + ROBINSON_R44_AVGAS_SPEC.toleranceGalPerHour;
+    if (actual >= low && actual <= high) continue;
+
+    anomalies.push({
+      flightLogId: log.id,
+      helicopterRegistration: log.helicopter_registration,
+      campaignId: log.campaign_id,
+      campaignCode: (log.campaign_id ? codeByCampaignId.get(log.campaign_id) : null) ?? log.marea_code,
+      weekNumber: log.week_number,
+      flightDate: log.flight_date,
+      actualGalPerHour: actual,
+      direction: actual > high ? "Above" : "Below"
+    });
+  }
+
+  return anomalies.sort((a, b) => new Date(b.flightDate).getTime() - new Date(a.flightDate).getTime());
 }
 
 function answerExpiresNext(components: ComponentRow[]): AuraAnswer {
@@ -840,7 +932,8 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
   const maintenanceForecast = buildMaintenanceForecastEngine(componentRows, flightLogRows);
   const faenaRows = computeFaenaMetrics(faenaData.campaigns, faenaData.flightLogs);
   const vesselSummaries = computeVesselSummaries(faenaRows);
-  const operationsInsights = buildOperationsInsights(faenaRows, vesselSummaries);
+  const fuelSpecAnomalies = buildFuelSpecAnomalies(faenaData.flightLogs, helicopterRows, faenaData.campaigns);
+  const operationsInsights = { ...buildOperationsInsights(faenaRows, vesselSummaries), fuelSpecAnomalies };
   const executiveRecommendations = buildExecutiveRecommendationEngine({
     fleetHealth,
     maintenanceForecast,

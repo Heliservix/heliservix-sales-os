@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { archiveCampaign } from "@/app/campaigns/actions";
 import { calculatePayroll } from "@/lib/payroll";
+import { ROBINSON_R44_AVGAS_SPEC, isRobinsonR44 } from "@/lib/aura";
 
 type CampaignDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -29,6 +30,11 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
   const { id } = await params;
   const { data: campaign } = await supabase.from("campaigns").select("*, vessels:vessel_id(id, name)").eq("id", id).maybeSingle();
   if (!campaign) notFound();
+
+  const { data: helicopter } = campaign.helicopter_registration
+    ? await supabase.from("helicopters").select("model").eq("registration", campaign.helicopter_registration).maybeSingle()
+    : { data: null };
+  const appliesR44FuelSpec = isRobinsonR44(helicopter?.model ?? null);
 
   // Flight logs tie to a campaign two ways: the direct campaign_id FK (set on
   // import going forward), or matching marea_code + helicopter for weeks
@@ -294,6 +300,13 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                   : ""}
             </p>
           </div>
+          {appliesR44FuelSpec ? (
+            <p className="mb-3 text-xs text-ink-subtle">
+              Este helicóptero es Robinson R44 — según su manual, consume entre {ROBINSON_R44_AVGAS_SPEC.minGalPerHour} y{" "}
+              {ROBINSON_R44_AVGAS_SPEC.maxGalPerHour} gal/hora. Las semanas fuera de ese rango (con margen de ±
+              {ROBINSON_R44_AVGAS_SPEC.toleranceGalPerHour} gal/hora) se marcan abajo.
+            </p>
+          ) : null}
           <div className="hsv-table-wrap">
             <table className="hsv-table">
               <thead className="hsv-table-head">
@@ -303,21 +316,44 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                   <th className="hsv-table-th">Horómetro inicio</th>
                   <th className="hsv-table-th">Horómetro fin</th>
                   <th className="hsv-table-th">Horas voladas</th>
+                  <th className="hsv-table-th">AVGAS (gal)</th>
+                  <th className="hsv-table-th">Gal / hora</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
-                {flightLogs.map((log) => (
-                  <tr key={log.id} className="hsv-table-row">
-                    <td className="hsv-table-cell font-semibold text-ink">{log.week_number ?? "—"}</td>
-                    <td className="hsv-table-cell text-ink-muted">{log.flight_date}</td>
-                    <td className="hsv-table-cell hsv-technical-value">{Number(log.hobbs_start).toFixed(1)}</td>
-                    <td className="hsv-table-cell hsv-technical-value">{Number(log.hobbs_end).toFixed(1)}</td>
-                    <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">{Number(log.flight_hours).toFixed(1)}</td>
-                  </tr>
-                ))}
+                {flightLogs.map((log) => {
+                  const hours = Number(log.flight_hours);
+                  const fuel = log.fuel_consumption_gals != null ? Number(log.fuel_consumption_gals) : null;
+                  const weekGalPerHour = fuel != null && hours > 0 ? fuel / hours : null;
+                  const outOfSpec =
+                    appliesR44FuelSpec &&
+                    weekGalPerHour != null &&
+                    (weekGalPerHour < ROBINSON_R44_AVGAS_SPEC.minGalPerHour - ROBINSON_R44_AVGAS_SPEC.toleranceGalPerHour ||
+                      weekGalPerHour > ROBINSON_R44_AVGAS_SPEC.maxGalPerHour + ROBINSON_R44_AVGAS_SPEC.toleranceGalPerHour);
+                  return (
+                    <tr key={log.id} className="hsv-table-row">
+                      <td className="hsv-table-cell font-semibold text-ink">{log.week_number ?? "—"}</td>
+                      <td className="hsv-table-cell text-ink-muted">{log.flight_date}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{Number(log.hobbs_start).toFixed(1)}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{Number(log.hobbs_end).toFixed(1)}</td>
+                      <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">{hours.toFixed(1)}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{fuel != null ? fuel.toFixed(1) : "—"}</td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {weekGalPerHour != null ? (
+                          <span className={outOfSpec ? "font-semibold text-status-red" : ""}>
+                            {weekGalPerHour.toFixed(1)}
+                            {outOfSpec ? " ⚠" : ""}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!flightLogs.length ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={5}>
+                    <td className="hsv-empty-state" colSpan={7}>
                       Ningún reporte semanal se ha vinculado a esta faena todavía.
                     </td>
                   </tr>

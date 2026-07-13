@@ -24,6 +24,7 @@ export type FaenaFlightLogRow = {
   campaign_id: string | null;
   marea_code: string | null;
   helicopter_registration: string | null;
+  week_number: number | null;
   flight_date: string;
   flight_hours: number;
   fuel_consumption_gals: number | null;
@@ -87,7 +88,7 @@ export async function fetchFaenaData(): Promise<{
       .order("code"),
     supabase
       .from("flight_logs")
-      .select("id, campaign_id, marea_code, helicopter_registration, flight_date, flight_hours, fuel_consumption_gals")
+      .select("id, campaign_id, marea_code, helicopter_registration, week_number, flight_date, flight_hours, fuel_consumption_gals")
   ]);
 
   return {
