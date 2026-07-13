@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { fetchFaenaData, computeFaenaMetrics, computeVesselSummaries, type FaenaMetrics, type VesselSummary } from "@/lib/faena-metrics";
 
 // AURA is the same deterministic decision-support engine originally built in
 // apps/web/lib/copilot.ts, ported to read the real Supabase tables instead of
@@ -151,8 +152,25 @@ export type AuraRecommendation = {
   operationalImpact: string;
   recommendedAction: string;
   confidence: number;
-  domain: "Fleet" | "Maintenance";
+  domain: "Fleet" | "Maintenance" | "Operations";
   sourceRecords: string[];
+};
+
+export type FaenaAnomaly = {
+  type: "Underperforming" | "FuelOutlier" | "MissingData";
+  campaignId: string;
+  campaignCode: string | null;
+  campaignName: string;
+  vesselName: string;
+  detail: string;
+  tone: AuraTone;
+};
+
+export type OperationsInsights = {
+  vesselSummaries: VesselSummary[];
+  bestTonsPerHour: VesselSummary | null;
+  bestTonsPerDay: VesselSummary | null;
+  anomalies: FaenaAnomaly[];
 };
 
 export type HelicopterRisk = {
@@ -179,6 +197,7 @@ export type AuraAnalysis = {
   helicopterRisks: HelicopterRisk[];
   workByHelicopter: HelicopterWorkPlan[];
   procurementRecommendations: ProcurementRecommendation[];
+  operationsInsights: OperationsInsights;
   answers: {
     expiresNext: AuraAnswer;
     inspect: AuraAnswer;
@@ -333,6 +352,7 @@ function buildExecutiveRecommendationEngine(input: {
   openAlerts: AlertRow[];
   complianceItems: ComplianceItemRow[];
   helicopters: HelicopterRow[];
+  operationsInsights: OperationsInsights;
 }): AuraRecommendation[] {
   const recommendations: AuraRecommendation[] = [];
   const lowestHealth = input.fleetHealth.aircraft[0];
@@ -456,6 +476,58 @@ function buildExecutiveRecommendationEngine(input: {
       confidence: 95,
       domain: "Maintenance",
       sourceRecords: groundingAlerts.map((a) => a.id)
+    });
+  }
+
+  // Operations (Faenas) — same "surface it, don't just log it" treatment
+  // AURA already gives maintenance. Fuel outliers rank High (often a real
+  // mechanical/reporting problem worth same-week attention); underperformance
+  // and missing data rank Medium (worth a look, not an emergency).
+  const fuelOutlier = input.operationsInsights.anomalies.find((a) => a.type === "FuelOutlier");
+  if (fuelOutlier) {
+    recommendations.push({
+      id: `ops-fuel-${fuelOutlier.campaignId}`,
+      priority: "High",
+      subject: `${fuelOutlier.vesselName} — consumo de combustible fuera de rango (${fuelOutlier.campaignCode ?? fuelOutlier.campaignName})`,
+      recommendation: fuelOutlier.detail,
+      evidence: [fuelOutlier.campaignName],
+      operationalImpact: "Un consumo de combustible muy por encima de lo normal puede indicar una fuga, un motor ineficiente o un error de reporte.",
+      recommendedAction: "Revisar el reporte semanal de esa faena y, si el número es real, inspeccionar la aeronave.",
+      confidence: 78,
+      domain: "Operations",
+      sourceRecords: [fuelOutlier.campaignId]
+    });
+  }
+
+  const underperforming = input.operationsInsights.anomalies.find((a) => a.type === "Underperforming");
+  if (underperforming) {
+    recommendations.push({
+      id: `ops-underperforming-${underperforming.campaignId}`,
+      priority: "Medium",
+      subject: `${underperforming.vesselName} — faena con bajo rendimiento (${underperforming.campaignCode ?? underperforming.campaignName})`,
+      recommendation: underperforming.detail,
+      evidence: [underperforming.campaignName],
+      operationalImpact: "Una faena muy por debajo del promedio del barco afecta la rentabilidad de esa marea.",
+      recommendedAction: "Revisar condiciones de esa faena (clima, zona de pesca, disponibilidad del helicóptero) para entender la causa.",
+      confidence: 70,
+      domain: "Operations",
+      sourceRecords: [underperforming.campaignId]
+    });
+  }
+
+  const missingData = input.operationsInsights.anomalies.filter((a) => a.type === "MissingData");
+  if (missingData.length) {
+    recommendations.push({
+      id: "ops-missing-data",
+      priority: "Medium",
+      subject: "Faenas cerradas sin datos de captura completos",
+      recommendation: `${missingData.length} faena(s) cerrada(s) no tienen toneladas finales o días de pesca — no se puede medir su eficiencia ni calcular bien la nómina.`,
+      evidence: missingData.slice(0, 4).map((a) => `${a.vesselName} — ${a.campaignCode ?? a.campaignName}`),
+      operationalImpact: "Sin estos datos, el Resumen de Faenas y la nómina de esa faena quedan incompletos.",
+      recommendedAction: "Completar toneladas finales y días de pesca en cada faena desde su página de detalle.",
+      confidence: 82,
+      domain: "Operations",
+      sourceRecords: missingData.map((a) => a.campaignId)
     });
   }
 
@@ -595,6 +667,81 @@ function buildProcurementRecommendations(
     .sort((left, right) => left.dueInDays - right.dueInDays);
 }
 
+// A faena is only "closed" once someone has actually entered the final
+// catch weigh-in — before that, low tons/hour just means the marea isn't
+// over yet, not that something went wrong. Matches the campaigns.status
+// check constraint in infra/database/schema.sql.
+const CLOSED_CAMPAIGN_STATUSES = new Set(["Completed", "Archived"]);
+
+/** Compares each closed faena against its OWN vessel's historical average
+ * (excluding itself, so a single bad faena doesn't get diluted into its own
+ * baseline) to flag underperformance, fuel outliers, and missing data —
+ * exactly the kind of "which faena needs a look" question AURA already
+ * answers for maintenance, now applied to operations. Needs at least 2 other
+ * closed faenas on the same vessel to have a meaningful baseline; otherwise
+ * there's nothing to compare against yet. */
+function buildOperationsInsights(rows: FaenaMetrics[], vesselSummaries: VesselSummary[]): OperationsInsights {
+  const bestTonsPerHour =
+    vesselSummaries.filter((v) => v.tonsPerHour != null).sort((a, b) => (b.tonsPerHour ?? 0) - (a.tonsPerHour ?? 0))[0] ?? null;
+  const bestTonsPerDay =
+    vesselSummaries.filter((v) => v.tonsPerDay != null).sort((a, b) => (b.tonsPerDay ?? 0) - (a.tonsPerDay ?? 0))[0] ?? null;
+
+  const anomalies: FaenaAnomaly[] = [];
+  const closedRows = rows.filter((row) => CLOSED_CAMPAIGN_STATUSES.has(row.campaign.status));
+
+  for (const row of closedRows) {
+    const vesselName = row.campaign.vessels?.name ?? "Sin barco";
+    const peers = closedRows.filter((other) => other !== row && (other.campaign.vessels?.name ?? "Sin barco") === vesselName);
+
+    if (row.tonsFinal == null || row.fishingDays == null) {
+      anomalies.push({
+        type: "MissingData",
+        campaignId: row.campaign.id,
+        campaignCode: row.campaign.code,
+        campaignName: row.campaign.name,
+        vesselName,
+        detail: "Faena cerrada sin toneladas finales o días de pesca registrados — no se puede medir su eficiencia.",
+        tone: "amber"
+      });
+      continue;
+    }
+
+    const tonsPerHourPeers = peers.filter((p) => p.tonsPerHour != null).map((p) => p.tonsPerHour as number);
+    if (row.tonsPerHour != null && tonsPerHourPeers.length >= 2) {
+      const peerAvg = tonsPerHourPeers.reduce((sum, v) => sum + v, 0) / tonsPerHourPeers.length;
+      if (peerAvg > 0 && row.tonsPerHour < peerAvg * 0.7) {
+        anomalies.push({
+          type: "Underperforming",
+          campaignId: row.campaign.id,
+          campaignCode: row.campaign.code,
+          campaignName: row.campaign.name,
+          vesselName,
+          detail: `${row.tonsPerHour.toFixed(2)} ton/hora, muy por debajo del promedio de ${vesselName} (${peerAvg.toFixed(2)} ton/hora en sus otras ${tonsPerHourPeers.length} faena(s)).`,
+          tone: "amber"
+        });
+      }
+    }
+
+    const fuelPeers = peers.filter((p) => p.galsPerHour != null).map((p) => p.galsPerHour as number);
+    if (row.galsPerHour != null && fuelPeers.length >= 2) {
+      const peerAvg = fuelPeers.reduce((sum, v) => sum + v, 0) / fuelPeers.length;
+      if (peerAvg > 0 && row.galsPerHour > peerAvg * 1.3) {
+        anomalies.push({
+          type: "FuelOutlier",
+          campaignId: row.campaign.id,
+          campaignCode: row.campaign.code,
+          campaignName: row.campaign.name,
+          vesselName,
+          detail: `${row.galsPerHour.toFixed(1)} gal/hora, muy por encima del promedio de ${vesselName} (${peerAvg.toFixed(1)} gal/hora). Revisar reporte o posible fuga/ineficiencia.`,
+          tone: "red"
+        });
+      }
+    }
+  }
+
+  return { vesselSummaries, bestTonsPerHour, bestTonsPerDay, anomalies };
+}
+
 function answerExpiresNext(components: ComponentRow[]): AuraAnswer {
   const sorted = [...components].filter((c) => c.status !== "OK").sort(compareComponentExposure);
   const records = sorted.slice(0, 6).map((c) => ({
@@ -660,7 +807,8 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     { data: flightLogs },
     { data: inventoryItems },
     { data: purchaseRequests },
-    { data: complianceItems }
+    { data: complianceItems },
+    faenaData
   ] = await Promise.all([
     supabase.from("helicopters").select("registration, model, status, current_hourmeter").eq("archived", false),
     supabase
@@ -676,7 +824,8 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     supabase
       .from("compliance_items")
       .select("id, title, authority, compliance_type, reference_number, due_date, due_hours, related_helicopter, status")
-      .eq("archived", false)
+      .eq("archived", false),
+    fetchFaenaData()
   ]);
 
   const helicopterRows = (helicopters ?? []) as HelicopterRow[];
@@ -689,12 +838,16 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
 
   const fleetHealth = buildFleetHealthEngine(helicopterRows, componentRows, alertRows);
   const maintenanceForecast = buildMaintenanceForecastEngine(componentRows, flightLogRows);
+  const faenaRows = computeFaenaMetrics(faenaData.campaigns, faenaData.flightLogs);
+  const vesselSummaries = computeVesselSummaries(faenaRows);
+  const operationsInsights = buildOperationsInsights(faenaRows, vesselSummaries);
   const executiveRecommendations = buildExecutiveRecommendationEngine({
     fleetHealth,
     maintenanceForecast,
     openAlerts: alertRows,
     complianceItems: complianceItemRows,
-    helicopters: helicopterRows
+    helicopters: helicopterRows,
+    operationsInsights
   });
   const helicopterRisks = helicopterRows
     .map((h) => buildHelicopterRisk(h, componentRows, alertRows))
@@ -709,6 +862,7 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     helicopterRisks,
     workByHelicopter,
     procurementRecommendations,
+    operationsInsights,
     answers: {
       expiresNext: answerExpiresNext(componentRows),
       inspect: answerInspect(alertRows, componentRows),

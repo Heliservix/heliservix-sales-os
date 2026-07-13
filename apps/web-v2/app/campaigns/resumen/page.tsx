@@ -3,50 +3,9 @@ import { BarChart3, CalendarRange } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { supabase } from "@/lib/supabase";
+import { fetchFaenaData, computeFaenaMetrics, computeVesselSummaries } from "@/lib/faena-metrics";
 
 export const dynamic = "force-dynamic";
-
-type CampaignRow = {
-  id: string;
-  code: string | null;
-  name: string;
-  vessel_id: string | null;
-  vessels: { name: string } | null;
-  helicopter_registration: string | null;
-  status: string;
-  tons_captured_final: number | null;
-  tons_captured_estimate: number | null;
-  fishing_days: number | null;
-  total_flight_hours: number | null;
-};
-
-type FlightLogRow = {
-  id: string;
-  campaign_id: string | null;
-  marea_code: string | null;
-  helicopter_registration: string | null;
-  flight_date: string;
-  flight_hours: number;
-  fuel_consumption_gals: number | null;
-};
-
-function matchLogsForCampaign(campaign: CampaignRow, flightLogs: FlightLogRow[]): FlightLogRow[] {
-  const matched = flightLogs.filter(
-    (log) =>
-      log.campaign_id === campaign.id ||
-      (campaign.code != null &&
-        campaign.helicopter_registration != null &&
-        log.marea_code === campaign.code &&
-        log.helicopter_registration === campaign.helicopter_registration)
-  );
-  const seen = new Set<string>();
-  return matched.filter((log) => {
-    if (seen.has(log.id)) return false;
-    seen.add(log.id);
-    return true;
-  });
-}
 
 function round(value: number, decimals: number) {
   const factor = 10 ** decimals;
@@ -54,72 +13,14 @@ function round(value: number, decimals: number) {
 }
 
 export default async function CampaignsSummaryPage() {
-  const [{ data: campaignData, error: campaignError }, { data: flightLogData, error: flightLogError }] = await Promise.all([
-    supabase
-      .from("campaigns")
-      .select(
-        "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
-      )
-      .eq("archived", false)
-      .order("code"),
-    supabase
-      .from("flight_logs")
-      .select("id, campaign_id, marea_code, helicopter_registration, flight_date, flight_hours, fuel_consumption_gals")
-  ]);
+  const { campaigns, flightLogs, error } = await fetchFaenaData();
 
-  const campaigns = ((campaignData ?? []) as unknown as CampaignRow[]);
-  const flightLogs = (flightLogData ?? []) as FlightLogRow[];
-  const error = campaignError ?? flightLogError;
-
-  const rows = campaigns.map((campaign) => {
-    const matched = matchLogsForCampaign(campaign, flightLogs);
-    const loggedHours = matched.reduce((sum, log) => sum + Number(log.flight_hours), 0);
-    // Bulk-loaded historical faenas have no linked flight_logs — fall back to
-    // the manually-entered total so ratios still compute (see campaign
-    // detail page for why this never goes through flight_logs itself).
-    const hours = loggedHours > 0 ? loggedHours : Number(campaign.total_flight_hours ?? 0);
-    const fuel = matched.reduce((sum, log) => sum + Number(log.fuel_consumption_gals ?? 0), 0);
-    const fuelWeeksReported = matched.filter((log) => log.fuel_consumption_gals != null).length;
-    const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;
-    const fishingDays = campaign.fishing_days != null ? Number(campaign.fishing_days) : null;
-
-    return {
-      campaign,
-      hours,
-      fuel,
-      fuelWeeksReported,
-      weeksTotal: matched.length,
-      tonsFinal,
-      fishingDays,
-      tonsPerHour: tonsFinal != null && hours > 0 ? tonsFinal / hours : null,
-      tonsPerDay: tonsFinal != null && fishingDays != null && fishingDays > 0 ? tonsFinal / fishingDays : null,
-      hoursPerDay: fishingDays != null && fishingDays > 0 ? hours / fishingDays : null,
-      galsPerHour: fuel > 0 && hours > 0 ? fuel / hours : null
-    };
-  });
+  const rows = computeFaenaMetrics(campaigns, flightLogs);
 
   // Per-vessel roll-up — this is the "which vessel is faster / catches more per
   // flight hour" comparison the office actually wants, not just a per-faena list.
-  const vesselKey = (row: (typeof rows)[number]) => row.campaign.vessels?.name ?? "Sin barco";
-  const vesselNames = Array.from(new Set(rows.map(vesselKey))).sort();
-  const vesselSummaries = vesselNames.map((name) => {
-    const vesselRows = rows.filter((row) => vesselKey(row) === name);
-    const totalHours = vesselRows.reduce((sum, row) => sum + row.hours, 0);
-    const totalTons = vesselRows.reduce((sum, row) => sum + (row.tonsFinal ?? 0), 0);
-    const totalDays = vesselRows.reduce((sum, row) => sum + (row.fishingDays ?? 0), 0);
-    const totalFuel = vesselRows.reduce((sum, row) => sum + row.fuel, 0);
-    return {
-      name,
-      faenas: vesselRows.length,
-      totalHours,
-      totalTons,
-      totalDays,
-      totalFuel,
-      tonsPerHour: totalTons > 0 && totalHours > 0 ? totalTons / totalHours : null,
-      tonsPerDay: totalTons > 0 && totalDays > 0 ? totalTons / totalDays : null,
-      galsPerHour: totalFuel > 0 && totalHours > 0 ? totalFuel / totalHours : null
-    };
-  });
+  // Shared with AURA's operations analysis (lib/aura.ts) so both use the same math.
+  const vesselSummaries = computeVesselSummaries(rows);
 
   const bestTonsPerHour = vesselSummaries.filter((v) => v.tonsPerHour != null).sort((a, b) => (b.tonsPerHour ?? 0) - (a.tonsPerHour ?? 0))[0];
   const bestTonsPerDay = vesselSummaries.filter((v) => v.tonsPerDay != null).sort((a, b) => (b.tonsPerDay ?? 0) - (a.tonsPerDay ?? 0))[0];
@@ -154,7 +55,7 @@ export default async function CampaignsSummaryPage() {
           icon={BarChart3}
         />
 
-        {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}
+        {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error}.</div> : null}
 
         <Panel className="mb-5">
           <h2 className="mb-4 text-lg font-semibold text-ink">Comparación por barco</h2>

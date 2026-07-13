@@ -1,4 +1,5 @@
-import { Bot, ShoppingCart, Wrench } from "lucide-react";
+import Link from "next/link";
+import { Anchor, Bot, ShoppingCart, Wrench } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -212,6 +213,63 @@ export default async function AuraPage() {
           </div>
         </Panel>
 
+        <Panel className="mb-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Anchor className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-ink">Operaciones — eficiencia por barco</h2>
+            </div>
+            <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/campaigns/resumen">
+              Ver Resumen de Faenas →
+            </Link>
+          </div>
+          <p className="mt-1 text-sm text-ink-subtle">
+            Compara cada faena cerrada contra el promedio histórico de su propio barco — no es una opinión, es la faena real
+            contra sus propias faenas anteriores.
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-line bg-canvas-muted p-3">
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Pesca más rápido (ton/día)</p>
+              <p className="mt-1 text-lg font-bold text-ink">
+                {analysis.operationsInsights.bestTonsPerDay
+                  ? `${analysis.operationsInsights.bestTonsPerDay.name} — ${analysis.operationsInsights.bestTonsPerDay.tonsPerDay?.toFixed(2)} ton/día`
+                  : "Sin datos suficientes"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-line bg-canvas-muted p-3">
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Más eficiente por hora de vuelo (ton/hora)</p>
+              <p className="mt-1 text-lg font-bold text-ink">
+                {analysis.operationsInsights.bestTonsPerHour
+                  ? `${analysis.operationsInsights.bestTonsPerHour.name} — ${analysis.operationsInsights.bestTonsPerHour.tonsPerHour?.toFixed(2)} ton/hora`
+                  : "Sin datos suficientes"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2.5">
+            {analysis.operationsInsights.anomalies.map((anomaly) => (
+              <div
+                key={`${anomaly.type}-${anomaly.campaignId}`}
+                className={`rounded-lg border p-3 ${anomaly.tone === "red" ? "border-aviation-red/25 bg-aviation-red/5" : "border-amber-200 bg-amber-50"}`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill tone={anomaly.tone}>
+                    {anomaly.type === "FuelOutlier" ? "Combustible" : anomaly.type === "Underperforming" ? "Bajo rendimiento" : "Datos incompletos"}
+                  </StatusPill>
+                  <Link className="text-sm font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${anomaly.campaignId}`}>
+                    {anomaly.vesselName} — {anomaly.campaignCode ?? anomaly.campaignName}
+                  </Link>
+                </div>
+                <p className="mt-1 text-sm text-ink-subtle">{anomaly.detail}</p>
+              </div>
+            ))}
+            {!analysis.operationsInsights.anomalies.length ? (
+              <p className="hsv-empty-state">Ninguna faena cerrada se desvía de forma notable de su propio barco.</p>
+            ) : null}
+          </div>
+        </Panel>
+
         <div className="grid gap-5 lg:grid-cols-3">
           {[analysis.answers.expiresNext, analysis.answers.inspect, analysis.answers.highestRisk].map((answer) => (
             <Panel key={answer.title}>
@@ -235,9 +293,8 @@ export default async function AuraPage() {
 
         <Panel className="mt-5">
           <p className="text-xs text-ink-subtle">
-            AURA ya cruza Inventario, Compras y Cumplimiento en las recomendaciones de arriba. Registros Técnicos es solo
-            almacenamiento de documentos y no alimenta el puntaje. Campañas alimenta el historial de horas por faena, visible en
-            cada campaña.
+            AURA ya cruza Inventario, Compras, Cumplimiento y Faenas/Campañas en las recomendaciones de arriba. Registros
+            Técnicos es solo almacenamiento de documentos y no alimenta el puntaje.
           </p>
         </Panel>
       </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bot, Gauge, Plane } from "lucide-react";
+import { Bot, Gauge, Plane, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -7,10 +7,39 @@ import { BrandLockup } from "@/components/brand/brand-lockup";
 import { ScoreGauge } from "@/components/charts/score-gauge";
 import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
 import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
+import { TrendLineChart, type TrendPoint } from "@/components/charts/trend-line-chart";
 import { supabase } from "@/lib/supabase";
 import { buildAuraAnalysis } from "@/lib/aura";
 
 export const dynamic = "force-dynamic";
+
+const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+/** Builds the last `months` calendar months (oldest first) as {label, value}
+ * points, summing `amount(row)` for every row whose `dateField` falls in
+ * that month. Used for both the flight-hours and tons-captured trends below
+ * so the two charts read from real historical dates instead of a synthetic
+ * snapshot table (which doesn't exist — see lib/aura.ts's comment on why
+ * campaigns.total_flight_hours is informational-only, not a time series). */
+function monthlyTrend<T>(rows: T[], dateField: (row: T) => string | null, amount: (row: T) => number, months = 12): TrendPoint[] {
+  const now = new Date();
+  const buckets: { year: number; month: number; total: number }[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    buckets.push({ year: d.getFullYear(), month: d.getMonth(), total: 0 });
+  }
+
+  for (const row of rows) {
+    const raw = dateField(row);
+    if (!raw) continue;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) continue;
+    const bucket = buckets.find((b) => b.year === d.getFullYear() && b.month === d.getMonth());
+    if (bucket) bucket.total += amount(row);
+  }
+
+  return buckets.map((b) => ({ label: MONTH_LABELS[b.month], value: Math.round(b.total * 10) / 10 }));
+}
 
 const FLEET_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
   Available: "green",
@@ -29,20 +58,41 @@ const SEVERITY_TONE: Record<string, BarChartDatum["tone"]> = {
 };
 
 export default async function DashboardPage() {
-  const [{ count: helicopterCount }, { count: openAlertCount }, { data: criticalAlerts }, { data: fleetStatusRows }, { data: openAlertsBySeverity }, auraAnalysis] =
-    await Promise.all([
-      supabase.from("helicopters").select("*", { count: "exact", head: true }).eq("archived", false),
-      supabase.from("maintenance_alerts").select("*", { count: "exact", head: true }).neq("status", "Resolved"),
-      supabase
-        .from("maintenance_alerts")
-        .select("id, helicopter_registration, component_name, severity, description")
-        .in("severity", ["Critical", "Grounding"])
-        .neq("status", "Resolved")
-        .limit(5),
-      supabase.from("helicopters").select("status").eq("archived", false),
-      supabase.from("maintenance_alerts").select("severity").neq("status", "Resolved"),
-      buildAuraAnalysis()
-    ]);
+  const [
+    { count: helicopterCount },
+    { count: openAlertCount },
+    { data: criticalAlerts },
+    { data: fleetStatusRows },
+    { data: openAlertsBySeverity },
+    { data: flightLogTrendRows },
+    { data: catchTrendRows },
+    auraAnalysis
+  ] = await Promise.all([
+    supabase.from("helicopters").select("*", { count: "exact", head: true }).eq("archived", false),
+    supabase.from("maintenance_alerts").select("*", { count: "exact", head: true }).neq("status", "Resolved"),
+    supabase
+      .from("maintenance_alerts")
+      .select("id, helicopter_registration, component_name, severity, description")
+      .in("severity", ["Critical", "Grounding"])
+      .neq("status", "Resolved")
+      .limit(5),
+    supabase.from("helicopters").select("status").eq("archived", false),
+    supabase.from("maintenance_alerts").select("severity").neq("status", "Resolved"),
+    supabase.from("flight_logs").select("flight_date, flight_hours"),
+    supabase.from("campaigns").select("catch_weighin_date, tons_captured_final").eq("archived", false),
+    buildAuraAnalysis()
+  ]);
+
+  const flightHoursTrend = monthlyTrend(
+    flightLogTrendRows ?? [],
+    (row) => row.flight_date,
+    (row) => Number(row.flight_hours)
+  );
+  const catchTrend = monthlyTrend(
+    catchTrendRows ?? [],
+    (row) => row.catch_weighin_date,
+    (row) => Number(row.tons_captured_final ?? 0)
+  );
 
   const topRecommendation = auraAnalysis.executiveRecommendations[0];
 
@@ -129,6 +179,27 @@ export default async function DashboardPage() {
               <h3 className="text-sm font-semibold text-ink">Alertas abiertas por severidad</h3>
               <div className="mt-4">
                 <HorizontalBarChart data={severityBars} />
+              </div>
+            </Panel>
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Panel>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                <h3 className="text-sm font-semibold text-ink">Horas voladas por mes (flota completa)</h3>
+              </div>
+              <div className="mt-3">
+                <TrendLineChart data={flightHoursTrend} tone="teal" valueSuffix=" hrs" />
+              </div>
+            </Panel>
+            <Panel>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                <h3 className="text-sm font-semibold text-ink">Toneladas capturadas por mes (fecha de pesaje final)</h3>
+              </div>
+              <div className="mt-3">
+                <TrendLineChart data={catchTrend} tone="green" valueSuffix=" ton" />
               </div>
             </Panel>
           </section>
