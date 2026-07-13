@@ -42,6 +42,10 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
               <input className="hsv-control" name="phone" defaultValue={person.phone ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Correo (para su acceso al Portal Técnico)
+              <input className="hsv-control" type="email" name="email" defaultValue={person.email ?? ""} placeholder="Ej. nombre@correo.com" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Salario mensual (USD)
               <input className="hsv-control" type="number" step="0.01" name="monthlySalary" defaultValue={person.monthly_salary ?? ""} />
             </label>

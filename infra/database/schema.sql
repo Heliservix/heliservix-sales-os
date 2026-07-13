@@ -513,6 +513,10 @@ create table personnel (
   monthly_salary numeric,
   rate_per_ton numeric,
   phone text,
+  -- Links this person to their Supabase Auth login for the Portal Técnico
+  -- (see lib/auth.ts) — Adolfo fills this in once per person, matching
+  -- whatever email he used to create their login in the Supabase dashboard.
+  email text,
   notes text,
   status text not null default 'Active' check (status in ('Active','Inactive')),
   archived boolean not null default false,
@@ -520,6 +524,8 @@ create table personnel (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create unique index idx_personnel_email on personnel (lower(email)) where email is not null;
 
 -- ========================================================================
 -- Campaigns

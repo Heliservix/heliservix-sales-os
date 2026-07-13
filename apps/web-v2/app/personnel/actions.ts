@@ -30,6 +30,7 @@ export async function createPersonnel(formData: FormData) {
     monthly_salary: optionalNumber(formData, "monthlySalary"),
     rate_per_ton: optionalNumber(formData, "ratePerTon"),
     phone: optionalText(formData, "phone"),
+    email: optionalText(formData, "email"),
     notes: optionalText(formData, "notes"),
     status: text(formData, "status") || "Active",
     source: "User"
@@ -53,6 +54,7 @@ export async function updatePersonnel(id: string, formData: FormData) {
       monthly_salary: optionalNumber(formData, "monthlySalary"),
       rate_per_ton: optionalNumber(formData, "ratePerTon"),
       phone: optionalText(formData, "phone"),
+      email: optionalText(formData, "email"),
       notes: optionalText(formData, "notes"),
       status: text(formData, "status") || "Active",
       updated_at: new Date().toISOString()

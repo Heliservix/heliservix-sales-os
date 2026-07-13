@@ -5,6 +5,7 @@ import { primaryNavigation } from "@/lib/navigation";
 import { languages } from "@/lib/i18n";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { BrandLockup } from "@/components/brand/brand-lockup";
+import { LogoutButton } from "@/components/layout/logout-button";
 import { usePathname, useRouter } from "next/navigation";
 
 export function TopNav() {
@@ -60,6 +61,8 @@ export function TopNav() {
           <ShieldCheck className="h-4 w-4 text-aviation-teal" aria-hidden="true" />
           <span className="text-sm font-medium text-ink">{t("shell.fleetOps")}</span>
         </div>
+
+        <LogoutButton />
       </div>
     </header>
   );

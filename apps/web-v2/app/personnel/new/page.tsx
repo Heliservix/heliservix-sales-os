@@ -34,6 +34,10 @@ export default function NewPersonnelPage() {
               <input className="hsv-control" name="phone" />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Correo (para su acceso al Portal Técnico)
+              <input className="hsv-control" type="email" name="email" placeholder="Ej. nombre@correo.com" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Salario mensual (USD)
               <input className="hsv-control" type="number" step="0.01" name="monthlySalary" placeholder="Ej. 4500" />
             </label>
