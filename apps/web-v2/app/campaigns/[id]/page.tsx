@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { archiveCampaign } from "@/app/campaigns/actions";
 import { calculatePayroll } from "@/lib/payroll";
 import { ROBINSON_R44_AVGAS_SPEC, isRobinsonR44 } from "@/lib/aura";
+import { FlightLogRowActions } from "@/app/campaigns/[id]/flight-log-row-actions";
 
 type CampaignDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -61,6 +62,19 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
     seen.add(log.id);
     return true;
   });
+
+  // Other faenas flown by the same helicopter — the pool a mislabeled weekly
+  // report could legitimately need to be reassigned to (the exact scenario
+  // that caused the Caroní/Orinoco mix-up: same aircraft, different vessel).
+  const { data: otherCampaignsRaw } = campaign.helicopter_registration
+    ? await supabase
+        .from("campaigns")
+        .select("id, code, name")
+        .eq("helicopter_registration", campaign.helicopter_registration)
+        .neq("id", id)
+        .order("code", { ascending: true })
+    : { data: [] };
+  const otherCampaigns = otherCampaignsRaw ?? [];
 
   const loggedHours = flightLogs.reduce((sum, log) => sum + Number(log.flight_hours), 0);
   // total_flight_hours = hours flown before this faena had weekly reports
@@ -325,6 +339,7 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                   <th className="hsv-table-th">Horas voladas</th>
                   <th className="hsv-table-th">AVGAS (gal)</th>
                   <th className="hsv-table-th">Gal / hora</th>
+                  <th className="hsv-table-th">Acciones</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
@@ -355,12 +370,15 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                           "—"
                         )}
                       </td>
+                      <td className="hsv-table-cell">
+                        <FlightLogRowActions flightLogId={log.id} campaignId={id} otherCampaigns={otherCampaigns} />
+                      </td>
                     </tr>
                   );
                 })}
                 {!flightLogs.length ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={7}>
+                    <td className="hsv-empty-state" colSpan={8}>
                       Ningún reporte semanal se ha vinculado a esta faena todavía.
                     </td>
                   </tr>
