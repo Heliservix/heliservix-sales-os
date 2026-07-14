@@ -136,12 +136,17 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   // the technicians never have to touch that module themselves.
   let campaignId: string | null = null;
   if (mareaCode) {
-    const { data: existingCampaign, error: campaignLookupError } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("code", mareaCode)
-      .eq("helicopter_registration", helicopterRegistration)
-      .maybeSingle();
+    // Matching on code + helicopter_registration alone is NOT enough to
+    // uniquely identify a faena: the same aircraft can fly the same marea
+    // number for two different vessels in different periods (real case:
+    // HP1782 flew both "M02-2026 — Caroní II" and "M02-2026 — Orinoco" as
+    // separate faenas). Without also filtering by vessel, .maybeSingle()
+    // finds both rows and throws "multiple (or no) rows returned" instead
+    // of picking one — add the vessel_id filter whenever the report
+    // actually identified a vessel, which resolves the ambiguity.
+    let campaignQuery = supabase.from("campaigns").select("id").eq("code", mareaCode).eq("helicopter_registration", helicopterRegistration);
+    if (vesselId) campaignQuery = campaignQuery.eq("vessel_id", vesselId);
+    const { data: existingCampaign, error: campaignLookupError } = await campaignQuery.maybeSingle();
 
     if (campaignLookupError) {
       return { status: "error", message: `Error consultando la campaña/faena: ${campaignLookupError.message}` };
