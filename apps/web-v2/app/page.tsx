@@ -79,15 +79,37 @@ export default async function DashboardPage() {
     supabase.from("helicopters").select("status").eq("archived", false),
     supabase.from("maintenance_alerts").select("severity").neq("status", "Resolved"),
     supabase.from("flight_logs").select("flight_date, flight_hours"),
-    supabase.from("campaigns").select("catch_weighin_date, tons_captured_final").eq("archived", false),
+    // Deliberately no archived=false filter: "Archivar" is how the office
+    // closes out a finished faena, and a finished faena is exactly the one
+    // with real tons_captured_final data. Filtering it out here silently
+    // dropped every completed faena's tons from the trend the moment it was
+    // closed (real bug found 2026-07-14 — see lib/faena-metrics.ts for the
+    // matching fix on the Resumen de Faenas page).
+    supabase.from("campaigns").select("catch_weighin_date, tons_captured_final, start_date, total_flight_hours"),
     buildAuraAnalysis()
   ]);
 
-  const flightHoursTrend = monthlyTrend(
+  const flightHoursFromLogs = monthlyTrend(
     flightLogTrendRows ?? [],
     (row) => row.flight_date,
     (row) => Number(row.flight_hours)
   );
+  // Faenas that started before this system tracked weekly flight_logs (or
+  // whose first weeks were never uploaded) have their hours recorded as a
+  // manual campaigns.total_flight_hours baseline instead — see the comment
+  // on that column in infra/database/schema.sql. It always ADDS to whatever
+  // flight_logs exist, so it's added here too (keyed to the faena's start
+  // month), or the fleet-wide monthly total silently undercounts every faena
+  // that predates live weekly reporting.
+  const flightHoursFromBaseline = monthlyTrend(
+    catchTrendRows ?? [],
+    (row) => row.start_date,
+    (row) => Number(row.total_flight_hours ?? 0)
+  );
+  const flightHoursTrend: TrendPoint[] = flightHoursFromLogs.map((point, i) => ({
+    label: point.label,
+    value: Math.round((point.value + (flightHoursFromBaseline[i]?.value ?? 0)) * 10) / 10
+  }));
   const catchTrend = monthlyTrend(
     catchTrendRows ?? [],
     (row) => row.catch_weighin_date,

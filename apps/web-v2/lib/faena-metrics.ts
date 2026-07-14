@@ -79,12 +79,20 @@ export async function fetchFaenaData(): Promise<{
   error: string | null;
 }> {
   const [{ data: campaignData, error: campaignError }, { data: flightLogData, error: flightLogError }] = await Promise.all([
+    // Deliberately does NOT filter archived=false: "Archivar" on the campaign
+    // detail page is how the office closes out a finished faena, and a
+    // finished faena is exactly the one with real tons_captured_final and
+    // total hours data — the numbers this summary and AURA's operations
+    // analysis most need. Excluding archived faenas here silently dropped
+    // every completed faena from the comparison the moment it was closed
+    // (real bug found 2026-07-14: dashboard/resumen totals were missing most
+    // history). The active /campaigns list still filters archived=false —
+    // that page is "what's open right now", not historical reporting.
     supabase
       .from("campaigns")
       .select(
         "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
       )
-      .eq("archived", false)
       .order("code"),
     supabase
       .from("flight_logs")
