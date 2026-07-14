@@ -13,6 +13,7 @@ export type FaenaCampaignRow = {
   vessels: { name: string } | null;
   helicopter_registration: string | null;
   status: string;
+  start_date: string | null;
   tons_captured_final: number | null;
   tons_captured_estimate: number | null;
   fishing_days: number | null;
@@ -91,7 +92,7 @@ export async function fetchFaenaData(): Promise<{
     supabase
       .from("campaigns")
       .select(
-        "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
+        "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, start_date, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
       )
       .order("code"),
     supabase
@@ -138,6 +139,35 @@ export function computeFaenaMetrics(campaigns: FaenaCampaignRow[], flightLogs: F
       tonsPerDay: tonsFinal != null && fishingDays != null && fishingDays > 0 ? tonsFinal / fishingDays : null,
       hoursPerDay: fishingDays != null && fishingDays > 0 ? hours / fishingDays : null,
       galsPerHour: fuel > 0 && hours > 0 ? fuel / hours : null
+    };
+  });
+}
+
+export type YearSummary = {
+  year: string;
+  faenas: number;
+  totalHours: number;
+  totalTons: number;
+  totalDays: number;
+};
+
+function yearKey(row: FaenaMetrics): string {
+  return row.campaign.start_date ? row.campaign.start_date.slice(0, 4) : "Sin fecha";
+}
+
+/** Same idea as computeVesselSummaries, grouped by the faena's start year
+ * instead of by vessel — answers "how many faenas / hours / tons / fishing
+ * days per year" for the operations dashboard. */
+export function computeYearlySummaries(rows: FaenaMetrics[]): YearSummary[] {
+  const years = Array.from(new Set(rows.map(yearKey))).sort((a, b) => (a === "Sin fecha" ? 1 : b === "Sin fecha" ? -1 : b.localeCompare(a)));
+  return years.map((year) => {
+    const yearRows = rows.filter((row) => yearKey(row) === year);
+    return {
+      year,
+      faenas: yearRows.length,
+      totalHours: yearRows.reduce((sum, row) => sum + row.hours, 0),
+      totalTons: yearRows.reduce((sum, row) => sum + (row.tonsFinal ?? 0), 0),
+      totalDays: yearRows.reduce((sum, row) => sum + (row.fishingDays ?? 0), 0)
     };
   });
 }

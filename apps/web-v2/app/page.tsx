@@ -10,6 +10,12 @@ import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-
 import { TrendLineChart, type TrendPoint } from "@/components/charts/trend-line-chart";
 import { supabase } from "@/lib/supabase";
 import { buildAuraAnalysis } from "@/lib/aura";
+import { fetchFaenaData, computeFaenaMetrics, computeVesselSummaries, computeYearlySummaries } from "@/lib/faena-metrics";
+
+function round(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +72,8 @@ export default async function DashboardPage() {
     { data: openAlertsBySeverity },
     { data: flightLogTrendRows },
     { data: catchTrendRows },
-    auraAnalysis
+    auraAnalysis,
+    faenaData
   ] = await Promise.all([
     supabase.from("helicopters").select("*", { count: "exact", head: true }).eq("archived", false),
     supabase.from("maintenance_alerts").select("*", { count: "exact", head: true }).neq("status", "Resolved"),
@@ -86,8 +93,17 @@ export default async function DashboardPage() {
     // closed (real bug found 2026-07-14 — see lib/faena-metrics.ts for the
     // matching fix on the Resumen de Faenas page).
     supabase.from("campaigns").select("catch_weighin_date, tons_captured_final, start_date, total_flight_hours"),
-    buildAuraAnalysis()
+    buildAuraAnalysis(),
+    fetchFaenaData()
   ]);
+
+  const faenaRows = computeFaenaMetrics(faenaData.campaigns, faenaData.flightLogs);
+  const vesselSummaries = computeVesselSummaries(faenaRows);
+  const yearlySummaries = computeYearlySummaries(faenaRows);
+  const totalFaenas = faenaRows.length;
+  const totalHoursAllTime = faenaRows.reduce((sum, row) => sum + row.hours, 0);
+  const totalTonsAllTime = faenaRows.reduce((sum, row) => sum + (row.tonsFinal ?? 0), 0);
+  const totalDaysAllTime = faenaRows.reduce((sum, row) => sum + (row.fishingDays ?? 0), 0);
 
   const flightHoursFromLogs = monthlyTrend(
     flightLogTrendRows ?? [],
@@ -225,6 +241,103 @@ export default async function DashboardPage() {
               </div>
             </Panel>
           </section>
+
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Panel>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Faenas registradas (histórico)</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalFaenas}</p>
+            </Panel>
+            <Panel>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Horas voladas (histórico)</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalHoursAllTime > 0 ? round(totalHoursAllTime, 1) : "—"}</p>
+            </Panel>
+            <Panel>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Toneladas capturadas (histórico)</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalTonsAllTime > 0 ? round(totalTonsAllTime, 1) : "—"}</p>
+            </Panel>
+            <Panel>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Días de pesca (histórico)</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalDaysAllTime > 0 ? round(totalDaysAllTime, 1) : "—"}</p>
+            </Panel>
+          </section>
+
+          <Panel>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-ink">Totales por barco</h3>
+              <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/campaigns/resumen">
+                Ver detalle completo →
+              </Link>
+            </div>
+            <div className="hsv-table-wrap">
+              <table className="hsv-table">
+                <thead className="hsv-table-head">
+                  <tr>
+                    <th className="hsv-table-th">Barco</th>
+                    <th className="hsv-table-th">Faenas</th>
+                    <th className="hsv-table-th">Horas voladas</th>
+                    <th className="hsv-table-th">Toneladas (final)</th>
+                    <th className="hsv-table-th">Días de pesca</th>
+                  </tr>
+                </thead>
+                <tbody className="hsv-table-body">
+                  {vesselSummaries.map((vessel) => (
+                    <tr key={vessel.name} className="hsv-table-row">
+                      <td className="hsv-table-cell font-semibold text-ink">{vessel.name}</td>
+                      <td className="hsv-table-cell text-ink-muted">{vessel.faenas}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{vessel.totalHours > 0 ? round(vessel.totalHours, 1) : "—"}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{vessel.totalTons > 0 ? round(vessel.totalTons, 1) : "—"}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{vessel.totalDays > 0 ? round(vessel.totalDays, 1) : "—"}</td>
+                    </tr>
+                  ))}
+                  {!vesselSummaries.length ? (
+                    <tr>
+                      <td className="hsv-empty-state" colSpan={5}>
+                        No hay faenas registradas todavía.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+
+          <Panel>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-ink">Totales por año</h3>
+              <p className="text-xs text-ink-subtle">Agrupado por fecha de inicio de cada faena.</p>
+            </div>
+            <div className="hsv-table-wrap">
+              <table className="hsv-table">
+                <thead className="hsv-table-head">
+                  <tr>
+                    <th className="hsv-table-th">Año</th>
+                    <th className="hsv-table-th">Faenas</th>
+                    <th className="hsv-table-th">Horas voladas</th>
+                    <th className="hsv-table-th">Toneladas (final)</th>
+                    <th className="hsv-table-th">Días de pesca</th>
+                  </tr>
+                </thead>
+                <tbody className="hsv-table-body">
+                  {yearlySummaries.map((year) => (
+                    <tr key={year.year} className="hsv-table-row">
+                      <td className="hsv-table-cell font-semibold text-ink">{year.year}</td>
+                      <td className="hsv-table-cell text-ink-muted">{year.faenas}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{year.totalHours > 0 ? round(year.totalHours, 1) : "—"}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{year.totalTons > 0 ? round(year.totalTons, 1) : "—"}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{year.totalDays > 0 ? round(year.totalDays, 1) : "—"}</td>
+                    </tr>
+                  ))}
+                  {!yearlySummaries.length ? (
+                    <tr>
+                      <td className="hsv-empty-state" colSpan={5}>
+                        No hay faenas registradas todavía.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
 
           <Panel className="border-aviation-teal/25 bg-aviation-teal/5">
             <div className="flex items-center justify-between">
