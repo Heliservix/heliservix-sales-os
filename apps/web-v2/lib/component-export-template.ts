@@ -1,5 +1,7 @@
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import path from "path";
+import fs from "fs";
 
 // Fills the office's original "Control Maestro de Componentes" workbook
 // (data/templates/control-componentes-template.xlsx) with a helicopter's
@@ -48,6 +50,17 @@ function toExcelDate(iso: string | null): Date | null {
 function clearRow(sheet: ExcelJS.Worksheet, row: number, fromCol: number, toCol: number) {
   const r = sheet.getRow(row);
   for (let c = fromCol; c <= toCol; c++) r.getCell(c).value = null;
+}
+
+function colLetter(n: number): string {
+  let s = "";
+  let num = n;
+  while (num > 0) {
+    const rem = (num - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    num = Math.floor((num - 1) / 26);
+  }
+  return s;
 }
 
 // A couple of date cells in the original template (the "Fecha Revisión"
@@ -135,13 +148,26 @@ function fillComponentTable(
     if (hasRefAndPosition) row.getCell(col++).value = component.position ?? "";
     writeDateCell(row.getCell(col++), component.installation_date);
     row.getCell(col++).value = Number(component.tsn_hours) || 0;
-    row.getCell(col++).value = Number(component.tso_hours) || 0;
-    row.getCell(col++).value = Number(component.life_limit_hours) || 0;
-    // Remanente (HRS) — the same calculated-column formula the original
-    // template uses, so it recalculates live in Excel from TSO/Límite vida
-    // instead of shipping as a frozen number.
+    const tsoCol = col;
+    const tso = Number(component.tso_hours) || 0;
+    row.getCell(col++).value = tso;
+    const lifeLimitCol = col;
+    const lifeLimit = Number(component.life_limit_hours) || 0;
+    row.getCell(col++).value = lifeLimit;
+    // Remanente (HRS) — same idea as the original template's calculated
+    // column (Límite vida - TSO), but written as a plain cell-reference
+    // formula (e.g. "=I8-H8") instead of an Excel Table structured
+    // reference. Structured references ("tblComponentes[[#This Row],...]")
+    // aren't understood by every spreadsheet app — Apple Numbers in
+    // particular fails to parse them — which showed up as a real error in
+    // this exact column. A plain formula works everywhere, and a cached
+    // `result` is included too so the number still shows correctly even in
+    // a viewer that doesn't recalculate formulas on open at all.
+    const remanenteCol = col;
+    const remanente = lifeLimit - tso;
     row.getCell(col++).value = {
-      formula: `${tableName}[[#This Row],[Límite vida (HRS)]]-${tableName}[[#This Row],[TSO (HRS)]]`
+      formula: `${colLetter(lifeLimitCol)}${rowNum}-${colLetter(tsoCol)}${rowNum}`,
+      result: remanente
     } as ExcelJS.CellFormulaValue;
     // Límite calendario (AÑOS): the template's original author typed a raw
     // year-duration here; HSV OS only stores the resulting expiration date
@@ -152,10 +178,20 @@ function fillComponentTable(
     // Kept verbatim from the original template — this column's formula
     // ("19+12-26") isn't something HSV OS introduced or can meaningfully
     // fix; it's reproduced as-is so the file matches the source format.
-    row.getCell(col++).value = { formula: "19+12-26" } as ExcelJS.CellFormulaValue;
-    row.getCell(col++).value = {
-      formula: `${tableName}[[#This Row],[Remanente (HRS)]]*100/${tableName}[[#This Row],[Límite vida (HRS)]]`
-    } as ExcelJS.CellFormulaValue;
+    row.getCell(col++).value = { formula: "19+12-26", result: 5 } as ExcelJS.CellFormulaValue;
+    // A component with no hour-based life limit (life_limit_hours = 0 — it
+    // only tracks a calendar limit) would make this formula divide by zero
+    // (#DIV/0!) both in our cached result and when Excel recalculates on
+    // open. Write a plain 0 instead of a formula for those rows rather than
+    // shipping a guaranteed error.
+    if (lifeLimit > 0) {
+      row.getCell(col++).value = {
+        formula: `${colLetter(remanenteCol)}${rowNum}*100/${colLetter(lifeLimitCol)}${rowNum}`,
+        result: (remanente * 100) / lifeLimit
+      } as ExcelJS.CellFormulaValue;
+    } else {
+      row.getCell(col++).value = 0;
+    }
     row.getCell(col++).value = component.status;
     row.getCell(col++).value = component.notes ?? "";
   }
@@ -183,6 +219,51 @@ function fillResumenEjecutivo(sheet: ExcelJS.Worksheet, helicopter: ExportHelico
   sheet.getRow(11).getCell(8).value = 0; // Referencias normalizadas — no ambiguity to normalize on a live HSV OS export
 }
 
+// exceljs (v4.4.0) has a real bug in how it re-serializes an Excel Table's
+// <table> XML part on save: for a table with "calculated columns" (ones
+// carrying a dataDxfId + calculatedColumnFormula, like this template's
+// "LIMITE DE VIDA EN AÑOS" and "% remanente horas") it silently drops every
+// column definition from that point onward — the table's cell VALUES and
+// FORMULAS all save correctly, but the <tableColumns> list ends up shorter
+// than the table's own column range (e.g. 13 columns declared for a 16-
+// column A7:P50 range). That mismatch is invalid OOXML, so Excel detects
+// corruption on open and repairs the file — which is exactly what wiped out
+// "Remanente (HRS)" and "% remanente horas" for the user (2026-07-24 bug
+// report). Filed as a real exceljs limitation, not something fixable by
+// changing how we write cells.
+//
+// The fix: exceljs writes everything else correctly (cell values, formulas,
+// styles, the embedded logo), so after it finishes we reach into the raw
+// zip and swap the two broken xl/tables/table*.xml parts back for the
+// pristine, byte-correct versions from the untouched template file — we
+// never actually change the table's column *structure*, only the data
+// inside it, so the template's original table XML is always still valid.
+async function restoreTableDefinitions(generatedBuffer: Buffer): Promise<Buffer> {
+  const [generatedZip, templateZip] = await Promise.all([
+    JSZip.loadAsync(generatedBuffer),
+    JSZip.loadAsync(fs.readFileSync(TEMPLATE_PATH))
+  ]);
+
+  const templateTablesByName = new Map<string, string>();
+  for (const file of Object.values(templateZip.files)) {
+    if (!/^xl\/tables\/table\d+\.xml$/.test(file.name)) continue;
+    const xml = await file.async("string");
+    const nameMatch = xml.match(/<table\b[^>]*\bname="([^"]+)"/);
+    if (nameMatch) templateTablesByName.set(nameMatch[1], xml);
+  }
+
+  for (const file of Object.values(generatedZip.files)) {
+    if (!/^xl\/tables\/table\d+\.xml$/.test(file.name)) continue;
+    const xml = await file.async("string");
+    const nameMatch = xml.match(/<table\b[^>]*\bname="([^"]+)"/);
+    const original = nameMatch ? templateTablesByName.get(nameMatch[1]) : undefined;
+    if (original) generatedZip.file(file.name, original);
+  }
+
+  const patched = await generatedZip.generateAsync({ type: "nodebuffer" });
+  return Buffer.from(patched);
+}
+
 export async function buildComponentControlWorkbook(helicopter: ExportHelicopter, components: ExportComponent[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(TEMPLATE_PATH);
@@ -198,6 +279,6 @@ export async function buildComponentControlWorkbook(helicopter: ExportHelicopter
   if (controlMaestro2) fillComponentTable(controlMaestro2, "tblComponentes3", helicopter, components, false, 50);
   if (resumen) fillResumenEjecutivo(resumen, helicopter, components);
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer);
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  return restoreTableDefinitions(buffer);
 }
