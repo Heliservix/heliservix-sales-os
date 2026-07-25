@@ -89,8 +89,14 @@ export default async function EditComponentPage({ params }: EditComponentPagePro
               Fecha límite de calendario
               <input className="hsv-control" type="date" name="calendarLimitDate" defaultValue={component.calendar_limit_date ?? ""} />
             </label>
-            <p className="self-end text-xs text-ink-subtle">
-              Déjalo vacío si el componente es &ldquo;LIFE&rdquo; u &ldquo;ON CONDITION&rdquo; (sin límite de calendario).
+            <label className="flex items-start gap-2 self-end text-xs text-ink-subtle">
+              <input className="mt-0.5" type="checkbox" name="noCalendarLimit" defaultChecked={component.calendar_limit_date == null} />
+              Sin límite de calendario (componente &ldquo;LIFE&rdquo; u &ldquo;ON CONDITION&rdquo; real)
+            </label>
+            <p className="text-xs text-ink-subtle sm:col-span-2">
+              Si desmarcas la casilla y dejas &ldquo;Fecha límite de calendario&rdquo; vacía pero sí hay fecha de instalación, se
+              calcula automáticamente a 12 años desde la instalación (regla estándar del manual de mantenimiento). Si este
+              componente tiene un límite distinto documentado, escríbelo arriba y se respeta ese en vez del cálculo de 12 años.
             </p>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas

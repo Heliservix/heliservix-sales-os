@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { defaultCalendarLimitDate } from "@/lib/component-calendar";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -33,14 +34,23 @@ function daysUntil(isoDate: string | null): number | null {
 }
 
 function componentFieldsFromForm(formData: FormData) {
-  const calendarLimitDate = optionalDate(formData, "calendarLimitDate");
+  const installationDate = optionalDate(formData, "installationDate");
+  const noCalendarLimit = formData.get("noCalendarLimit") === "on";
+  const manualCalendarLimitDate = optionalDate(formData, "calendarLimitDate");
+  // Per the maintenance manual's standard rule: a component gets a 12-year
+  // calendar limit from its installation date unless it's a genuine LIFE/ON
+  // CONDITION part (the "Sin límite de calendario" checkbox) or someone
+  // typed in a different documented limit for this specific component. This
+  // was previously left entirely manual, which is why most components never
+  // got a calendar limit calculated at all.
+  const calendarLimitDate = noCalendarLimit ? null : (manualCalendarLimitDate ?? defaultCalendarLimitDate(installationDate));
   return {
     component_name: text(formData, "componentName"),
     part_number: text(formData, "partNumber"),
     serial_number: text(formData, "serialNumber"),
     category: optionalText(formData, "category"),
     position: optionalText(formData, "position"),
-    installation_date: optionalDate(formData, "installationDate"),
+    installation_date: installationDate,
     tsn_hours: number(formData, "tsnHours"),
     tso_hours: number(formData, "tsoHours"),
     life_limit_hours: number(formData, "lifeLimitHours"),

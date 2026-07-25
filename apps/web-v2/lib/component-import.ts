@@ -8,6 +8,7 @@ import {
   buildColumnIndex,
   findColumn
 } from "@/lib/excel-parsing";
+import { defaultCalendarLimitDate } from "@/lib/component-calendar";
 
 // Parses the "Control Maestro de Componentes" workbook that mechanics fill out per
 // helicopter. The layout is not perfectly consistent between files (extra/missing
@@ -139,14 +140,28 @@ export function parseComponentControlWorkbook(buffer: Buffer): ParsedComponentCo
     const positionRaw = col.posicion !== -1 ? cellText(row[col.posicion]) : "";
     const position = positionRaw && normalize(positionRaw) !== "n/a" ? positionRaw : null;
 
-    const calendarLimitDate = col.remanenteCalendario !== -1 ? parseFlexibleDate(row[col.remanenteCalendario]) : null;
-    const remainingCalendarDays = calendarLimitDate ? daysUntil(calendarLimitDate) : null;
+    const installationDate = col.fechaInstalacion !== -1 ? parseFlexibleDate(row[col.fechaInstalacion]) : null;
 
     const rawObservaciones = col.observaciones !== -1 ? cellText(row[col.observaciones]) : "";
     const limiteCalendarioRaw = col.limiteCalendario !== -1 ? row[col.limiteCalendario] : null;
     const limiteCalendarioText = limiteCalendarioRaw != null ? cellText(limiteCalendarioRaw) : "";
     const isSpecialCalendarValue =
       limiteCalendarioText && Number.isNaN(Number.parseFloat(limiteCalendarioText.replace(",", ".")));
+    // "LIFE" / "ON CONDITION" typed into the calendar-limit-years column is
+    // this shop's own convention for "no calendar limit, hours only" —
+    // respected as an explicit opt-out from the 12-year default below.
+    const explicitNoCalendarLimit = Boolean(isSpecialCalendarValue) && /life|on ?condition/.test(normalize(limiteCalendarioText));
+
+    // Per the maintenance manual's standard rule: a component gets a
+    // 12-year calendar limit from its installation date unless the source
+    // file already gives an explicit date, or explicitly marks it as
+    // LIFE/ON CONDITION. Previously a missing date here just stayed null
+    // forever, which is why most imported components never got a calendar
+    // limit calculated at all.
+    const calendarLimitDate =
+      (col.remanenteCalendario !== -1 ? parseFlexibleDate(row[col.remanenteCalendario]) : null) ??
+      (explicitNoCalendarLimit ? null : defaultCalendarLimitDate(installationDate));
+    const remainingCalendarDays = calendarLimitDate ? daysUntil(calendarLimitDate) : null;
 
     const noteParts = [rawObservaciones];
     if (isSpecialCalendarValue) noteParts.push(`Límite calendario (origen): ${limiteCalendarioText}`);
@@ -163,7 +178,7 @@ export function parseComponentControlWorkbook(buffer: Buffer): ParsedComponentCo
       partNumber,
       serialNumber: col.sn !== -1 ? cellText(row[col.sn]) : "",
       position,
-      installationDate: col.fechaInstalacion !== -1 ? parseFlexibleDate(row[col.fechaInstalacion]) : null,
+      installationDate,
       tsnHours: col.tsn !== -1 ? parseNumber(row[col.tsn]) : 0,
       tsoHours: col.tso !== -1 ? parseNumber(row[col.tso]) : 0,
       lifeLimitHours: col.limiteVida !== -1 ? parseNumber(row[col.limiteVida]) : 0,
