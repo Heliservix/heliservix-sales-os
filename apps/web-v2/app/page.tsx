@@ -11,6 +11,7 @@ import { TrendLineChart, type TrendPoint } from "@/components/charts/trend-line-
 import { supabase } from "@/lib/supabase";
 import { buildAuraAnalysis } from "@/lib/aura";
 import { fetchFaenaData, computeFaenaMetrics, computeVesselSummaries, computeYearlySummaries } from "@/lib/faena-metrics";
+import { recordFleetHealthSnapshot, fetchFleetHealthTrend } from "@/lib/fleet-health-history";
 
 function round(value: number, decimals: number) {
   const factor = 10 ** decimals;
@@ -96,6 +97,16 @@ export default async function DashboardPage() {
     buildAuraAnalysis(),
     fetchFaenaData()
   ]);
+
+  // Best-effort: logs today's fleet-health score (no-op if already logged
+  // today) so the trend chart below has something to show. Never blocks or
+  // breaks the dashboard if it fails — see lib/fleet-health-history.ts.
+  await recordFleetHealthSnapshot(auraAnalysis.fleetHealth.score, helicopterCount ?? 0);
+  const fleetHealthTrend = await fetchFleetHealthTrend(60);
+  const fleetHealthTrendPoints: TrendPoint[] = fleetHealthTrend.map((point) => ({
+    label: point.date.slice(5),
+    value: point.score
+  }));
 
   const faenaRows = computeFaenaMetrics(faenaData.campaigns, faenaData.flightLogs);
   const vesselSummaries = computeVesselSummaries(faenaRows);
@@ -221,6 +232,29 @@ export default async function DashboardPage() {
               <h3 className="text-sm font-semibold text-ink">Alertas abiertas por severidad</h3>
               <div className="mt-4">
                 <HorizontalBarChart data={severityBars} />
+              </div>
+            </Panel>
+          </section>
+
+          <section className="grid gap-4">
+            <Panel>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                <h3 className="text-sm font-semibold text-ink">Tendencia de salud de flota (últimos 60 días)</h3>
+              </div>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Un punto por día desde que este panel empezó a guardar historial — antes de esto solo existía el número de hoy,
+                sin forma de ver si la flota va mejorando o empeorando.
+              </p>
+              <div className="mt-3">
+                {fleetHealthTrendPoints.length > 1 ? (
+                  <TrendLineChart data={fleetHealthTrendPoints} tone="teal" />
+                ) : (
+                  <p className="hsv-empty-state">
+                    Todavía no hay suficiente historial — vuelve mañana. Se guarda un punto automáticamente cada vez que se
+                    abre este dashboard en un día nuevo.
+                  </p>
+                )}
               </div>
             </Panel>
           </section>

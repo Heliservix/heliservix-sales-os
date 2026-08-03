@@ -636,19 +636,27 @@ create table compliance_items (
   updated_at timestamptz not null default now()
 );
 
-create table compliance_alerts (
+-- (There used to be a `compliance_alerts` table here, mirroring
+-- maintenance_alerts but for compliance_items. Removed 2026-08-xx: nothing
+-- ever wrote to it — no trigger, no app code — so it sat empty since this
+-- schema was created. Compliance urgency is fully handled by the
+-- date/hours tone logic already in app/compliance/page.tsx. If per-item
+-- compliance alerts are ever wanted, rebuild this properly with a trigger
+-- like reconcile_component_alert() rather than resurrecting a dead table.)
+
+-- ========================================================================
+-- Fleet health history — one row per calendar day, written by the
+-- dashboard the first time it's loaded that day (see
+-- lib/fleet-health-history.ts). Lets the dashboard show a trend instead of
+-- only ever showing today's fleet-health score.
+-- ========================================================================
+
+create table fleet_health_history (
   id uuid primary key default gen_random_uuid(),
-  compliance_item_id uuid not null references compliance_items(id) on delete cascade,
-  related_helicopter text references helicopters(registration),
-  related_component_id uuid references components(id),
-  related_campaign_id uuid references campaigns(id),
-  severity text not null check (severity in ('Info','Monitor','Critical','Grounding')),
-  status text not null default 'Open' check (status in ('Open','Acknowledged','In Progress','Resolved')),
-  due_date date,
-  description text,
-  source text not null default 'User' check (source in ('Demo','User')),
-  created_at timestamptz not null default now(),
-  unique (compliance_item_id, status)
+  snapshot_date date not null unique,
+  score numeric not null,
+  aircraft_count integer not null,
+  created_at timestamptz not null default now()
 );
 
 -- ========================================================================
@@ -691,7 +699,8 @@ begin
       'vessels','helicopters','components','maintenance_alerts','flight_logs',
       'replacement_events','maintenance_logs','component_changes','inventory_items',
       'stock_movements','purchase_requests','campaigns','technical_records',
-      'compliance_items','compliance_alerts','migration_logs','personnel'
+      'compliance_items','migration_logs','personnel',
+      'fleet_health_history'
     ])
   loop
     execute format('alter table %I enable row level security;', t);
