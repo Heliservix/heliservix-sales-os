@@ -5,17 +5,12 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
+import { computeFaenaMetrics, type FaenaCampaignRow, type FaenaFlightLogRow } from "@/lib/faena-metrics";
 
 export const dynamic = "force-dynamic";
 
-type CampaignRow = {
-  id: string;
-  code: string | null;
-  name: string;
-  helicopter_registration: string | null;
-  start_date: string | null;
+type CampaignRow = FaenaCampaignRow & {
   end_date: string | null;
-  status: string;
   vessels: { id: string; name: string } | null;
 };
 
@@ -32,14 +27,34 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
 };
 
 export default async function CampaignsPage() {
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select("id, code, name, helicopter_registration, start_date, end_date, status, vessels:vessel_id(id, name)")
-    .eq("archived", false)
-    .order("start_date", { ascending: false, nullsFirst: false });
+  // This list is deliberately archived=false only ("what's open right now")
+  // — historical/closed faenas live in Resumen de Faenas and the dashboard
+  // totals instead (see lib/faena-metrics.ts for why those two don't filter
+  // archived out). Flight hours use the same shared computeFaenaMetrics()
+  // math as the campaign detail page and Resumen de Faenas, so this number
+  // never drifts from what those pages show for the same faena.
+  const [{ data, error }, { data: flightLogData, error: flightLogError }] = await Promise.all([
+    supabase
+      .from("campaigns")
+      .select(
+        "id, code, name, vessel_id, helicopter_registration, status, start_date, end_date, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours, vessels:vessel_id(id, name)"
+      )
+      .eq("archived", false)
+      .order("start_date", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("flight_logs")
+      .select("id, campaign_id, marea_code, helicopter_registration, week_number, flight_date, flight_hours, fuel_consumption_gals")
+  ]);
 
-  const campaigns = ((data ?? []) as unknown as CampaignRow[]);
+  const campaigns = (data ?? []) as unknown as CampaignRow[];
+  const flightLogs = (flightLogData ?? []) as FaenaFlightLogRow[];
   const active = campaigns.filter((c) => c.status === "Active");
+
+  const hoursByCampaignId = new Map<string, number>();
+  for (const row of computeFaenaMetrics(campaigns, flightLogs)) {
+    hoursByCampaignId.set(row.campaign.id, row.hours);
+  }
+  const loadError = error?.message ?? flightLogError?.message ?? null;
 
   return (
     <AppShell>
@@ -80,7 +95,7 @@ export default async function CampaignsPage() {
             </div>
           </div>
 
-          {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}
+          {loadError ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {loadError}.</div> : null}
 
           <div className="hsv-table-wrap">
             <table className="hsv-table">
@@ -92,38 +107,45 @@ export default async function CampaignsPage() {
                   <th className="hsv-table-th">Barco</th>
                   <th className="hsv-table-th">Inicio</th>
                   <th className="hsv-table-th">Fin</th>
+                  <th className="hsv-table-th">Horas voladas</th>
                   <th className="hsv-table-th">Estado</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
-                {campaigns.map((campaign) => (
-                  <tr key={campaign.id} className="hsv-table-row">
-                    <td className="hsv-table-cell hsv-technical-value">
-                      <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${campaign.id}`}>
-                        {campaign.code || "—"}
-                      </Link>
-                    </td>
-                    <td className="hsv-table-cell text-ink-muted">{campaign.name}</td>
-                    <td className="hsv-table-cell text-ink-muted">
-                      {campaign.helicopter_registration ? (
-                        <Link className="hover:text-aviation-teal" href={`/helicopters/${campaign.helicopter_registration}`}>
-                          {campaign.helicopter_registration}
+                {campaigns.map((campaign) => {
+                  const hours = hoursByCampaignId.get(campaign.id) ?? 0;
+                  return (
+                    <tr key={campaign.id} className="hsv-table-row">
+                      <td className="hsv-table-cell hsv-technical-value">
+                        <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${campaign.id}`}>
+                          {campaign.code || "—"}
                         </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="hsv-table-cell text-ink-muted">{campaign.vessels?.name ?? "—"}</td>
-                    <td className="hsv-table-cell text-ink-muted">{campaign.start_date || "—"}</td>
-                    <td className="hsv-table-cell text-ink-muted">{campaign.end_date || "En curso"}</td>
-                    <td className="hsv-table-cell">
-                      <StatusPill tone={STATUS_TONE[campaign.status] ?? "neutral"}>{campaign.status}</StatusPill>
-                    </td>
-                  </tr>
-                ))}
-                {!campaigns.length && !error ? (
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">{campaign.name}</td>
+                      <td className="hsv-table-cell text-ink-muted">
+                        {campaign.helicopter_registration ? (
+                          <Link className="hover:text-aviation-teal" href={`/helicopters/${campaign.helicopter_registration}`}>
+                            {campaign.helicopter_registration}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">{campaign.vessels?.name ?? "—"}</td>
+                      <td className="hsv-table-cell text-ink-muted">{campaign.start_date || "—"}</td>
+                      <td className="hsv-table-cell text-ink-muted">{campaign.end_date || "En curso"}</td>
+                      <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">
+                        {hours > 0 ? `${hours.toFixed(1)} hrs` : "—"}
+                      </td>
+                      <td className="hsv-table-cell">
+                        <StatusPill tone={STATUS_TONE[campaign.status] ?? "neutral"}>{campaign.status}</StatusPill>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!campaigns.length && !loadError ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={7}>
+                    <td className="hsv-empty-state" colSpan={8}>
                       Todavía no hay campañas/faenas. Se crean automáticamente al importar un reporte semanal con código de
                       marea, o puedes crear una manualmente.
                     </td>
