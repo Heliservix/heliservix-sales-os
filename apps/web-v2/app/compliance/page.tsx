@@ -4,6 +4,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
+import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
+import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
 import { supabase } from "@/lib/supabase";
 import { SyncRobinsonButton } from "@/app/compliance/sync-robinson-button";
 
@@ -29,6 +31,17 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
   Applicable: "amber",
   "Not applicable": "neutral",
   "In progress": "blue",
+  Complied: "green",
+  Overdue: "red"
+};
+
+// Same statuses, mapped to the donut chart's smaller palette (no "blue" —
+// "In progress" reads as teal there instead).
+const DONUT_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
+  "Not reviewed": "neutral",
+  Applicable: "amber",
+  "Not applicable": "neutral",
+  "In progress": "teal",
   Complied: "green",
   Overdue: "red"
 };
@@ -93,6 +106,22 @@ export default async function CompliancePage() {
   const overdue = openItems.filter((item) => combinedTone(item) === "red");
   const dueSoon = openItems.filter((item) => combinedTone(item) === "amber");
 
+  const statusCounts = new Map<string, number>();
+  for (const item of items) statusCounts.set(item.status, (statusCounts.get(item.status) ?? 0) + 1);
+  const statusSlices: DonutSlice[] = Array.from(statusCounts.entries()).map(([label, value]) => ({
+    label,
+    value,
+    tone: DONUT_STATUS_TONE[label] ?? "neutral"
+  }));
+
+  // Open items (not yet Complied/Not applicable) per authority — which
+  // regulator's paperwork is piling up, not just a raw total.
+  const openByAuthority = new Map<string, number>();
+  for (const item of openItems) openByAuthority.set(item.authority, (openByAuthority.get(item.authority) ?? 0) + 1);
+  const authorityBars: BarChartDatum[] = Array.from(openByAuthority.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label, value, tone: value >= 5 ? "red" : value >= 2 ? "amber" : "neutral" }));
+
   return (
     <AppShell>
       <div className="mx-auto max-w-[1500px]">
@@ -115,6 +144,21 @@ export default async function CompliancePage() {
           <Panel>
             <p className="text-xs font-semibold uppercase text-ink-subtle">Vencen en ≤30 días</p>
             <p className={`mt-1 text-2xl font-bold ${dueSoon.length > 0 ? "text-amber-600" : "text-ink"}`}>{dueSoon.length}</p>
+          </Panel>
+        </div>
+
+        <div className="mb-5 grid gap-4 lg:grid-cols-2">
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Por estado</p>
+            <div className="mt-3">
+              <DonutChart slices={statusSlices} size={112} centerLabel="ítems" />
+            </div>
+          </Panel>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Abiertos por autoridad</p>
+            <div className="mt-3">
+              <HorizontalBarChart data={authorityBars} />
+            </div>
           </Panel>
         </div>
 

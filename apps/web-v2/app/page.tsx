@@ -132,7 +132,11 @@ export default async function DashboardPage() {
     (row) => Number(row.tons_captured_final ?? 0)
   );
 
-  const topRecommendation = auraAnalysis.executiveRecommendations[0];
+  // Top 3, not just 1 — a single "recomendación del día" buried the #2/#3
+  // item any time two urgent things were true at once (e.g. a low fleet-
+  // health aircraft AND an overdue compliance AD), so the office only ever
+  // saw whichever AURA ranked first.
+  const topRecommendations = auraAnalysis.executiveRecommendations.slice(0, 3);
 
   const fleetStatusCounts = new Map<string, number>();
   for (const row of fleetStatusRows ?? []) {
@@ -343,21 +347,25 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bot className="h-5 w-5 text-aviation-teal" aria-hidden="true" />
-                <h3 className="text-base font-semibold text-ink">AURA — recomendación del día</h3>
+                <h3 className="text-base font-semibold text-ink">AURA — top 3 recomendaciones</h3>
               </div>
               <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/aura">
                 Ver todo en AURA →
               </Link>
             </div>
-            {topRecommendation ? (
-              <div className="mt-4 rounded-xl border border-line bg-white p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusPill tone={topRecommendation.priority === "Critical" ? "red" : topRecommendation.priority === "High" ? "amber" : "blue"}>
-                    {topRecommendation.priority}
-                  </StatusPill>
-                  <span className="text-sm font-semibold text-ink">{topRecommendation.subject}</span>
-                </div>
-                <p className="mt-2 text-sm text-ink-subtle">{topRecommendation.recommendation}</p>
+            {topRecommendations.length ? (
+              <div className="mt-4 grid gap-3">
+                {topRecommendations.map((rec) => (
+                  <div key={rec.id} className="rounded-xl border border-line bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill tone={rec.priority === "Critical" ? "red" : rec.priority === "High" ? "amber" : "blue"}>
+                        {rec.priority}
+                      </StatusPill>
+                      <span className="text-sm font-semibold text-ink">{rec.subject}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-ink-subtle">{rec.recommendation}</p>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="mt-4 hsv-empty-state">Sin recomendaciones por ahora.</p>

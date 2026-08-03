@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, Plus } from "lucide-react";
+import { AlertTriangle, CalendarClock, Plus, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -8,6 +8,7 @@ import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-
 import { supabase } from "@/lib/supabase";
 import { updateAlertStatus } from "@/app/alerts/actions";
 import { buildMaintenanceSchedule, type ScheduledInspection } from "@/lib/maintenance-schedule";
+import { buildAuraAnalysis, type AuraForecastBucket } from "@/lib/aura";
 
 const SCHEDULE_TONE: Record<ScheduledInspection["status"], "red" | "amber" | "green"> = {
   Overdue: "red",
@@ -62,7 +63,7 @@ type AlertsPageProps = {
 export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   const { registration: selectedRegistration } = await searchParams;
 
-  const [{ data, error }, schedule, { data: helicopters }] = await Promise.all([
+  const [{ data, error }, schedule, { data: helicopters }, auraAnalysis] = await Promise.all([
     supabase
       .from("maintenance_alerts")
       .select(
@@ -71,8 +72,26 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
       .neq("status", "Resolved")
       .order("created_at", { ascending: true }),
     buildMaintenanceSchedule(),
-    supabase.from("helicopters").select("registration").eq("archived", false).order("registration")
+    supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
+    buildAuraAnalysis()
   ]);
+
+  // AURA's forecast (lib/aura.ts) combines hours AND calendar, looking
+  // forward — unlike the alerts above, which only exist once something has
+  // ALREADY crossed a threshold. Showing both here means a técnico doesn't
+  // have to separately visit /aura to see what's coming before it fires.
+  const forecastBuckets: AuraForecastBucket[] = [30, 60, 90];
+  const nearForecastAll = forecastBuckets.flatMap((bucket) => auraAnalysis.maintenanceForecast[bucket]);
+  const nearForecast = (
+    selectedRegistration ? nearForecastAll.filter((item) => item.helicopterRegistration === selectedRegistration) : nearForecastAll
+  ).slice(0, 12);
+  const BUCKET_LABEL: Record<number, string> = { 30: "30 días", 60: "60 días", 90: "90 días" };
+  const FORECAST_BASIS_LABEL: Record<string, string> = {
+    Hours: "Horas",
+    Calendar: "Calendario",
+    Expired: "Vencido",
+    "Hours and Calendar": "Horas y calendario"
+  };
 
   const allAlerts = ((data ?? []) as unknown as AlertRow[]).sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
   const alerts = selectedRegistration ? allAlerts.filter((a) => a.helicopter_registration === selectedRegistration) : allAlerts;
@@ -220,6 +239,60 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
                       {selectedRegistration
                         ? `${selectedRegistration} no tiene alertas abiertas.`
                         : "No hay alertas abiertas. La flota está dentro de sus límites."}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel className="mt-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-ink">Lo que se viene (pronóstico de AURA, 30-90 días)</h2>
+            </div>
+            <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/aura">
+              Ver pronóstico completo (hasta 365 días) →
+            </Link>
+          </div>
+          <p className="mb-4 text-sm text-ink-subtle">
+            Esto todavía NO son alertas — es lo que AURA proyecta que va a vencer pronto, combinando la tendencia de horas
+            voladas y la fecha de calendario de cada componente. Sirve para planear antes de que algo pase a la tabla de
+            arriba.
+          </p>
+          <div className="hsv-table-wrap">
+            <table className="hsv-table">
+              <thead className="hsv-table-head">
+                <tr>
+                  <th className="hsv-table-th">Ventana</th>
+                  <th className="hsv-table-th">Helicóptero</th>
+                  <th className="hsv-table-th">Componente</th>
+                  <th className="hsv-table-th">Vence en</th>
+                  <th className="hsv-table-th">Por</th>
+                </tr>
+              </thead>
+              <tbody className="hsv-table-body">
+                {nearForecast.map((item) => (
+                  <tr key={item.componentId} className="hsv-table-row">
+                    <td className="hsv-table-cell">{BUCKET_LABEL[item.bucket] ?? `${item.bucket} días`}</td>
+                    <td className="hsv-table-cell font-semibold text-ink">{item.helicopterRegistration}</td>
+                    <td className="hsv-table-cell text-ink-muted">{item.componentName}</td>
+                    <td className="hsv-table-cell hsv-technical-value">{item.dueInDays} días</td>
+                    <td className="hsv-table-cell">
+                      <StatusPill tone={item.dueBasis === "Calendar" ? "amber" : item.dueBasis === "Expired" ? "red" : "neutral"}>
+                        {FORECAST_BASIS_LABEL[item.dueBasis] ?? item.dueBasis}
+                      </StatusPill>
+                    </td>
+                  </tr>
+                ))}
+                {!nearForecast.length ? (
+                  <tr>
+                    <td className="hsv-empty-state" colSpan={5}>
+                      {selectedRegistration
+                        ? `${selectedRegistration} no tiene nada pronosticado dentro de 90 días.`
+                        : "Nada pronosticado dentro de 90 días para toda la flota."}
                     </td>
                   </tr>
                 ) : null}

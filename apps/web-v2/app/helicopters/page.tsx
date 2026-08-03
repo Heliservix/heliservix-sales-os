@@ -20,9 +20,18 @@ type HelicopterRow = {
 
 type ComponentRemainingRow = {
   helicopter_registration: string;
+  component_name: string;
   remaining_hours: number;
+  remaining_calendar_days: number | null;
   status: string;
 };
+
+// Same 180-day threshold as the helicopter detail page's isCalendarDriven()
+// — a component can look fine by hours but be quietly closer to its
+// calendar deadline, which is the whole point of flagging it here too.
+function isCalendarDriven(remainingCalendarDays: number | null) {
+  return remainingCalendarDays != null && remainingCalendarDays <= 180;
+}
 
 const COMPONENT_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
   OK: "green",
@@ -40,7 +49,10 @@ export default async function HelicoptersPage() {
       .eq("archived", false)
       .order("registration"),
     supabase.from("components").select("status").neq("status", "Removed"),
-    supabase.from("components").select("helicopter_registration, remaining_hours, status").neq("status", "Removed")
+    supabase
+      .from("components")
+      .select("helicopter_registration, component_name, remaining_hours, remaining_calendar_days, status")
+      .neq("status", "Removed")
   ]);
 
   const helicopters = (data ?? []) as unknown as HelicopterRow[];
@@ -142,10 +154,21 @@ export default async function HelicoptersPage() {
                             : limiting.status === "Monitor"
                               ? "text-amber-600"
                               : "text-ink-muted";
+                        const calendarDriven = isCalendarDriven(limiting.remaining_calendar_days);
                         return (
-                          <span className={`hsv-technical-value font-semibold ${tone}`}>
-                            {Number(limiting.remaining_hours).toFixed(1)} hrs
-                          </span>
+                          <div>
+                            <span className={`hsv-technical-value font-semibold ${tone}`}>
+                              {Number(limiting.remaining_hours).toFixed(1)} hrs
+                            </span>
+                            <p className="mt-0.5 text-xs text-ink-subtle">
+                              {limiting.component_name}
+                              {calendarDriven ? (
+                                <span className="ml-1 font-semibold text-aviation-amber">· vence por calendario</span>
+                              ) : (
+                                " · por horas"
+                              )}
+                            </p>
+                          </div>
                         );
                       })()}
                     </td>
