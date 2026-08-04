@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
+  FileWarning,
   Gauge,
   Plane,
   ReceiptText,
@@ -50,7 +51,8 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Weekly Reports", labelKey: "nav.weeklyReports", href: "/reports/import", icon: ClipboardList, status: "ready" },
       { label: "Maintenance", labelKey: "nav.maintenance", href: "/alerts", icon: AlertTriangle, status: "ready" },
       { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "ready" },
-      { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "ready" }
+      { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "ready" },
+      { label: "Bulletins", labelKey: "nav.bulletins", href: "/compliance/bulletins", icon: FileWarning, status: "ready" }
     ]
   },
   {

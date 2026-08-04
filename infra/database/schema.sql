@@ -630,6 +630,14 @@ create table compliance_items (
     check (status in ('Not reviewed','Applicable','Not applicable','In progress','Complied','Overdue')),
   notes text,
   attachment_placeholder text,
+  -- Stamped by lib/bulletin-verification.ts every time the automated
+  -- "Verificar boletines" job (or its twice-a-month scheduled run) checks
+  -- this bulletin against the fleet — independent of updated_at, which only
+  -- changes on a manual edit via the Cumplimiento form. Lets
+  -- /compliance/bulletins show "last checked" even for bulletins the
+  -- automation left untouched (status unchanged, still worth knowing it was
+  -- looked at recently).
+  last_verified_at timestamptz,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),

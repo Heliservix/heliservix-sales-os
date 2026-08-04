@@ -1,0 +1,165 @@
+import Link from "next/link";
+import { ArrowLeft, ExternalLink, FileWarning } from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
+import { Panel } from "@/components/ui/panel";
+import { StatusPill } from "@/components/ui/status-pill";
+import { SectionHeader } from "@/components/ui/section-header";
+import { supabase } from "@/lib/supabase";
+import { VerifyBulletinsButton } from "@/app/compliance/bulletins/verify-bulletins-button";
+
+export const dynamic = "force-dynamic";
+
+type BulletinRow = {
+  id: string;
+  compliance_type: string;
+  reference_number: string | null;
+  title: string;
+  effective_date: string | null;
+  due_date: string | null;
+  applicability: string | null;
+  status: string;
+  attachment_placeholder: string | null;
+  last_verified_at: string | null;
+};
+
+const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "neutral"> = {
+  "Not reviewed": "neutral",
+  Applicable: "amber",
+  "Not applicable": "neutral",
+  "In progress": "blue",
+  Complied: "green",
+  Overdue: "red"
+};
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "Nunca";
+  const date = new Date(value);
+  return date.toLocaleString("es-PA", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export default async function BulletinsPage() {
+  const { data, error } = await supabase
+    .from("compliance_items")
+    .select("id, compliance_type, reference_number, title, effective_date, due_date, applicability, status, attachment_placeholder, last_verified_at")
+    .eq("authority", "Robinson")
+    .eq("archived", false)
+    .order("status", { ascending: true })
+    .order("reference_number", { ascending: true });
+
+  const bulletins = (data ?? []) as BulletinRow[];
+  const needsReview = bulletins.filter((b) => b.status === "Not reviewed");
+  const applicable = bulletins.filter((b) => b.status === "Applicable");
+  const notApplicable = bulletins.filter((b) => b.status === "Not applicable");
+  const lastVerifiedAt = bulletins
+    .map((b) => b.last_verified_at)
+    .filter((v): v is string => v != null)
+    .sort()
+    .at(-1);
+
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-[1500px]">
+        <div className="mb-2">
+          <Link href="/compliance" className="hsv-ghost-button -ml-2.5">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Volver a Cumplimiento
+          </Link>
+        </div>
+        <SectionHeader
+          eyebrow="Mantenimiento"
+          title="Boletines Robinson (SB / SL)"
+          description="Lee cada boletín de servicio y carta de servicio de Robinson, compara el rango de número de serie contra tu flota real, y te dice a qué aeronaves aplica. Se puede verificar manualmente aquí o dejar que corra automáticamente cada quince días."
+          icon={FileWarning}
+        />
+
+        <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Aplican a tu flota</p>
+            <p className="mt-1 text-2xl font-bold text-ink">{applicable.length}</p>
+          </Panel>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">No aplican</p>
+            <p className="mt-1 text-2xl font-bold text-ink">{notApplicable.length}</p>
+          </Panel>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Necesitan revisión</p>
+            <p className={`mt-1 text-2xl font-bold ${needsReview.length > 0 ? "text-amber-600" : "text-ink"}`}>{needsReview.length}</p>
+          </Panel>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Última verificación</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{formatDateTime(lastVerifiedAt ?? null)}</p>
+          </Panel>
+        </div>
+
+        <Panel>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Boletines Robinson</h2>
+              <p className="mt-1 text-sm text-ink-subtle">
+                {needsReview.length
+                  ? `${needsReview.length} boletín(es) todavía sin confirmar contra tu flota.`
+                  : "Todos los boletines cargados ya fueron revisados contra tu flota."}
+              </p>
+            </div>
+            <VerifyBulletinsButton />
+          </div>
+
+          {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}
+
+          <div className="hsv-table-wrap">
+            <table className="hsv-table">
+              <thead className="hsv-table-head">
+                <tr>
+                  <th className="hsv-table-th">Referencia</th>
+                  <th className="hsv-table-th">Título</th>
+                  <th className="hsv-table-th">Aplicabilidad</th>
+                  <th className="hsv-table-th">Vence</th>
+                  <th className="hsv-table-th">Estado</th>
+                  <th className="hsv-table-th">Verificado</th>
+                </tr>
+              </thead>
+              <tbody className="hsv-table-body">
+                {bulletins.map((b) => (
+                  <tr key={b.id} className="hsv-table-row align-top">
+                    <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">{b.reference_number || "—"}</td>
+                    <td className="hsv-table-cell">
+                      <span className="flex items-start gap-1.5">
+                        <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/compliance/${b.id}/edit`}>
+                          {b.title}
+                        </Link>
+                        {b.attachment_placeholder ? (
+                          <a
+                            href={b.attachment_placeholder}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Abrir documento (PDF)"
+                            className="mt-0.5 shrink-0 text-ink-subtle hover:text-aviation-teal"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          </a>
+                        ) : null}
+                      </span>
+                    </td>
+                    <td className="hsv-table-cell max-w-md text-ink-muted">{b.applicability || "—"}</td>
+                    <td className="hsv-table-cell text-ink-muted">{b.due_date ?? "—"}</td>
+                    <td className="hsv-table-cell">
+                      <StatusPill tone={STATUS_TONE[b.status] ?? "neutral"}>{b.status}</StatusPill>
+                    </td>
+                    <td className="hsv-table-cell whitespace-nowrap text-xs text-ink-subtle">{formatDateTime(b.last_verified_at)}</td>
+                  </tr>
+                ))}
+                {!bulletins.length && !error ? (
+                  <tr>
+                    <td className="hsv-empty-state" colSpan={6}>
+                      Todavía no hay boletines Robinson cargados. Usa &ldquo;Verificar boletines ahora&rdquo; para buscarlos.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </div>
+    </AppShell>
+  );
+}

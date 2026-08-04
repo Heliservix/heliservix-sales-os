@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Plus, ShieldCheck } from "lucide-react";
+import { ExternalLink, FileWarning, Plus, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -169,6 +169,10 @@ export default async function CompliancePage() {
               <h2 className="text-lg font-semibold text-ink">Ítems de cumplimiento</h2>
             </div>
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              <Link className="hsv-secondary-button" href="/compliance/bulletins">
+                <FileWarning className="h-4 w-4" aria-hidden="true" />
+                Ver boletines Robinson
+              </Link>
               <SyncRobinsonButton />
               <Link className="hsv-primary-button" href="/compliance/new">
                 <Plus className="h-4 w-4" aria-hidden="true" />
