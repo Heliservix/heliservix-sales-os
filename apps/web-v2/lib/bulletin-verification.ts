@@ -43,8 +43,18 @@ export type BulletinVerificationSummary = {
   items: BulletinVerificationItemResult[];
 };
 
+// Fetches the PDF bytes ourselves (rather than handing PDFParse a bare URL)
+// so a slow or unreachable robinsonheli.com asset can't hang the whole job —
+// this route runs on Vercel with a real wall-clock budget (maxDuration, see
+// the route file), and one bad PDF must fail fast, not eat the entire
+// budget every other pending bulletin needed too.
 async function fetchPdfText(url: string): Promise<string> {
-  const parser = new PDFParse({ url });
+  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) {
+    throw new Error(`El PDF respondió ${response.status}.`);
+  }
+  const buffer = await response.arrayBuffer();
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {
     const result = await parser.getText();
     return result.text ?? "";
@@ -73,67 +83,60 @@ export async function runBulletinVerification(): Promise<BulletinVerificationSum
     serialNumber: h.serial_number
   }));
 
-  const items: BulletinVerificationItemResult[] = [];
-  let applicable = 0;
-  let notApplicable = 0;
-  let inconclusive = 0;
-  let errors = 0;
+  // Processed in parallel, not one-at-a-time: this route has a real
+  // wall-clock budget on Vercel (see maxDuration in the route file), and with
+  // even a handful of pending bulletins, fetching+parsing each PDF
+  // sequentially risked exceeding it. Each item has its own try/catch so one
+  // slow or unreachable PDF can't stall — or fail — the rest of the batch.
+  const results = await Promise.all(
+    ((pendingItems ?? []) as { id: string; reference_number: string | null; title: string; attachment_placeholder: string; due_date: string | null }[]).map(
+      async (item): Promise<BulletinVerificationItemResult> => {
+        const now = new Date().toISOString();
+        try {
+          const text = await fetchPdfText(item.attachment_placeholder);
+          if (!text.trim()) {
+            throw new Error("El PDF no tiene texto legible (posible escaneo de imagen).");
+          }
+          const analysis = analyzeBulletinText(text, fleet);
 
-  for (const item of (pendingItems ?? []) as { id: string; reference_number: string | null; title: string; attachment_placeholder: string; due_date: string | null }[]) {
-    try {
-      const text = await fetchPdfText(item.attachment_placeholder);
-      if (!text.trim()) {
-        throw new Error("El PDF no tiene texto legible (posible escaneo de imagen).");
+          if (analysis.verdict === "Inconclusive") {
+            await supabase.from("compliance_items").update({ applicability: analysis.reason, last_verified_at: now }).eq("id", item.id);
+          } else {
+            await supabase
+              .from("compliance_items")
+              .update({
+                status: analysis.verdict,
+                applicability: analysis.reason,
+                due_date: analysis.dueDate ?? item.due_date,
+                last_verified_at: now
+              })
+              .eq("id", item.id);
+          }
+
+          return { referenceNumber: item.reference_number, title: item.title, verdict: analysis.verdict, detail: analysis.reason };
+        } catch (err) {
+          // Still stamp last_verified_at so the UI shows this was attempted,
+          // not silently skipped — applicability is left untouched since we
+          // have nothing better to say than "verification failed."
+          await supabase.from("compliance_items").update({ last_verified_at: now }).eq("id", item.id);
+          return {
+            referenceNumber: item.reference_number,
+            title: item.title,
+            verdict: "Error",
+            detail: `No se pudo verificar automáticamente: ${(err as Error).message}`
+          };
+        }
       }
-      const analysis = analyzeBulletinText(text, fleet);
-      const now = new Date().toISOString();
-
-      if (analysis.verdict === "Inconclusive") {
-        await supabase
-          .from("compliance_items")
-          .update({ applicability: analysis.reason, last_verified_at: now })
-          .eq("id", item.id);
-        inconclusive += 1;
-      } else {
-        await supabase
-          .from("compliance_items")
-          .update({
-            status: analysis.verdict,
-            applicability: analysis.reason,
-            due_date: analysis.dueDate ?? item.due_date,
-            last_verified_at: now
-          })
-          .eq("id", item.id);
-        if (analysis.verdict === "Applicable") applicable += 1;
-        else notApplicable += 1;
-      }
-
-      items.push({ referenceNumber: item.reference_number, title: item.title, verdict: analysis.verdict, detail: analysis.reason });
-    } catch (err) {
-      errors += 1;
-      items.push({
-        referenceNumber: item.reference_number,
-        title: item.title,
-        verdict: "Error",
-        detail: `No se pudo verificar automáticamente: ${(err as Error).message}`
-      });
-      // Still stamp last_verified_at so the UI shows this was attempted, not
-      // silently skipped — the applicability field is left untouched since
-      // we have nothing better to say than "verification failed."
-      await supabase
-        .from("compliance_items")
-        .update({ last_verified_at: new Date().toISOString() })
-        .eq("id", item.id);
-    }
-  }
+    )
+  );
 
   return {
     sync,
-    processed: items.length,
-    applicable,
-    notApplicable,
-    inconclusive,
-    errors,
-    items
+    processed: results.length,
+    applicable: results.filter((r) => r.verdict === "Applicable").length,
+    notApplicable: results.filter((r) => r.verdict === "Not applicable").length,
+    inconclusive: results.filter((r) => r.verdict === "Inconclusive").length,
+    errors: results.filter((r) => r.verdict === "Error").length,
+    items: results
   };
 }

@@ -17,7 +17,8 @@ export async function syncNewRobinsonBulletins(): Promise<RobinsonSyncResult> {
   try {
     const response = await fetch(ROBINSON_PUBLICATIONS_URL, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; HeliServiXComplianceSync/1.0)" },
-      cache: "no-store"
+      cache: "no-store",
+      signal: AbortSignal.timeout(15000)
     });
     if (!response.ok) {
       return { ok: false, error: `robinsonheli.com respondió ${response.status}.` };

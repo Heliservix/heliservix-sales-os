@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { syncNewRobinsonBulletins } from "@/lib/robinson-sync";
 
+// See the same note in /api/compliance/verify-bulletins/route.ts: Vercel
+// Hobby's default 5s timeout isn't reliably enough time to fetch and parse
+// robinsonheli.com/publications.
+export const maxDuration = 30;
+
 // Manual (and, if a cron ever calls this URL, automatic) sync: fetches
 // Robinson's publications page, finds R44 SB/SL entries not already in
 // compliance_items, and inserts the new ones as "Not reviewed". The actual
