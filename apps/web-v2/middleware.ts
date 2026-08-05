@@ -1,7 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PATHS = ["/login", "/favicon.png", "/_next"];
+// The two Robinson-bulletin automation endpoints are exempted from the login
+// wall on purpose: they're triggered two ways — a click from an already-
+// logged-in admin's browser, and the twice-a-month scheduled task, which
+// calls the URL directly with no browser session/cookies at all. Before this
+// exemption, that second path could never work (it would always get
+// redirected to an HTML /login page instead of the JSON response the route
+// returns), and even the button was hitting the same failure the moment the
+// session cookie didn't round-trip cleanly through a same-origin fetch(). The
+// exposure this accepts is minimal: both endpoints only read public Robinson
+// bulletin PDFs and this fleet's own registrations/models/serial numbers, and
+// only ever WRITE a compliance-item status/applicability note — no sensitive
+// data is returned, and nothing destructive can happen even if someone
+// outside the company found the URL.
+const PUBLIC_PATHS = [
+  "/login",
+  "/favicon.png",
+  "/_next",
+  "/api/compliance/sync-robinson",
+  "/api/compliance/verify-bulletins"
+];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
