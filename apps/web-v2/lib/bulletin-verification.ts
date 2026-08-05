@@ -21,6 +21,11 @@
 // backlog of unread bulletins, not a system that silently re-litigates
 // decisions someone already made (e.g. marking one "Complied" after doing
 // the actual maintenance).
+// Must be imported before "pdf-parse" itself — pdf-parse's own docs call
+// this out as required for Next.js/Vercel serverless deployments, otherwise
+// its worker file doesn't get bundled correctly and the route crashes at
+// import time in production even though it works fine in local dev.
+import "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
 import { supabase } from "@/lib/supabase";
 import { analyzeBulletinText, type FleetAircraft } from "@/lib/bulletin-applicability";

@@ -9,7 +9,16 @@ const nextConfig = {
   // working fine locally.
   outputFileTracingIncludes: {
     "/helicopters/**": ["./data/templates/*.xlsx"]
-  }
+  },
+  // pdf-parse (used by lib/bulletin-verification.ts to read Robinson
+  // bulletin PDFs) ships its own worker file and native-module fallbacks
+  // that Next's default server bundling silently drops — the package's own
+  // docs call this out explicitly for Vercel/serverless deployments. Without
+  // this, the route works locally (plain `node`/`next dev` load the real
+  // node_modules files directly) but crashes at import time once deployed,
+  // producing Next's generic HTML error page instead of the route's JSON
+  // response — exactly the "Unexpected token '<'" Adolfo hit.
+  serverExternalPackages: ["pdf-parse"]
 };
 
 export default nextConfig;
