@@ -805,7 +805,7 @@ begin
       'replacement_events','maintenance_logs','component_changes','inventory_items',
       'stock_movements','purchase_requests','campaigns','technical_records',
       'compliance_items','migration_logs','personnel',
-      'fleet_health_history'
+      'fleet_health_history','insurance_policies','insurance_payments'
     ])
   loop
     execute format('alter table %I enable row level security;', t);
