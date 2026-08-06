@@ -9,6 +9,7 @@ import { fetchFaenaData, computePersonnelFlightHours } from "@/lib/faena-metrics
 import { PolicyUploadForm } from "@/app/policies/policy-upload-form";
 import { PolicyPaymentActions } from "@/app/policies/policy-payment-actions";
 import { ReanalyzeButton } from "@/app/policies/reanalyze-button";
+import { AnexoUploadForm } from "@/app/policies/anexo-upload-form";
 import { addPolicyPayment, markRequirementsReviewed, archivePolicy } from "@/app/policies/actions";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ type PolicyRow = {
   requirements_summary: string | null;
   requirements_reviewed: boolean;
   attachment_placeholder: string | null;
+  anexo_url: string | null;
   status: string;
 };
 
@@ -66,7 +68,7 @@ export default async function PoliciesPage() {
     supabase
       .from("insurance_policies")
       .select(
-        "id, helicopter_registration, insurer, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, status"
+        "id, helicopter_registration, insurer, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, anexo_url, status"
       ) // coverage_type was already selected but never rendered below — fixed alongside the analyzer not extracting it at all
       .eq("archived", false)
       .order("end_date", { ascending: true, nullsFirst: false }),
@@ -182,12 +184,23 @@ export default async function PoliciesPage() {
                       )}
                       <span className="text-ink-muted">— {policy.insurer || "Aseguradora sin definir"}</span>
                       {policy.attachment_placeholder ? (
-                        <a href={policy.attachment_placeholder} target="_blank" rel="noreferrer" className="text-ink-subtle hover:text-aviation-teal">
+                        <a
+                          href={policy.attachment_placeholder}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-ink-subtle hover:text-aviation-teal"
+                          title="Ver carátula/declaraciones"
+                        >
                           <ExternalLink className="h-4 w-4" aria-hidden="true" />
                         </a>
                       ) : null}
                     </p>
                     <p className="mt-1 hsv-technical-value text-sm text-ink-muted">Póliza N° {policy.policy_number || "sin detectar"}</p>
+                    {policy.anexo_url ? (
+                      <a href={policy.anexo_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-aviation-teal hover:underline">
+                        Ver Anexo →
+                      </a>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {!policy.requirements_reviewed ? (
@@ -240,6 +253,22 @@ export default async function PoliciesPage() {
                     </p>
                   </div>
                 </div>
+
+                {policy.min_pilot_hours_total == null ? (
+                  <div className="mt-3 rounded-md border border-aviation-amber/30 bg-aviation-amber/5 p-3">
+                    <p className="text-xs text-ink-muted">
+                      Sin horas mínimas del piloto porque esa cláusula está en el Anexo (documento separado, en inglés), no en la
+                      carátula. Si ya lo tienes, súbelo aquí:
+                    </p>
+                    <div className="mt-2">
+                      <AnexoUploadForm policyId={policy.id} hasAnexo={Boolean(policy.anexo_url)} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <AnexoUploadForm policyId={policy.id} hasAnexo={Boolean(policy.anexo_url)} />
+                  </div>
+                )}
 
                 {policy.requirements_summary ? (
                   <p className="mt-3 rounded-md border border-line bg-canvas-muted/40 p-3 text-xs leading-5 text-ink-subtle">

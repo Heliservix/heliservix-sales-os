@@ -725,6 +725,17 @@ create table insurance_policies (
   requirements_summary text,
   requirements_reviewed boolean not null default false,
   attachment_placeholder text,
+  -- A real policy from this fleet's insurer is actually TWO PDFs: the
+  -- Spanish "Condiciones Particulares" declarations page (policy number,
+  -- vigencia, prima — stored above in attachment_placeholder) and a
+  -- separate English "Anexo"/"Particular Conditions Attachment" that has
+  -- the PILOTS experience clause and USES/coverage description. Uploading
+  -- only one leaves the other's fields blank. anexo_url is the second
+  -- document, attached via app/policies/actions.ts's attachPolicyAnexo
+  -- AFTER the policy already exists — merges in coverage_type/
+  -- min_pilot_hours_*/requirements_summary without touching the
+  -- policy_number/dates/premium that came from the declarations page.
+  anexo_url text,
   status text not null default 'Active' check (status in ('Active','Expired','Cancelled')),
   notes text,
   archived boolean not null default false,

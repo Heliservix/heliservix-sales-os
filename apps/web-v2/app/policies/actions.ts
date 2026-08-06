@@ -175,6 +175,101 @@ export async function updatePolicy(id: string, formData: FormData) {
   redirect("/policies");
 }
 
+export type AttachAnexoState = {
+  error?: string;
+  success?: boolean;
+  summary?: {
+    coverageType: string | null;
+    minPilotHoursTotal: number | null;
+    minPilotHoursType: number | null;
+  };
+};
+
+// A real policy from this insurer is actually TWO separate PDFs: the
+// Spanish declarations page (uploaded first, via uploadPolicy — has policy
+// number/vigencia/prima) and a separate English "Anexo" (has the PILOTS
+// experience clause and USES/coverage description). Discovered this after
+// Adolfo uploaded only the declarations pages for his first 6 real policy
+// rows and the pilot-hours fields stayed blank — not a bug in the reader,
+// the information genuinely wasn't in the PDF he'd attached. This lets him
+// add the Anexo to an EXISTING policy afterward instead of re-uploading
+// everything from scratch. Deliberately only merges the fields the Anexo is
+// actually the authority on (coverage/hours/requirements text) — it does
+// NOT touch policy_number/dates/premium, since those already came from the
+// more reliable declarations page and a multi-aircraft Anexo's policy
+// number is ambiguous per aircraft (see lib/insurance-policy-analysis.ts).
+export async function attachPolicyAnexo(policyId: string, _prevState: AttachAnexoState, formData: FormData): Promise<AttachAnexoState> {
+  const file = formData.get("anexoFile");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Selecciona el PDF del Anexo." };
+  }
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    return { error: "El archivo debe ser un PDF." };
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    return { error: "El PDF pesa más de 15 MB — usa una versión más liviana." };
+  }
+
+  const buffer = await file.arrayBuffer();
+  let extractedText = "";
+  try {
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    try {
+      const result = await parser.getText();
+      extractedText = result.text ?? "";
+    } finally {
+      await parser.destroy();
+    }
+  } catch (err) {
+    return { error: `No se pudo leer el PDF: ${(err as Error).message}` };
+  }
+
+  const analysis = analyzePolicyText(extractedText);
+
+  const path = `${policyId}/anexo-${Date.now()}.pdf`;
+  const { error: uploadError } = await supabase.storage.from(POLICIES_BUCKET).upload(path, file, {
+    contentType: "application/pdf",
+    upsert: true
+  });
+  if (uploadError) {
+    return { error: `No se pudo subir el PDF: ${uploadError.message}.` };
+  }
+
+  const {
+    data: { publicUrl }
+  } = supabase.storage.from(POLICIES_BUCKET).getPublicUrl(path);
+
+  const { error: updateError } = await supabase
+    .from("insurance_policies")
+    .update({
+      anexo_url: publicUrl,
+      // Only overwrite these if the Anexo actually found something —
+      // never blank out a field the declarations page (or a human edit)
+      // already filled in with a null from an Anexo that didn't mention it.
+      ...(analysis.coverageType != null ? { coverage_type: analysis.coverageType } : {}),
+      ...(analysis.minPilotHoursTotal != null ? { min_pilot_hours_total: analysis.minPilotHoursTotal } : {}),
+      ...(analysis.minPilotHoursType != null ? { min_pilot_hours_type: analysis.minPilotHoursType } : {}),
+      ...(analysis.requirementsSummary != null ? { requirements_summary: analysis.requirementsSummary } : {}),
+      requirements_reviewed: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", policyId);
+  if (updateError) {
+    return { error: `El PDF se subió pero no se pudo guardar: ${updateError.message}.` };
+  }
+
+  revalidatePath("/policies");
+  revalidatePath("/alerts");
+  return {
+    success: true,
+    summary: {
+      coverageType: analysis.coverageType,
+      minPilotHoursTotal: analysis.minPilotHoursTotal,
+      minPilotHoursType: analysis.minPilotHoursType
+    }
+  };
+}
+
 // Re-runs the analyzer against the PDF already stored for this policy,
 // without asking Adolfo to re-upload it. Added because the analyzer got
 // real fixes (English-language pilot-hours patterns, coverage-type
