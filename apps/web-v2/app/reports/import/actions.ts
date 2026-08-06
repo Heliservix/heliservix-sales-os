@@ -213,9 +213,54 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     return { status: "error", message: `No se pudieron aplicar las horas de vuelo: ${flightLogError.message}`, warnings };
   }
 
-  // 5. Log routine inspections, non-routine events, and filter changes as maintenance_logs.
+  // 5. Log routine inspections, non-routine events, and filter changes as
+  // maintenance_logs — but skip anything already logged for this helicopter.
+  // Robinson-style weekly reports commonly show a RUNNING history of past
+  // routine inspections (not just this week's new one), so naively inserting
+  // every row on every upload duplicates the same inspection over and over —
+  // confirmed for real: some historical inspections in this system were
+  // logged up to 8 times this way before this check existed. Matching on
+  // (date, tipo, horómetro) rather than description text, since the
+  // description is free-typed and varies slightly (typos, wording) between
+  // weeks even when it's clearly the same event.
+  const candidateDates = Array.from(
+    new Set(
+      [...routineInspections.map((i) => i.date), ...nonRoutineEvents.map((e) => e.date), ...filterChanges.map((c) => c.date)].filter(
+        (d): d is string => d != null
+      )
+    )
+  );
+
+  let alreadyLogged = new Set<string>();
+  if (candidateDates.length > 0) {
+    const { data: existingLogs } = await supabase
+      .from("maintenance_logs")
+      .select("log_date, maintenance_type, hourmeter")
+      .eq("helicopter_registration", helicopterRegistration)
+      .in("log_date", candidateDates);
+    alreadyLogged = new Set(
+      (existingLogs ?? []).map((l) => `${l.log_date}|${(l.maintenance_type ?? "").trim().toLowerCase()}|${l.hourmeter ?? ""}`)
+    );
+  }
+
+  function isAlreadyLogged(date: string | null, type: string, hourmeter: number | null) {
+    if (!date) return false;
+    return alreadyLogged.has(`${date}|${type.trim().toLowerCase()}|${hourmeter ?? ""}`);
+  }
+
+  const newRoutineInspections = routineInspections.filter((i) => !isAlreadyLogged(i.date, i.inspectionType, i.hourmeter));
+  const newNonRoutineEvents = nonRoutineEvents.filter((e) => !isAlreadyLogged(e.date, "No Rutina", e.hobbs));
+  const newFilterChanges = filterChanges.filter((c) => !isAlreadyLogged(c.date, "Cambio de Filtro", c.hourmeter));
+  const skippedDuplicateLogs =
+    routineInspections.length - newRoutineInspections.length + (nonRoutineEvents.length - newNonRoutineEvents.length) + (filterChanges.length - newFilterChanges.length);
+  if (skippedDuplicateLogs > 0) {
+    warnings.push(
+      `${skippedDuplicateLogs} inspección(es)/evento(s) de este reporte ya estaban registrados (mismo helicóptero, fecha, tipo y horómetro) — no se duplicaron.`
+    );
+  }
+
   const maintenanceRows = [
-    ...routineInspections.map((inspection) => ({
+    ...newRoutineInspections.map((inspection) => ({
       helicopter_registration: helicopterRegistration,
       log_date: inspection.date,
       maintenance_type: inspection.inspectionType,
@@ -229,7 +274,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
         .join(" · "),
       source: "User" as const
     })),
-    ...nonRoutineEvents.map((event) => ({
+    ...newNonRoutineEvents.map((event) => ({
       helicopter_registration: helicopterRegistration,
       log_date: event.date,
       maintenance_type: "No Rutina",
@@ -242,7 +287,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
         : null,
       source: "User" as const
     })),
-    ...filterChanges.map((change) => ({
+    ...newFilterChanges.map((change) => ({
       helicopter_registration: helicopterRegistration,
       log_date: change.date,
       maintenance_type: "Cambio de Filtro",
@@ -281,7 +326,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   // and maintenanceLogIds share the same order: routine rows first, then
   // non-routine, then filter changes — only the first two sections apply here).
   const technicalRecordRows = [
-    ...routineInspections.map((inspection, index) => ({
+    ...newRoutineInspections.map((inspection, index) => ({
       record_type: "Inspection" as const,
       related_helicopter: helicopterRegistration,
       related_campaign_id: campaignId,
@@ -297,11 +342,11 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       technician_name: campaignMechanic,
       source: "User" as const
     })),
-    ...nonRoutineEvents.map((event, index) => ({
+    ...newNonRoutineEvents.map((event, index) => ({
       record_type: "Inspection" as const,
       related_helicopter: helicopterRegistration,
       related_campaign_id: campaignId,
-      related_maintenance_event: maintenanceLogIds[routineInspections.length + index] ?? null,
+      related_maintenance_event: maintenanceLogIds[newRoutineInspections.length + index] ?? null,
       title: event.novelty || "Novedad (No Rutina)",
       record_date: event.date,
       hourmeter: event.hobbs,
