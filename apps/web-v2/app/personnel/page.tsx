@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
+import { getPersonnelDocumentStatuses } from "@/lib/personnel-compliance";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,19 @@ type PersonnelRow = {
   rate_per_ton: number | null;
   phone: string | null;
   status: string;
+  license_expiry: string | null;
+  medical_certificate_expiry: string | null;
+  recurrency_expiry: string | null;
+  flight_check_expiry: string | null;
+  passport_expiry: string | null;
 };
 
 export default async function PersonnelPage() {
   const { data, error } = await supabase
     .from("personnel")
-    .select("id, full_name, role, monthly_salary, rate_per_ton, phone, status")
+    .select(
+      "id, full_name, role, monthly_salary, rate_per_ton, phone, status, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry"
+    )
     .eq("archived", false)
     .order("role")
     .order("full_name");
@@ -75,32 +83,50 @@ export default async function PersonnelPage() {
                   <th className="hsv-table-th">Tarifa por tonelada</th>
                   <th className="hsv-table-th">Teléfono</th>
                   <th className="hsv-table-th">Estado</th>
+                  <th className="hsv-table-th">Documentos</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
-                {personnel.map((person) => (
-                  <tr key={person.id} className="hsv-table-row">
-                    <td className="hsv-table-cell">
-                      <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/personnel/${person.id}/edit`}>
-                        {person.full_name}
-                      </Link>
-                    </td>
-                    <td className="hsv-table-cell text-ink-muted">{person.role}</td>
-                    <td className="hsv-table-cell hsv-technical-value">
-                      {person.monthly_salary != null ? `$${Number(person.monthly_salary).toLocaleString("en-US")}/mes` : "—"}
-                    </td>
-                    <td className="hsv-table-cell hsv-technical-value">
-                      {person.rate_per_ton != null ? `$${Number(person.rate_per_ton).toLocaleString("en-US")}/ton` : "—"}
-                    </td>
-                    <td className="hsv-table-cell text-ink-muted">{person.phone || "—"}</td>
-                    <td className="hsv-table-cell">
-                      <StatusPill tone={person.status === "Active" ? "green" : "neutral"}>{person.status}</StatusPill>
-                    </td>
-                  </tr>
-                ))}
+                {personnel.map((person) => {
+                  const documentStatuses = getPersonnelDocumentStatuses(person);
+                  const worst = documentStatuses.some((d) => d.tone === "red")
+                    ? "red"
+                    : documentStatuses.some((d) => d.tone === "amber")
+                      ? "amber"
+                      : null;
+                  return (
+                    <tr key={person.id} className="hsv-table-row">
+                      <td className="hsv-table-cell">
+                        <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/personnel/${person.id}/edit`}>
+                          {person.full_name}
+                        </Link>
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">{person.role}</td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {person.monthly_salary != null ? `$${Number(person.monthly_salary).toLocaleString("en-US")}/mes` : "—"}
+                      </td>
+                      <td className="hsv-table-cell hsv-technical-value">
+                        {person.rate_per_ton != null ? `$${Number(person.rate_per_ton).toLocaleString("en-US")}/ton` : "—"}
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">{person.phone || "—"}</td>
+                      <td className="hsv-table-cell">
+                        <StatusPill tone={person.status === "Active" ? "green" : "neutral"}>{person.status}</StatusPill>
+                      </td>
+                      <td className="hsv-table-cell">
+                        {worst ? (
+                          <StatusPill tone={worst}>{worst === "red" ? "Documento vencido" : "Por vencer"}</StatusPill>
+                        ) : documentStatuses.length ? (
+                          <StatusPill tone="green">Al día</StatusPill>
+                        ) : (
+                          <span className="text-ink-subtle">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!personnel.length && !error ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={6}>
+                    <td className="hsv-empty-state" colSpan={7}>
                       Todavía no hay pilotos ni mecánicos registrados.
                     </td>
                   </tr>

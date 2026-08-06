@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, Plus, TrendingUp } from "lucide-react";
+import { AlertTriangle, CalendarClock, Plus, ShieldAlert, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { updateAlertStatus } from "@/app/alerts/actions";
 import { buildMaintenanceSchedule, type ScheduledInspection } from "@/lib/maintenance-schedule";
 import { buildAuraAnalysis, type AuraForecastBucket } from "@/lib/aura";
+import { getPersonnelDocumentStatuses, daysUntil as daysUntilDoc, documentTone, type PersonnelDocumentRow } from "@/lib/personnel-compliance";
 
 const SCHEDULE_TONE: Record<ScheduledInspection["status"], "red" | "amber" | "green"> = {
   Overdue: "red",
@@ -60,21 +61,101 @@ type AlertsPageProps = {
   searchParams: Promise<{ registration?: string }>;
 };
 
+type PolicyAlertKind = "Póliza" | "Pago" | "Documento";
+
+type PolicyAlertRow = {
+  key: string;
+  kind: PolicyAlertKind;
+  subject: string; // helicopter registration or person's name
+  label: string; // what's due (e.g. "Vigencia", "Cuota", "Licencia")
+  dueDate: string;
+  daysUntil: number;
+  tone: "red" | "amber";
+  href: string;
+};
+
 export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   const { registration: selectedRegistration } = await searchParams;
 
-  const [{ data, error }, schedule, { data: helicopters }, auraAnalysis] = await Promise.all([
-    supabase
-      .from("maintenance_alerts")
-      .select(
-        "id, helicopter_registration, component_name, alert_type, severity, trigger_basis, remaining_hours, remaining_calendar_days, due_date, status, description, helicopters(model)"
-      )
-      .neq("status", "Resolved")
-      .order("created_at", { ascending: true }),
-    buildMaintenanceSchedule(),
-    supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
-    buildAuraAnalysis()
-  ]);
+  const [{ data, error }, schedule, { data: helicopters }, auraAnalysis, { data: policyData }, { data: paymentData }, { data: personnelData }] =
+    await Promise.all([
+      supabase
+        .from("maintenance_alerts")
+        .select(
+          "id, helicopter_registration, component_name, alert_type, severity, trigger_basis, remaining_hours, remaining_calendar_days, due_date, status, description, helicopters(model)"
+        )
+        .neq("status", "Resolved")
+        .order("created_at", { ascending: true }),
+      buildMaintenanceSchedule(),
+      supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
+      buildAuraAnalysis(),
+      supabase.from("insurance_policies").select("id, helicopter_registration, end_date, status").eq("archived", false),
+      supabase.from("insurance_payments").select("id, policy_id, due_date, amount, currency, status").neq("status", "Paid"),
+      supabase
+        .from("personnel")
+        .select("id, full_name, role, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry")
+        .eq("archived", false)
+    ]);
+
+  // Pólizas/pagos/documentos por vencer o vencidos — mismo criterio que
+  // /policies y /personnel (< 0 días = vencido, <= 60 días = por vencer),
+  // reunidos aquí junto con el resto de las alertas del sistema (Adolfo pidió
+  // que quedaran "junto con las demás alertas" en vez de una página aparte).
+  const policyAlerts: PolicyAlertRow[] = [];
+
+  for (const policy of policyData ?? []) {
+    if (policy.status !== "Active" || !policy.end_date) continue;
+    const days = daysUntilDoc(policy.end_date);
+    const tone = documentTone(days);
+    if (tone === "green") continue;
+    policyAlerts.push({
+      key: `policy-${policy.id}`,
+      kind: "Póliza",
+      subject: policy.helicopter_registration ?? "Sin helicóptero",
+      label: "Vigencia",
+      dueDate: policy.end_date,
+      daysUntil: days,
+      tone,
+      href: "/policies"
+    });
+  }
+
+  const policyById = new Map((policyData ?? []).map((p) => [p.id, p]));
+  for (const payment of paymentData ?? []) {
+    const days = daysUntilDoc(payment.due_date);
+    const tone = documentTone(days);
+    if (tone === "green") continue;
+    const policy = policyById.get(payment.policy_id);
+    policyAlerts.push({
+      key: `payment-${payment.id}`,
+      kind: "Pago",
+      subject: policy?.helicopter_registration ?? "Sin helicóptero",
+      label: `Cuota $${Number(payment.amount).toLocaleString("en-US")} ${payment.currency}`,
+      dueDate: payment.due_date,
+      daysUntil: days,
+      tone,
+      href: "/policies"
+    });
+  }
+
+  for (const person of (personnelData ?? []) as PersonnelDocumentRow[]) {
+    for (const doc of getPersonnelDocumentStatuses(person)) {
+      if (doc.tone === "green") continue;
+      policyAlerts.push({
+        key: `personnel-${person.id}-${doc.key}`,
+        kind: "Documento",
+        subject: `${person.full_name} (${person.role})`,
+        label: doc.label,
+        dueDate: doc.expiry,
+        daysUntil: doc.daysUntil,
+        tone: doc.tone,
+        href: `/personnel/${person.id}/edit`
+      });
+    }
+  }
+
+  policyAlerts.sort((a, b) => a.daysUntil - b.daysUntil);
+  const policyAlertsRed = policyAlerts.filter((a) => a.tone === "red").length;
 
   // AURA's forecast (lib/aura.ts) combines hours AND calendar, looking
   // forward — unlike the alerts above, which only exist once something has
@@ -239,6 +320,59 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
                       {selectedRegistration
                         ? `${selectedRegistration} no tiene alertas abiertas.`
                         : "No hay alertas abiertas. La flota está dentro de sus límites."}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel className="mt-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-ink">Pólizas y documentos del personal</h2>
+            </div>
+            {policyAlertsRed > 0 ? <StatusPill tone="red">{policyAlertsRed} vencido(s)</StatusPill> : null}
+          </div>
+          <p className="mb-4 text-sm text-ink-subtle">
+            Vigencia de pólizas, cuotas pendientes y documentos de pilotos/mecánicos (licencia, médico, recurrencia, chequeo de
+            vuelo, pasaporte) que ya vencieron o vencen dentro de 60 días.
+          </p>
+          <div className="hsv-table-wrap">
+            <table className="hsv-table">
+              <thead className="hsv-table-head">
+                <tr>
+                  <th className="hsv-table-th">Tipo</th>
+                  <th className="hsv-table-th">Quién / Qué</th>
+                  <th className="hsv-table-th">Detalle</th>
+                  <th className="hsv-table-th">Vence</th>
+                  <th className="hsv-table-th">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="hsv-table-body">
+                {policyAlerts.map((alert) => (
+                  <tr key={alert.key} className="hsv-table-row">
+                    <td className="hsv-table-cell text-ink-muted">{alert.kind}</td>
+                    <td className="hsv-table-cell">
+                      <Link className="font-semibold text-ink hover:text-aviation-teal" href={alert.href}>
+                        {alert.subject}
+                      </Link>
+                    </td>
+                    <td className="hsv-table-cell text-ink-muted">{alert.label}</td>
+                    <td className="hsv-table-cell hsv-technical-value">{alert.dueDate}</td>
+                    <td className="hsv-table-cell">
+                      <StatusPill tone={alert.tone}>
+                        {alert.daysUntil < 0 ? `vencido hace ${Math.abs(alert.daysUntil)} días` : `${alert.daysUntil} días`}
+                      </StatusPill>
+                    </td>
+                  </tr>
+                ))}
+                {!policyAlerts.length ? (
+                  <tr>
+                    <td className="hsv-empty-state" colSpan={5}>
+                      Nada vencido ni por vencer en pólizas o documentos del personal.
                     </td>
                   </tr>
                 ) : null}
