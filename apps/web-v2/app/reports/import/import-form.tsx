@@ -44,6 +44,15 @@ export function WeeklyImportForm() {
           {state.maintenanceLogsCreated != null && (
             <p className="mt-2">Se registraron {state.maintenanceLogsCreated} eventos de mantenimiento.</p>
           )}
+          {state.technicalRecordsCreated != null && state.technicalRecordsCreated > 0 && (
+            <p className="mt-2">
+              Se agregaron {state.technicalRecordsCreated} registro(s) técnico(s) de esta faena en{" "}
+              <Link className="underline" href="/technical-records">
+                Registros Técnicos
+              </Link>
+              .
+            </p>
+          )}
           {state.registration && (
             <p className="mt-2">
               <Link className="underline" href={`/helicopters/${state.registration}`}>

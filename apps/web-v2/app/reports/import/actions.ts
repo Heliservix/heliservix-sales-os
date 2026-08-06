@@ -11,6 +11,7 @@ export type WeeklyImportState = {
   registration?: string;
   flightHoursApplied?: number;
   maintenanceLogsCreated?: number;
+  technicalRecordsCreated?: number;
   componentChangesDetected?: number;
   componentChangesReview?: string[];
   materialsConsumedApplied?: number;
@@ -135,6 +136,10 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   // hours roll up into a per-faena history (Campañas module) automatically —
   // the technicians never have to touch that module themselves.
   let campaignId: string | null = null;
+  // The técnico "assigned to the faena," per Adolfo — used as the fallback name
+  // on technical_records rows created below when a specific weekly-report entry
+  // (routine inspections don't capture a per-row name) doesn't have its own.
+  let campaignMechanic: string | null = null;
   if (mareaCode) {
     // Matching on code + helicopter_registration alone is NOT enough to
     // uniquely identify a faena: the same aircraft can fly the same marea
@@ -144,7 +149,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     // finds both rows and throws "multiple (or no) rows returned" instead
     // of picking one — add the vessel_id filter whenever the report
     // actually identified a vessel, which resolves the ambiguity.
-    let campaignQuery = supabase.from("campaigns").select("id").eq("code", mareaCode).eq("helicopter_registration", helicopterRegistration);
+    let campaignQuery = supabase.from("campaigns").select("id, mechanic").eq("code", mareaCode).eq("helicopter_registration", helicopterRegistration);
     if (vesselId) campaignQuery = campaignQuery.eq("vessel_id", vesselId);
     const { data: existingCampaign, error: campaignLookupError } = await campaignQuery.maybeSingle();
 
@@ -154,6 +159,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
 
     if (existingCampaign) {
       campaignId = existingCampaign.id;
+      campaignMechanic = existingCampaign.mechanic;
     } else {
       const { data: newCampaign, error: createCampaignError } = await supabase
         .from("campaigns")
@@ -248,6 +254,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   ];
 
   let maintenanceLogsCreated = 0;
+  let maintenanceLogIds: (string | null)[] = [];
   if (maintenanceRows.length > 0) {
     const { error: maintenanceError, data } = await supabase.from("maintenance_logs").insert(maintenanceRows).select("id");
     if (maintenanceError) {
@@ -260,6 +267,67 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       };
     }
     maintenanceLogsCreated = data?.length ?? maintenanceRows.length;
+    maintenanceLogIds = (data ?? []).map((row) => row.id);
+  }
+
+  // 5b. Mirror routine inspections and non-routine ("No Rutina") events into
+  // technical_records too, so they show up per-faena in Registros Técnicos —
+  // Faena, Barco (via the campaign link), Horómetro, Hrs Aeronave/Motor, tipo
+  // de inspección, descripción, and the técnico's name. This is the same
+  // bitácora entry a técnico already writes by hand on the aircraft's engine
+  // and airframe logbook; there's no e-signature here, just the name for
+  // traceability, per Adolfo. related_maintenance_event links back to the
+  // maintenance_logs row created just above for the same event (maintenanceRows
+  // and maintenanceLogIds share the same order: routine rows first, then
+  // non-routine, then filter changes — only the first two sections apply here).
+  const technicalRecordRows = [
+    ...routineInspections.map((inspection, index) => ({
+      record_type: "Inspection" as const,
+      related_helicopter: helicopterRegistration,
+      related_campaign_id: campaignId,
+      related_maintenance_event: maintenanceLogIds[index] ?? null,
+      title: inspection.description || `Inspección ${inspection.inspectionType}`,
+      record_date: inspection.date,
+      hourmeter: inspection.hourmeter,
+      aircraft_hours: inspection.aircraftHours,
+      engine_hours: inspection.engineHours,
+      inspection_type: inspection.inspectionType,
+      // No per-line técnico name on the "INFORME SEMANAL" sheet's routine rows —
+      // fall back to whoever's assigned as mechanic on this faena's campaign.
+      technician_name: campaignMechanic,
+      source: "User" as const
+    })),
+    ...nonRoutineEvents.map((event, index) => ({
+      record_type: "Inspection" as const,
+      related_helicopter: helicopterRegistration,
+      related_campaign_id: campaignId,
+      related_maintenance_event: maintenanceLogIds[routineInspections.length + index] ?? null,
+      title: event.novelty || "Novedad (No Rutina)",
+      record_date: event.date,
+      hourmeter: event.hobbs,
+      aircraft_hours: event.aircraftHours,
+      engine_hours: event.engineHours,
+      inspection_type: "No Rutina",
+      technician_name: event.technician || campaignMechanic,
+      notes: event.managementAction || null,
+      source: "User" as const
+    }))
+  ];
+
+  let technicalRecordsCreated = 0;
+  if (technicalRecordRows.length > 0) {
+    const { error: technicalRecordsError, data: technicalRecordsData } = await supabase
+      .from("technical_records")
+      .insert(technicalRecordRows)
+      .select("id");
+    if (technicalRecordsError) {
+      // Non-fatal: flight hours and maintenance_logs are already applied —
+      // technical_records is a secondary, Registros Técnicos-facing mirror of
+      // the same data, so a failure here shouldn't roll back or block anything.
+      warnings.push(`No se pudieron crear los registros técnicos: ${technicalRecordsError.message}`);
+    } else {
+      technicalRecordsCreated = technicalRecordsData?.length ?? technicalRecordRows.length;
+    }
   }
 
   // 6. Log detected component changes for human review — try to match the removed
@@ -437,6 +505,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   revalidatePath(`/helicopters/${helicopterRegistration}`);
   revalidatePath("/inventory");
   revalidatePath("/campaigns");
+  revalidatePath("/technical-records");
   if (campaignId) revalidatePath(`/campaigns/${campaignId}`);
   if (vesselId) revalidatePath(`/vessels/${vesselId}/inventory`);
   revalidatePath("/");
@@ -447,6 +516,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     registration: helicopterRegistration,
     flightHoursApplied: flightHoursThisWeek,
     maintenanceLogsCreated,
+    technicalRecordsCreated,
     componentChangesDetected: detectedComponentChanges.length,
     componentChangesReview,
     materialsConsumedApplied,

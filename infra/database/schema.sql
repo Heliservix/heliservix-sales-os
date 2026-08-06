@@ -609,6 +609,21 @@ create table technical_records (
   document_number text,
   notes text,
   attachment_placeholder text,
+  -- The 5 columns below turn a "record_type = 'Inspection'" row into the
+  -- digital mirror of the per-faena engine/airframe logbook entry a técnico
+  -- already writes by hand: Horómetro/Hrs Aeronave/Hrs Motor at the time of
+  -- the inspection, whether it was routine or not, and the técnico's name for
+  -- traceability (no e-signature — a name is enough, per Adolfo). Faena and
+  -- Barco aren't separate columns here on purpose: they're read via
+  -- related_campaign_id -> campaigns.vessel_id -> vessels.name, so they can
+  -- never drift out of sync with the faena's own record. Populated
+  -- automatically by app/reports/import/actions.ts on every weekly-report
+  -- upload; null for every other record_type (8130, Work order, etc.).
+  hourmeter numeric,
+  aircraft_hours numeric,
+  engine_hours numeric,
+  inspection_type text,
+  technician_name text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now()
