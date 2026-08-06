@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, FileWarning } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileWarning, Image as ImageIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
-import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
-import { HelicopterZoneDiagram } from "@/components/aircraft/helicopter-zone-diagram";
-import { classifyBulletinZone } from "@/lib/aircraft-zones";
+import { classifyBulletinZone, ZONE_LABEL } from "@/lib/aircraft-zones";
 import { supabase } from "@/lib/supabase";
 import { VerifyBulletinsButton } from "@/app/compliance/bulletins/verify-bulletins-button";
 
@@ -25,7 +23,7 @@ type BulletinRow = {
   last_verified_at: string | null;
 };
 
-type HelicopterRow = { registration: string; photo_url: string | null };
+type HelicopterRow = { registration: string };
 
 const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "neutral"> = {
   "Not reviewed": "neutral",
@@ -64,12 +62,11 @@ export default async function BulletinsPage() {
       .eq("archived", false)
       .order("status", { ascending: true })
       .order("reference_number", { ascending: true }),
-    supabase.from("helicopters").select("registration, photo_url").eq("archived", false).order("registration")
+    supabase.from("helicopters").select("registration").eq("archived", false).order("registration")
   ]);
 
   const bulletins = (data ?? []) as BulletinRow[];
   const fleet = (helicopterData ?? []) as HelicopterRow[];
-  const photoByRegistration = new Map(fleet.map((h) => [h.registration, h.photo_url]));
 
   const needsReview = bulletins.filter((b) => b.status === "Not reviewed");
   const applicable = bulletins.filter((b) => b.status === "Applicable");
@@ -99,10 +96,14 @@ export default async function BulletinsPage() {
         {fleet.length ? (
           <Panel className="mb-5">
             <p className="text-xs font-semibold uppercase text-ink-subtle">Tu flota</p>
-            <div className="mt-3 flex flex-wrap gap-4">
+            <div className="mt-3 flex flex-wrap gap-2">
               {fleet.map((h) => (
-                <Link key={h.registration} href={`/helicopters/${h.registration}`} className="hover:opacity-80">
-                  <HelicopterBadge registration={h.registration} photoUrl={h.photo_url} size="md" />
+                <Link
+                  key={h.registration}
+                  href={`/helicopters/${h.registration}`}
+                  className="hsv-technical-value rounded-full border border-line bg-canvas-muted/40 px-3 py-1 text-xs font-semibold text-ink hover:border-aviation-teal hover:text-aviation-teal"
+                >
+                  {h.registration}
                 </Link>
               ))}
             </div>
@@ -164,7 +165,19 @@ export default async function BulletinsPage() {
                     <tr key={b.id} className="hsv-table-row align-top">
                       <td className="hsv-table-cell hsv-technical-value font-semibold text-ink">{b.reference_number || "—"}</td>
                       <td className="hsv-table-cell">
-                        <HelicopterZoneDiagram zone={zone} size={64} showLabel />
+                        {b.attachment_placeholder ? (
+                          <a
+                            href={b.attachment_placeholder}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Abrir el boletín original (PDF) — ahí está el diagrama real de Robinson"
+                            className="flex w-16 flex-col items-center gap-1 rounded-md border border-line bg-canvas-muted/40 px-2 py-2 text-center hover:border-aviation-teal"
+                          >
+                            <ImageIcon className="h-4 w-4 text-aviation-teal" aria-hidden="true" />
+                            <span className="text-[10px] font-semibold leading-tight text-aviation-teal">Ver diagrama</span>
+                          </a>
+                        ) : null}
+                        <p className="mt-1 w-16 text-[10px] leading-tight text-ink-subtle">{ZONE_LABEL[zone]}</p>
                       </td>
                       <td className="hsv-table-cell">
                         <span className="flex items-start gap-1.5">
@@ -186,11 +199,7 @@ export default async function BulletinsPage() {
                       </td>
                       <td className="hsv-table-cell max-w-md">
                         {registrations.length ? (
-                          <div className="mb-1.5 flex flex-wrap gap-1.5">
-                            {registrations.map((reg) => (
-                              <HelicopterBadge key={reg} registration={reg} photoUrl={photoByRegistration.get(reg) ?? null} size="sm" />
-                            ))}
-                          </div>
+                          <p className="mb-1 hsv-technical-value text-xs font-semibold text-ink">{registrations.join(", ")}</p>
                         ) : null}
                         <p className="text-ink-muted">{b.applicability || "—"}</p>
                       </td>
