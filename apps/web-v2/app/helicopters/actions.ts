@@ -86,13 +86,23 @@ const HELICOPTER_PHOTOS_BUCKET = "helicopter-photos";
 // "helicopter-photos" Supabase Storage bucket (infra/database's
 // paso2_crear_bucket_fotos_helicopteros.sql creates it) and stores the
 // public URL on helicopters.photo_url.
-export async function uploadHelicopterPhoto(registration: string, formData: FormData) {
+export type UploadPhotoState = { error?: string; success?: boolean };
+
+// Returns a state object instead of throwing (matches useActionState's
+// contract — see app/helicopters/photo-upload-form.tsx) so a real failure —
+// missing bucket/column because a SQL migration hasn't been run yet, file
+// too large, wrong file type — shows up as an actual message on the page
+// instead of the form silently doing nothing.
+export async function uploadHelicopterPhoto(registration: string, _prevState: UploadPhotoState, formData: FormData): Promise<UploadPhotoState> {
   const file = formData.get("photo");
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Selecciona una foto para subir.");
+    return { error: "Selecciona una foto para subir." };
   }
   if (!file.type.startsWith("image/")) {
-    throw new Error("El archivo debe ser una imagen (JPG, PNG, etc.).");
+    return { error: "El archivo debe ser una imagen (JPG, PNG, etc.)." };
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return { error: "La foto pesa más de 10 MB — usa una versión más liviana." };
   }
 
   const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
@@ -102,19 +112,28 @@ export async function uploadHelicopterPhoto(registration: string, formData: Form
     contentType: file.type,
     upsert: true
   });
-  if (uploadError) throw new Error(`No se pudo subir la foto: ${uploadError.message}`);
+  if (uploadError) {
+    return {
+      error: `No se pudo subir la foto: ${uploadError.message}. Si nunca corriste "paso2_crear_bucket_fotos_helicopteros.sql" en Supabase, ese es probablemente el motivo.`
+    };
+  }
 
   const {
     data: { publicUrl }
   } = supabase.storage.from(HELICOPTER_PHOTOS_BUCKET).getPublicUrl(path);
 
   const { error: updateError } = await supabase.from("helicopters").update({ photo_url: publicUrl }).eq("registration", registration);
-  if (updateError) throw new Error(updateError.message);
+  if (updateError) {
+    return {
+      error: `La foto se subió pero no se pudo guardar en el helicóptero: ${updateError.message}. Si nunca corriste "paso1_agregar_foto_helicopteros.sql" en Supabase, ese es probablemente el motivo.`
+    };
+  }
 
   revalidatePath("/helicopters");
   revalidatePath(`/helicopters/${registration}`);
   revalidatePath("/compliance/bulletins");
   revalidatePath(`/reports/maintenance/${registration}`);
+  return { success: true };
 }
 
 export async function archiveHelicopter(registration: string) {

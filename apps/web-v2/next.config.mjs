@@ -28,7 +28,16 @@ const nextConfig = {
   // node_modules files directly) but crashes at import time once deployed,
   // producing Next's generic HTML error page instead of the route's JSON
   // response — exactly the "Unexpected token '<'" Adolfo hit.
-  serverExternalPackages: ["pdf-parse"]
+  serverExternalPackages: ["pdf-parse"],
+  // Next's Server Actions reject any request body over 1MB by default — a
+  // real phone photo (uploadHelicopterPhoto, app/helicopters/actions.ts)
+  // routinely runs 3-10MB, so without raising this the upload form would
+  // just silently fail (the request never even reaches the action's code).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "15mb"
+    }
+  }
 };
 
 export default nextConfig;
