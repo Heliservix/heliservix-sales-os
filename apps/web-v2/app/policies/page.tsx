@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { fetchFaenaData, computePersonnelFlightHours } from "@/lib/faena-metrics";
 import { PolicyUploadForm } from "@/app/policies/policy-upload-form";
 import { PolicyPaymentActions } from "@/app/policies/policy-payment-actions";
+import { ReanalyzeButton } from "@/app/policies/reanalyze-button";
 import { addPolicyPayment, markRequirementsReviewed, archivePolicy } from "@/app/policies/actions";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +67,7 @@ export default async function PoliciesPage() {
       .from("insurance_policies")
       .select(
         "id, helicopter_registration, insurer, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, status"
-      )
+      ) // coverage_type was already selected but never rendered below — fixed alongside the analyzer not extracting it at all
       .eq("archived", false)
       .order("end_date", { ascending: true, nullsFirst: false }),
     supabase.from("insurance_payments").select("id, policy_id, due_date, amount, currency, status").order("due_date"),
@@ -201,6 +202,7 @@ export default async function PoliciesPage() {
                     ) : (
                       <StatusPill tone="green">Revisado</StatusPill>
                     )}
+                    {policy.attachment_placeholder ? <ReanalyzeButton policyId={policy.id} /> : null}
                     <Link className="hsv-secondary-button !px-2 !py-1 text-xs" href={`/policies/${policy.id}/edit`}>
                       Editar
                     </Link>
@@ -212,7 +214,7 @@ export default async function PoliciesPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
                   <div>
                     <p className="text-xs font-semibold uppercase text-ink-subtle">Vigencia</p>
                     <p className={`text-sm ${textClass}`}>
@@ -225,6 +227,10 @@ export default async function PoliciesPage() {
                     <p className="text-sm text-ink-muted">
                       {policy.premium_amount != null ? `$${Number(policy.premium_amount).toLocaleString("en-US")} ${policy.currency}` : "—"}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-ink-subtle">Tipo de cobertura/operación</p>
+                    <p className="text-sm text-ink-muted">{policy.coverage_type || "sin detectar"}</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase text-ink-subtle">Requisito de horas del piloto</p>

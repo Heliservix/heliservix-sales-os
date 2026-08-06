@@ -72,6 +72,7 @@ export function PolicyUploadForm({ helicopters }: PolicyUploadFormProps) {
           <p className="font-semibold text-aviation-teal">Póliza cargada. Esto detecté automáticamente — revísalo antes de confiar en los datos:</p>
           <ul className="mt-1.5 list-disc pl-5 text-ink-muted">
             <li>N° de póliza: {state.summary.policyNumber ?? "no detectado"}</li>
+            <li>Tipo de cobertura/operación: {state.summary.coverageType ?? "no detectado"}</li>
             <li>
               Vigencia: {formatDate(state.summary.startDate)} a {formatDate(state.summary.endDate)}
             </li>

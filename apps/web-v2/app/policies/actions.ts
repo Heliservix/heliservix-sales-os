@@ -34,6 +34,7 @@ export type UploadPolicyState = {
   success?: boolean;
   summary?: {
     policyNumber: string | null;
+    coverageType: string | null;
     startDate: string | null;
     endDate: string | null;
     premiumAmount: number | null;
@@ -110,6 +111,7 @@ export async function uploadPolicy(helicopterRegistrations: string[], _prevState
     helicopterRegistrations.map((helicopterRegistration) => ({
       helicopter_registration: helicopterRegistration,
       policy_number: analysis.policyNumber,
+      coverage_type: analysis.coverageType,
       start_date: analysis.startDate,
       end_date: analysis.endDate,
       premium_amount: analysis.premiumAmount,
@@ -135,6 +137,7 @@ export async function uploadPolicy(helicopterRegistrations: string[], _prevState
     success: true,
     summary: {
       policyNumber: analysis.policyNumber,
+      coverageType: analysis.coverageType,
       startDate: analysis.startDate,
       endDate: analysis.endDate,
       premiumAmount: analysis.premiumAmount,
@@ -170,6 +173,60 @@ export async function updatePolicy(id: string, formData: FormData) {
   revalidatePath("/policies");
   revalidatePath("/alerts");
   redirect("/policies");
+}
+
+// Re-runs the analyzer against the PDF already stored for this policy,
+// without asking Adolfo to re-upload it. Added because the analyzer got
+// real fixes (English-language pilot-hours patterns, coverage-type
+// detection, a Panama declarations-page table-reordering quirk) AFTER he'd
+// already uploaded his first real policies — this lets those existing rows
+// pick up the corrected extraction instead of being stuck with whatever the
+// analyzer found (or didn't find) the first time. Same fetch-by-URL pattern
+// as lib/bulletin-verification.ts's fetchPdfText.
+export async function reanalyzePolicy(id: string) {
+  const { data: policy, error: fetchError } = await supabase
+    .from("insurance_policies")
+    .select("attachment_placeholder")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!policy?.attachment_placeholder) throw new Error("Esta póliza no tiene un PDF guardado para volver a analizar.");
+
+  const response = await fetch(policy.attachment_placeholder, { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`No se pudo descargar el PDF guardado (respondió ${response.status}).`);
+  const buffer = await response.arrayBuffer();
+
+  let extractedText = "";
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const result = await parser.getText();
+    extractedText = result.text ?? "";
+  } finally {
+    await parser.destroy();
+  }
+
+  const analysis = analyzePolicyText(extractedText);
+
+  const { error: updateError } = await supabase
+    .from("insurance_policies")
+    .update({
+      policy_number: analysis.policyNumber,
+      coverage_type: analysis.coverageType,
+      start_date: analysis.startDate,
+      end_date: analysis.endDate,
+      premium_amount: analysis.premiumAmount,
+      currency: analysis.currency ?? "USD",
+      min_pilot_hours_total: analysis.minPilotHoursTotal,
+      min_pilot_hours_type: analysis.minPilotHoursType,
+      requirements_summary: analysis.requirementsSummary,
+      requirements_reviewed: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id);
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath("/policies");
+  revalidatePath("/alerts");
 }
 
 export async function markRequirementsReviewed(id: string) {
