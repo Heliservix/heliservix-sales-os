@@ -53,6 +53,7 @@ export type MaintenanceReport = {
   manufactureYear: string | null;
   lastReviewDate: string | null;
   currentHourmeter: number;
+  photoUrl: string | null;
   healthScore: number;
   healthDrivers: string[];
   healthEvidence: string[];
@@ -86,7 +87,7 @@ const FORECAST_BASIS_LABEL: Record<AuraMaintenanceForecastItem["dueBasis"], stri
 export async function buildMaintenanceReport(registration: string): Promise<MaintenanceReport | null> {
   const { data: helicopter } = await supabase
     .from("helicopters")
-    .select("registration, model, status, serial_number, manufacture_year, last_review_date, current_hourmeter")
+    .select("registration, model, status, serial_number, manufacture_year, last_review_date, current_hourmeter, photo_url")
     .eq("registration", registration)
     .maybeSingle();
   if (!helicopter) return null;
@@ -263,6 +264,7 @@ export async function buildMaintenanceReport(registration: string): Promise<Main
     manufactureYear: helicopter.manufacture_year,
     lastReviewDate: helicopter.last_review_date,
     currentHourmeter,
+    photoUrl: helicopter.photo_url,
     healthScore,
     healthDrivers,
     healthEvidence,

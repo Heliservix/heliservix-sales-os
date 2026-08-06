@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 import { ScoreGauge } from "@/components/charts/score-gauge";
+import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
 import { buildMaintenanceReport, FORECAST_BASIS_LABEL } from "@/lib/maintenance-report";
 import { PrintButton } from "@/app/reports/faena/[id]/print-button";
 
@@ -43,9 +44,12 @@ export default async function MaintenanceReportPage({ params }: { params: Promis
         <div className="hsv-panel print:border-none print:shadow-none">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">HeliServiX OS — Informe de mantenimiento</p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-ink">
-              {report.registration} — {report.model}
-            </h1>
+            <div className="flex items-center gap-3">
+              <HelicopterBadge registration={report.registration} photoUrl={report.photoUrl} size="lg" showLabel={false} />
+              <h1 className="text-2xl font-semibold text-ink">
+                {report.registration} — {report.model}
+              </h1>
+            </div>
             <StatusPill tone={HELICOPTER_STATUS_TONE[report.status] ?? "neutral"}>{report.status}</StatusPill>
           </div>
           <p className="mt-1 text-sm text-ink-subtle">

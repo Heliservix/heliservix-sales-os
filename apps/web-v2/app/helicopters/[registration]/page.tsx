@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, Pencil, Plane, Plus, Trash2, UploadCloud } from "lucide-react";
+import { Download, Pencil, Plane, Plus, Trash2, UploadCloud, Camera } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
+import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
 import { supabase } from "@/lib/supabase";
-import { deleteHelicopter } from "@/app/helicopters/actions";
+import { deleteHelicopter, uploadHelicopterPhoto } from "@/app/helicopters/actions";
 
 // A component is "calendar-driven" when its calendar expiry is the tighter
 // constraint than its hours remaining — i.e. exactly the case where a part
@@ -45,6 +46,7 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
     .order("remaining_hours", { ascending: true });
 
   const boundDelete = deleteHelicopter.bind(null, registration);
+  const boundUploadPhoto = uploadHelicopterPhoto.bind(null, registration);
 
   return (
     <AppShell>
@@ -53,6 +55,22 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
 
         <Panel className="mb-5">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex shrink-0 flex-col items-center gap-2 xl:items-start">
+              <HelicopterBadge registration={helicopter.registration} photoUrl={helicopter.photo_url} size="lg" showLabel={false} />
+              <form action={boundUploadPhoto} className="flex flex-col items-center gap-1.5 xl:items-start">
+                <input
+                  type="file"
+                  name="photo"
+                  accept="image/*"
+                  required
+                  className="w-40 text-[11px] text-ink-subtle file:mr-2 file:rounded-md file:border-0 file:bg-brand-lightBlue file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-aviation-blue"
+                />
+                <button type="submit" className="hsv-ghost-button -ml-2.5 text-xs">
+                  <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+                  {helicopter.photo_url ? "Cambiar foto" : "Subir foto"}
+                </button>
+              </form>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <p className="text-xs font-semibold uppercase text-ink-subtle">Estado</p>

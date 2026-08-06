@@ -62,6 +62,12 @@ create table helicopters (
   base text,
   notes text,
   readiness numeric not null default 100,
+  -- Public URL of the aircraft's representative photo, uploaded to the
+  -- "helicopter-photos" Supabase Storage bucket (see
+  -- infra/database/storage-helicopter-photos.sql). Purely visual — helps a
+  -- técnico recognize the right tail number at a glance, and gives the app
+  -- a more polished look for prospective-client demos.
+  photo_url text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),

@@ -78,6 +78,45 @@ export async function updateHelicopter(registration: string, formData: FormData)
   redirect(`/helicopters/${registration}`);
 }
 
+const HELICOPTER_PHOTOS_BUCKET = "helicopter-photos";
+
+// Purely cosmetic (see lib/helicopter-identity.ts) — lets a técnico
+// recognize the right tail number at a glance, and gives the app a more
+// polished look for prospective-client demos. Uploads to the
+// "helicopter-photos" Supabase Storage bucket (infra/database's
+// paso2_crear_bucket_fotos_helicopteros.sql creates it) and stores the
+// public URL on helicopters.photo_url.
+export async function uploadHelicopterPhoto(registration: string, formData: FormData) {
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Selecciona una foto para subir.");
+  }
+  if (!file.type.startsWith("image/")) {
+    throw new Error("El archivo debe ser una imagen (JPG, PNG, etc.).");
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${registration}/${Date.now()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage.from(HELICOPTER_PHOTOS_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: true
+  });
+  if (uploadError) throw new Error(`No se pudo subir la foto: ${uploadError.message}`);
+
+  const {
+    data: { publicUrl }
+  } = supabase.storage.from(HELICOPTER_PHOTOS_BUCKET).getPublicUrl(path);
+
+  const { error: updateError } = await supabase.from("helicopters").update({ photo_url: publicUrl }).eq("registration", registration);
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath("/helicopters");
+  revalidatePath(`/helicopters/${registration}`);
+  revalidatePath("/compliance/bulletins");
+  revalidatePath(`/reports/maintenance/${registration}`);
+}
+
 export async function archiveHelicopter(registration: string) {
   const { error } = await supabase.from("helicopters").update({ archived: true }).eq("registration", registration);
   if (error) throw new Error(error.message);

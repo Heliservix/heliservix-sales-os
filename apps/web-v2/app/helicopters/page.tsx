@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
+import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
 import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ type HelicopterRow = {
   current_hourmeter: number;
   status: string;
   assigned_vessel_id: string | null;
+  photo_url: string | null;
   vessels: { name: string } | null;
 };
 
@@ -45,7 +47,7 @@ export default async function HelicoptersPage() {
   const [{ data, error }, { data: componentStatusRows }, { data: componentRemainingRows }] = await Promise.all([
     supabase
       .from("helicopters")
-      .select("registration, model, current_hourmeter, status, assigned_vessel_id, vessels(name)")
+      .select("registration, model, current_hourmeter, status, assigned_vessel_id, photo_url, vessels(name)")
       .eq("archived", false)
       .order("registration"),
     supabase.from("components").select("status").neq("status", "Removed"),
@@ -138,8 +140,8 @@ export default async function HelicoptersPage() {
                 {helicopters.map((helicopter) => (
                   <tr key={helicopter.registration} className="hsv-table-row">
                     <td className="hsv-table-cell">
-                      <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/helicopters/${helicopter.registration}`}>
-                        {helicopter.registration}
+                      <Link className="inline-flex items-center hover:text-aviation-teal" href={`/helicopters/${helicopter.registration}`}>
+                        <HelicopterBadge registration={helicopter.registration} photoUrl={helicopter.photo_url} size="sm" />
                       </Link>
                     </td>
                     <td className="hsv-table-cell text-ink-muted">{helicopter.model}</td>
