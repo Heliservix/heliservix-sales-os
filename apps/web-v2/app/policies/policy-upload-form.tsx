@@ -18,46 +18,57 @@ function formatDate(value: string | null): string {
 // the action returns a state object instead of throwing, so a real failure
 // (missing bucket, missing column, PDF with no readable text) shows up as an
 // actual message here instead of the form silently doing nothing.
+//
+// Helicopters are checkboxes, not a single dropdown: real Anexo documents
+// from Adolfo's insurer cover several aircraft in one PDF with one shared
+// set of terms, so uploading once and checking every aircraft it applies to
+// avoids having to re-upload the exact same file 5 times.
 export function PolicyUploadForm({ helicopters }: PolicyUploadFormProps) {
-  const [helicopterRegistration, setHelicopterRegistration] = useState(helicopters[0]?.registration ?? "");
-  const boundAction = uploadPolicy.bind(null, helicopterRegistration);
+  const [selected, setSelected] = useState<string[]>(helicopters[0] ? [helicopters[0].registration] : []);
+  const boundAction = uploadPolicy.bind(null, selected);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
 
-  return (
-    <form action={formAction} className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-      <label className="grid gap-1.5 text-sm font-semibold text-ink">
-        Helicóptero
-        <select
-          className="hsv-control"
-          name="helicopterRegistration"
-          value={helicopterRegistration}
-          onChange={(event) => setHelicopterRegistration(event.target.value)}
-        >
-          {helicopters.map((h) => (
-            <option key={h.registration} value={h.registration}>
-              {h.registration} ({h.model})
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="grid gap-1.5 text-sm font-semibold text-ink">
-        PDF de la póliza
-        <input
-          className="hsv-control file:mr-3 file:rounded-md file:border-0 file:bg-brand-lightBlue file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-aviation-blue"
-          type="file"
-          name="policyFile"
-          accept="application/pdf"
-          required
-        />
-      </label>
-      <button className="hsv-primary-button" type="submit" disabled={isPending || !helicopterRegistration}>
-        <FileUp className="h-4 w-4" aria-hidden="true" />
-        {isPending ? "Analizando..." : "Subir póliza"}
-      </button>
+  function toggle(registration: string) {
+    setSelected((prev) => (prev.includes(registration) ? prev.filter((r) => r !== registration) : [...prev, registration]));
+  }
 
-      {state.error ? <p className="sm:col-span-3 text-sm text-status-red">{state.error}</p> : null}
+  return (
+    <form action={formAction} className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-[2fr_1fr_auto] sm:items-start">
+        <div className="grid gap-1.5 text-sm font-semibold text-ink">
+          Helicóptero(s) que cubre esta póliza
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-md border border-ink-muted/20 p-2.5">
+            {helicopters.map((h) => (
+              <label key={h.registration} className="flex items-center gap-1.5 text-sm font-normal text-ink">
+                <input type="checkbox" checked={selected.includes(h.registration)} onChange={() => toggle(h.registration)} />
+                {h.registration} ({h.model})
+              </label>
+            ))}
+          </div>
+          <span className="text-xs font-normal text-ink-muted">
+            Si el PDF es un anexo que cubre varias aeronaves (mismo texto de requisitos para todas), marca todas — se sube el archivo
+            una sola vez.
+          </span>
+        </div>
+        <label className="grid gap-1.5 text-sm font-semibold text-ink">
+          PDF de la póliza
+          <input
+            className="hsv-control file:mr-3 file:rounded-md file:border-0 file:bg-brand-lightBlue file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-aviation-blue"
+            type="file"
+            name="policyFile"
+            accept="application/pdf"
+            required
+          />
+        </label>
+        <button className="hsv-primary-button sm:mt-6" type="submit" disabled={isPending || selected.length === 0}>
+          <FileUp className="h-4 w-4" aria-hidden="true" />
+          {isPending ? "Analizando..." : "Subir póliza"}
+        </button>
+      </div>
+
+      {state.error ? <p className="text-sm text-status-red">{state.error}</p> : null}
       {state.success && state.summary ? (
-        <div className="sm:col-span-3 rounded-md border border-aviation-teal/25 bg-aviation-teal/5 p-3 text-sm text-ink">
+        <div className="rounded-md border border-aviation-teal/25 bg-aviation-teal/5 p-3 text-sm text-ink">
           <p className="font-semibold text-aviation-teal">Póliza cargada. Esto detecté automáticamente — revísalo antes de confiar en los datos:</p>
           <ul className="mt-1.5 list-disc pl-5 text-ink-muted">
             <li>N° de póliza: {state.summary.policyNumber ?? "no detectado"}</li>

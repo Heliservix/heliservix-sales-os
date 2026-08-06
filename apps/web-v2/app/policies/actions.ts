@@ -49,7 +49,20 @@ export type UploadPolicyState = {
 // the automatic-analysis option knowing every insurer formats policies
 // differently, so the app flags every fresh upload as "revisar" until
 // someone confirms the numbers against the real document.
-export async function uploadPolicy(helicopterRegistration: string, _prevState: UploadPolicyState, formData: FormData): Promise<UploadPolicyState> {
+//
+// helicopterRegistrations is a list, not a single value: real Anexo
+// documents from this insurer cover several aircraft under one shared PILOTS
+// clause and one shared vigencia (e.g. one "Anexo 2026-2027.pdf" covering
+// HP-1768/1769/1770/1782/1783 across 3 policy numbers). The PDF is only
+// uploaded once; one insurance_policies row is created per selected aircraft,
+// all pointing at that same file and sharing the same auto-extracted terms —
+// since policy_number can differ per aircraft in a multi-policy Anexo, that
+// field is exactly the kind of thing requirements_reviewed=false is meant to
+// flag for a human to double-check per row.
+export async function uploadPolicy(helicopterRegistrations: string[], _prevState: UploadPolicyState, formData: FormData): Promise<UploadPolicyState> {
+  if (!helicopterRegistrations.length) {
+    return { error: "Selecciona al menos un helicóptero." };
+  }
   const file = formData.get("policyFile");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Selecciona el PDF de la póliza." };
@@ -78,7 +91,7 @@ export async function uploadPolicy(helicopterRegistration: string, _prevState: U
 
   const analysis = analyzePolicyText(extractedText);
 
-  const path = `${helicopterRegistration}/${Date.now()}.pdf`;
+  const path = `${helicopterRegistrations[0]}/${Date.now()}.pdf`;
   const { error: uploadError } = await supabase.storage.from(POLICIES_BUCKET).upload(path, file, {
     contentType: "application/pdf",
     upsert: true
@@ -93,21 +106,23 @@ export async function uploadPolicy(helicopterRegistration: string, _prevState: U
     data: { publicUrl }
   } = supabase.storage.from(POLICIES_BUCKET).getPublicUrl(path);
 
-  const { error: insertError } = await supabase.from("insurance_policies").insert({
-    helicopter_registration: helicopterRegistration,
-    policy_number: analysis.policyNumber,
-    start_date: analysis.startDate,
-    end_date: analysis.endDate,
-    premium_amount: analysis.premiumAmount,
-    currency: analysis.currency ?? "USD",
-    min_pilot_hours_total: analysis.minPilotHoursTotal,
-    min_pilot_hours_type: analysis.minPilotHoursType,
-    requirements_summary: analysis.requirementsSummary,
-    requirements_reviewed: false,
-    attachment_placeholder: publicUrl,
-    status: "Active",
-    source: "User"
-  });
+  const { error: insertError } = await supabase.from("insurance_policies").insert(
+    helicopterRegistrations.map((helicopterRegistration) => ({
+      helicopter_registration: helicopterRegistration,
+      policy_number: analysis.policyNumber,
+      start_date: analysis.startDate,
+      end_date: analysis.endDate,
+      premium_amount: analysis.premiumAmount,
+      currency: analysis.currency ?? "USD",
+      min_pilot_hours_total: analysis.minPilotHoursTotal,
+      min_pilot_hours_type: analysis.minPilotHoursType,
+      requirements_summary: analysis.requirementsSummary,
+      requirements_reviewed: false,
+      attachment_placeholder: publicUrl,
+      status: "Active",
+      source: "User"
+    }))
+  );
   if (insertError) {
     return {
       error: `El PDF se subió pero no se pudo guardar la póliza: ${insertError.message}. Si nunca corriste la migración de "insurance_policies" en Supabase, ese es probablemente el motivo.`
