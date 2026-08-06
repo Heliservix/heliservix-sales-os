@@ -12,6 +12,8 @@ export type FaenaCampaignRow = {
   vessel_id: string | null;
   vessels: { name: string } | null;
   helicopter_registration: string | null;
+  pilot_id: string | null;
+  mechanic_id: string | null;
   status: string;
   start_date: string | null;
   tons_captured_final: number | null;
@@ -92,7 +94,7 @@ export async function fetchFaenaData(): Promise<{
     supabase
       .from("campaigns")
       .select(
-        "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, status, start_date, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
+        "id, code, name, vessel_id, vessels:vessel_id(name), helicopter_registration, pilot_id, mechanic_id, status, start_date, tons_captured_final, tons_captured_estimate, fishing_days, total_flight_hours"
       )
       .order("code"),
     supabase
@@ -174,6 +176,47 @@ export function computeYearlySummaries(rows: FaenaMetrics[]): YearSummary[] {
 
 export function vesselKey(row: FaenaMetrics): string {
   return row.campaign.vessels?.name ?? "Sin barco";
+}
+
+export type PersonnelFlightSummary = {
+  totalHours: number;
+  hoursByModel: Record<string, number>;
+  faenas: number;
+};
+
+// Adolfo chose to have the system calculate pilot/mechanic experience
+// automatically from their assigned faenas, rather than tracking it by hand
+// (see app/policies — insurance coverage requires a minimum pilot experience).
+// Important limitation, surfaced wherever this is shown: campaigns only got a
+// pilot_id/mechanic_id once someone assigned them via the Campañas module —
+// faenas created automatically by the weekly-report importer are NOT
+// attributed to anyone until an admin edits the campaign and picks a pilot.
+// So this total reflects "hours flown on faenas assigned to this person IN
+// THIS SYSTEM," not necessarily their whole real career — personnel.
+// prior_experience_hours is the manual one-time baseline meant to cover the
+// gap (career hours before this system existed), and should be added to
+// totalHours by the caller, same additive pattern as campaigns.total_flight_hours.
+export function computePersonnelFlightHours(
+  personnelId: string,
+  campaigns: FaenaCampaignRow[],
+  flightLogs: FaenaFlightLogRow[],
+  helicopterModelByRegistration: Map<string, string>
+): PersonnelFlightSummary {
+  const assigned = campaigns.filter((c) => c.pilot_id === personnelId || c.mechanic_id === personnelId);
+  let totalHours = 0;
+  const hoursByModel: Record<string, number> = {};
+
+  for (const campaign of assigned) {
+    const matched = matchLogsForCampaign(campaign, flightLogs);
+    const loggedHours = matched.reduce((sum, log) => sum + Number(log.flight_hours), 0);
+    const hours = loggedHours + Number(campaign.total_flight_hours ?? 0);
+    totalHours += hours;
+
+    const model = campaign.helicopter_registration ? helicopterModelByRegistration.get(campaign.helicopter_registration) : null;
+    if (model) hoursByModel[model] = (hoursByModel[model] ?? 0) + hours;
+  }
+
+  return { totalHours, hoursByModel, faenas: assigned.length };
 }
 
 export function computeVesselSummaries(rows: FaenaMetrics[]): VesselSummary[] {

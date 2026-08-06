@@ -525,6 +525,33 @@ create table personnel (
   email text,
   notes text,
   status text not null default 'Active' check (status in ('Active','Inactive')),
+  -- Everything below is for insurance-policy compliance (see
+  -- insurance_policies further down): each policy can require a minimum
+  -- pilot experience plus current license/medical/recurrency/checkride, and
+  -- Adolfo needs to know at a glance if any pilot's paperwork is expired.
+  -- Flat columns rather than a child table, since a person only has ONE
+  -- current license/medical/passport at a time — this tracks current
+  -- status, not a document history.
+  photo_url text,
+  -- Career hours flown BEFORE this system started tracking faenas — added
+  -- once per person, then never touched again. Total experience shown in
+  -- the app is this PLUS whatever's computed from their assigned faenas
+  -- (lib/faena-metrics.ts's computePersonnelFlightHours), same "manual
+  -- baseline + system total, always additive" pattern as
+  -- campaigns.total_flight_hours below.
+  prior_experience_hours numeric,
+  license_number text,
+  license_type text,
+  license_expiry date,
+  medical_certificate_class text,
+  medical_certificate_expiry date,
+  recurrency_date date,
+  recurrency_expiry date,
+  flight_check_date date,
+  flight_check_expiry date,
+  passport_number text,
+  passport_expiry date,
+  passport_photo_url text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),
@@ -672,6 +699,55 @@ create table compliance_items (
 -- date/hours tone logic already in app/compliance/page.tsx. If per-item
 -- compliance alerts are ever wanted, rebuild this properly with a trigger
 -- like reconcile_component_alert() rather than resurrecting a dead table.)
+
+-- ========================================================================
+-- Insurance policies (Pólizas de Helicópteros)
+-- ========================================================================
+-- One row per policy per helicopter. requirements_summary/min_pilot_hours_*
+-- are filled in automatically by lib/insurance-policy-analysis.ts when the
+-- PDF is uploaded (app/policies/actions.ts) — a best-effort text scan, since
+-- every insurer writes their policy differently (unlike Robinson's fixed
+-- SB/SL format). requirements_reviewed starts false on every auto-extracted
+-- policy so the app can flag "revisar" until a human confirms the extracted
+-- numbers actually match the real document.
+create table insurance_policies (
+  id uuid primary key default gen_random_uuid(),
+  helicopter_registration text references helicopters(registration),
+  insurer text,
+  policy_number text,
+  coverage_type text,
+  start_date date,
+  end_date date,
+  premium_amount numeric,
+  currency text not null default 'USD',
+  min_pilot_hours_total numeric,
+  min_pilot_hours_type numeric,
+  requirements_summary text,
+  requirements_reviewed boolean not null default false,
+  attachment_placeholder text,
+  status text not null default 'Active' check (status in ('Active','Expired','Cancelled')),
+  notes text,
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Installments/renewal payments for a policy. A policy can have just one row
+-- (paid in full at renewal) or several (quarterly, etc.) — this doesn't
+-- assume either shape.
+create table insurance_payments (
+  id uuid primary key default gen_random_uuid(),
+  policy_id uuid not null references insurance_policies(id) on delete cascade,
+  due_date date not null,
+  amount numeric not null,
+  currency text not null default 'USD',
+  status text not null default 'Pending' check (status in ('Pending','Paid','Overdue')),
+  paid_date date,
+  notes text,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now()
+);
 
 -- ========================================================================
 -- Fleet health history — one row per calendar day, written by the

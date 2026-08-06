@@ -13,6 +13,7 @@ import {
   ReceiptText,
   ShoppingCart,
   ShieldCheck,
+  Umbrella,
   UserRoundCog
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -52,7 +53,8 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Maintenance", labelKey: "nav.maintenance", href: "/alerts", icon: AlertTriangle, status: "ready" },
       { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "ready" },
       { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "ready" },
-      { label: "Bulletins", labelKey: "nav.bulletins", href: "/compliance/bulletins", icon: FileWarning, status: "ready" }
+      { label: "Bulletins", labelKey: "nav.bulletins", href: "/compliance/bulletins", icon: FileWarning, status: "ready" },
+      { label: "Insurance Policies", labelKey: "nav.policies", href: "/policies", icon: Umbrella, status: "ready" }
     ]
   },
   {
