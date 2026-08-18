@@ -122,6 +122,17 @@ function setNumFmt(cell: ExcelJS.Cell, numFmt: string) {
   cell.style = { ...cell.style, numFmt };
 }
 
+// Years between an installation date and its calendar_limit_date, rounded
+// to one decimal — null if either date is missing (no calendar limit at
+// all, or no installation date to measure from).
+function calendarLimitYears(installationDate: string | null, calendarLimitDate: string | null): number | null {
+  if (!installationDate || !calendarLimitDate) return null;
+  const start = new Date(`${installationDate}T00:00:00Z`).getTime();
+  const end = new Date(`${calendarLimitDate}T00:00:00Z`).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  return Math.round(((end - start) / (365.25 * 86400000)) * 10) / 10;
+}
+
 function writeDateCell(cell: ExcelJS.Cell, iso: string | null) {
   const date = toExcelDate(iso);
   if (date) {
@@ -209,11 +220,18 @@ function fillComponentTable(
       formula: `${colLetter(lifeLimitCol)}${rowNum}-${colLetter(tsoCol)}${rowNum}`,
       result: remanente
     } as ExcelJS.CellFormulaValue;
-    // Límite calendario (AÑOS): the template's original author typed a raw
-    // year-duration here; HSV OS only stores the resulting expiration date
-    // (below), not that original duration, so this cell is left blank
-    // rather than guessed at.
-    row.getCell(col++).value = "";
+    // Límite calendario (AÑOS): the duration between installation and the
+    // calendar_limit_date column right after this one. Previously left
+    // blank on the reasoning that HSV OS only stores the resulting
+    // expiration date, not an original "years" figure — but Adolfo pointed
+    // out a blank cell here reads as "nothing was checked," not "no
+    // calendar limit," which is confusing on a printed report. Computed
+    // instead of guessed: derived straight from the same two dates already
+    // on this row, so it can't disagree with them. A component with no
+    // calendar_limit_date at all (LIFE/ON CONDITION/N/A in the source —
+    // see lib/component-import.ts) correctly shows blank here, same as its
+    // own Estado/Observaciones already say "no calendar limit."
+    row.getCell(col++).value = calendarLimitYears(component.installation_date, component.calendar_limit_date) ?? "";
     writeDateCell(row.getCell(col++), component.calendar_limit_date);
     // Kept verbatim from the original template — this column's formula
     // ("19+12-26") isn't something HSV OS introduced or can meaningfully
