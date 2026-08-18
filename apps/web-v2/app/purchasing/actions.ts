@@ -33,6 +33,11 @@ export async function createPurchaseRequest(formData: FormData) {
     related_vessel_id: optionalText(formData, "relatedVesselId"),
     related_maintenance_event: optionalText(formData, "relatedMaintenanceEvent"),
     status: text(formData, "status") || "Requested",
+    lead_time_days: (() => {
+      const v = number(formData, "leadTimeDays");
+      return v > 0 ? v : null;
+    })(),
+    priority: optionalText(formData, "priority"),
     notes: optionalText(formData, "notes"),
     source: "User"
   });
@@ -48,6 +53,28 @@ export async function updatePurchaseRequestStatus(id: string, formData: FormData
   if (!status) throw new Error("Selecciona un estado.");
 
   const { error } = await supabase.from("purchase_requests").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/purchasing");
+  revalidatePath("/aura");
+}
+
+// Lead time / prioridad de compra: added for the Control de Componentes PRO
+// export (a component's purchase request needs these to fill "Lead time" and
+// "Prioridad de compra" columns) — kept as a small inline edit rather than a
+// full edit page, matching updatePurchaseRequestStatus's pattern above.
+export async function updatePurchaseRequestPriority(id: string, formData: FormData) {
+  const leadTimeRaw = text(formData, "leadTimeDays");
+  const leadTimeDays = leadTimeRaw ? Number(leadTimeRaw) : null;
+
+  const { error } = await supabase
+    .from("purchase_requests")
+    .update({
+      lead_time_days: leadTimeDays != null && Number.isFinite(leadTimeDays) && leadTimeDays > 0 ? leadTimeDays : null,
+      priority: optionalText(formData, "priority"),
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/purchasing");

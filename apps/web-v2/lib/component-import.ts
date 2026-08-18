@@ -147,17 +147,30 @@ export function parseComponentControlWorkbook(buffer: Buffer): ParsedComponentCo
     const limiteCalendarioText = limiteCalendarioRaw != null ? cellText(limiteCalendarioRaw) : "";
     const isSpecialCalendarValue =
       limiteCalendarioText && Number.isNaN(Number.parseFloat(limiteCalendarioText.replace(",", ".")));
-    // "LIFE" / "ON CONDITION" typed into the calendar-limit-years column is
-    // this shop's own convention for "no calendar limit, hours only" —
-    // respected as an explicit opt-out from the 12-year default below.
-    const explicitNoCalendarLimit = Boolean(isSpecialCalendarValue) && /life|on ?condition/.test(normalize(limiteCalendarioText));
+    // BUG FIXED 2026-08: any non-numeric text typed into the
+    // calendar-limit-years column — "LIFE", "ON CONDITION", "N/A", or
+    // anything else — is the source telling us something specific about
+    // this component, not silence. Previously only the literal words
+    // "LIFE"/"ON CONDITION" opted out of the 12-year default below, so a
+    // component marked "N/A" (a very common way to say "no calendar limit
+    // documented") silently got a fabricated calendar_limit_date =
+    // installation_date + 12 years instead — which for an old install date
+    // computed a date years in the past, and the DB's
+    // trg_recalculate_component_fields trigger then correctly-but-wrongly
+    // marked it "Expired" off that fake date. Confirmed real false alarms
+    // this caused: CYCLIC STICK, CYCLIC TORQUE TUBE, JACKSHAFT (marked
+    // "N/A"), HYD RESERVOIR (marked "ON CONDITION" but still slipped
+    // through some import runs). Any non-empty, non-numeric value here now
+    // opts out — only a genuinely blank cell falls through to the default.
+    const explicitNoCalendarLimit = Boolean(isSpecialCalendarValue);
 
     // Per the maintenance manual's standard rule: a component gets a
     // 12-year calendar limit from its installation date unless the source
-    // file already gives an explicit date, or explicitly marks it as
-    // LIFE/ON CONDITION. Previously a missing date here just stayed null
-    // forever, which is why most imported components never got a calendar
-    // limit calculated at all.
+    // file already gives an explicit date, or explicitly marks the field
+    // with any non-numeric note (LIFE, ON CONDITION, N/A, etc. — see
+    // explicitNoCalendarLimit above). Previously a missing date here just
+    // stayed null forever, which is why most imported components never got
+    // a calendar limit calculated at all.
     const calendarLimitDate =
       (col.remanenteCalendario !== -1 ? parseFlexibleDate(row[col.remanenteCalendario]) : null) ??
       (explicitNoCalendarLimit ? null : defaultCalendarLimitDate(installationDate));

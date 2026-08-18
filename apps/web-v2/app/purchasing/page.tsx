@@ -5,7 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
-import { updatePurchaseRequestStatus } from "@/app/purchasing/actions";
+import { updatePurchaseRequestStatus, updatePurchaseRequestPriority } from "@/app/purchasing/actions";
 import { purchaseRequestStatuses, openPurchaseRequestStatuses } from "@/app/purchasing/constants";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,8 @@ type PurchaseRequestRow = {
   related_helicopter: string | null;
   related_maintenance_event: string | null;
   status: string;
+  lead_time_days: number | null;
+  priority: string | null;
   notes: string | null;
   created_at: string;
   vessels: { id: string; name: string } | null;
@@ -43,7 +45,7 @@ export default async function PurchasingPage() {
   const { data, error } = await supabase
     .from("purchase_requests")
     .select(
-      "id, supplier, item_name, part_number, quantity, unit_cost, currency, related_helicopter, related_maintenance_event, status, notes, created_at, vessels:related_vessel_id(id, name)"
+      "id, supplier, item_name, part_number, quantity, unit_cost, currency, related_helicopter, related_maintenance_event, status, lead_time_days, priority, notes, created_at, vessels:related_vessel_id(id, name)"
     )
     .eq("archived", false)
     .order("created_at", { ascending: false });
@@ -102,12 +104,14 @@ export default async function PurchasingPage() {
                   <th className="hsv-table-th">Helicóptero</th>
                   <th className="hsv-table-th">Barco / Marea</th>
                   <th className="hsv-table-th">Notas</th>
+                  <th className="hsv-table-th">Lead time / Prioridad</th>
                   <th className="hsv-table-th">Estado</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
                 {requests.map((request) => {
                   const boundUpdate = updatePurchaseRequestStatus.bind(null, request.id);
+                  const boundPriority = updatePurchaseRequestPriority.bind(null, request.id);
                   const isUrgent = /urgen/i.test(request.notes ?? "");
                   return (
                     <tr key={request.id} className="hsv-table-row">
@@ -132,6 +136,27 @@ export default async function PurchasingPage() {
                         {request.notes || "—"}
                       </td>
                       <td className="hsv-table-cell">
+                        <form action={boundPriority} className="flex flex-col gap-1">
+                          <input
+                            className="hsv-control !w-28 !py-1 text-xs"
+                            type="number"
+                            step="1"
+                            name="leadTimeDays"
+                            placeholder="Días"
+                            defaultValue={request.lead_time_days ?? ""}
+                          />
+                          <input
+                            className="hsv-control !w-28 !py-1 text-xs"
+                            name="priority"
+                            placeholder="Prioridad"
+                            defaultValue={request.priority ?? ""}
+                          />
+                          <button className="hsv-ghost-button !px-2 !py-0.5 text-[11px]" type="submit">
+                            Guardar
+                          </button>
+                        </form>
+                      </td>
+                      <td className="hsv-table-cell">
                         <form action={boundUpdate} className="flex items-center gap-2">
                           <StatusPill tone={STATUS_TONE[request.status] ?? "neutral"}>{request.status}</StatusPill>
                           <select className="hsv-control !w-auto !py-1 text-xs" name="status" defaultValue={request.status}>
@@ -149,7 +174,7 @@ export default async function PurchasingPage() {
                 })}
                 {!requests.length && !error ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={8}>
+                    <td className="hsv-empty-state" colSpan={9}>
                       Todavía no hay pedidos. Se crean automáticamente al importar la hoja &ldquo;PEDIDOS&rdquo; del reporte
                       semanal, o puedes crear uno manual.
                     </td>

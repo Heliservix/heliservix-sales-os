@@ -77,6 +77,14 @@ export default async function NewPurchaseRequestPage() {
               Marea / evento relacionado
               <input className="hsv-control" name="relatedMaintenanceEvent" placeholder="M02-2026" />
             </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Lead time (días, si el proveedor lo dio)
+              <input className="hsv-control" type="number" step="1" name="leadTimeDays" placeholder="Ej. 45" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Prioridad de compra
+              <input className="hsv-control" name="priority" placeholder="Ej. Urgente, Para próxima faena" />
+            </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
               <textarea className="hsv-textarea" name="notes" />

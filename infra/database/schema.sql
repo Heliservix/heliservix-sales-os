@@ -497,6 +497,15 @@ create table purchase_requests (
     check (status in ('Requested','Quoted','Approved','Ordered','Received','Shipped to vessel','Stored','Installed','Consumed','Closed')),
   attachments_placeholder text,
   notes text,
+  -- Added for the Control de Componentes PRO export (lib/component-export-template.ts):
+  -- "lead time" and "prioridad de compra" have no other home in the schema.
+  -- Both are plain manual fields (nobody has quoted supplier lead times
+  -- automatically) — filled in on the Purchasing edit form when known,
+  -- left null otherwise. priority is free text rather than a fixed enum
+  -- since Adolfo's own vocabulary for this ("urgente", "para la próxima
+  -- faena", etc.) doesn't need to be constrained.
+  lead_time_days numeric,
+  priority text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),

@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import path from "path";
 import fs from "fs";
+import { monthlyFlightHourTrend, type FlightLogRow } from "@/lib/aura";
 
 // Fills the office's original "Control Maestro de Componentes" workbook
 // (data/templates/control-componentes-template.xlsx) with a helicopter's
@@ -25,6 +26,7 @@ export type ExportHelicopter = {
 };
 
 export type ExportComponent = {
+  id: string;
   component_name: string;
   part_number: string;
   serial_number: string;
@@ -33,11 +35,49 @@ export type ExportComponent = {
   tsn_hours: number;
   tso_hours: number;
   life_limit_hours: number;
+  remaining_hours: number;
   calendar_limit_date: string | null;
+  remaining_calendar_days: number | null;
   status: string;
   notes: string | null;
   remaining_percentage: number | null;
 };
+
+export type ExportComplianceItem = {
+  related_component_id: string | null;
+  compliance_type: string;
+  reference_number: string | null;
+  title: string;
+  status: string;
+};
+
+export type ExportPurchaseRequest = {
+  part_number: string | null;
+  unit_cost: number;
+  currency: string;
+  status: string;
+  lead_time_days: number | null;
+  priority: string | null;
+  created_at: string;
+};
+
+export type ExportTechnicalRecord = {
+  related_component_id: string | null;
+  record_date: string | null;
+  title: string;
+  notes: string | null;
+  inspection_type: string | null;
+};
+
+// Purchase requests are matched to a component by part_number text (no
+// direct FK exists — see the schema comment on purchase_requests) — same
+// normalization (trim + uppercase) used elsewhere in this codebase
+// (lib/aura.ts's procurement matching) so the two never disagree.
+function normalizePartNumber(value: string | null): string {
+  return (value ?? "").trim().toUpperCase();
+}
+
+const ORDERED_STATUSES = new Set(["Ordered", "Received", "Shipped to vessel", "Stored", "Installed"]);
 
 // Excel's date system has no timezone — reading the date back at UTC noon
 // means no downstream timezone conversion (browser download, Excel's own
@@ -264,7 +304,166 @@ async function restoreTableDefinitions(generatedBuffer: Buffer): Promise<Buffer>
   return Buffer.from(patched);
 }
 
-export async function buildComponentControlWorkbook(helicopter: ExportHelicopter, components: ExportComponent[]): Promise<Buffer> {
+const PRO_HEADERS = [
+  "Componente",
+  "P/N",
+  "S/N",
+  "Posición",
+  "Fecha instalación",
+  "TSN (HRS)",
+  "TSO (HRS)",
+  "Límite de vida (HRS)",
+  "Horómetro actual",
+  "Horas remanentes reales",
+  "Fecha límite calendario",
+  "Meses restantes",
+  "Horas mensuales proyectadas",
+  "Fecha estimada de agotamiento",
+  "Costo estimado",
+  "Lead time (días)",
+  "Prioridad de compra",
+  "Ordenado",
+  "AD-SB aplicables",
+  "Estado",
+  "Observaciones (fuente)",
+  "Observaciones de mantenimiento"
+];
+
+// Days-until-due math mirrors lib/aura.ts's buildMaintenanceForecastEngine
+// exactly (min of hours-based days-remaining at the aircraft's own flown
+// trend, and calendar days-remaining) so this export's "meses restantes" /
+// "fecha estimada de agotamiento" never disagrees with what AURA and
+// Alertas already show for the same component.
+function computeDueInDays(remainingHours: number, remainingCalendarDays: number | null, monthlyTrend: number): number | null {
+  const daysByHours = remainingHours <= 0 ? 0 : monthlyTrend > 0 ? Math.ceil(remainingHours / (monthlyTrend / 30)) : Number.POSITIVE_INFINITY;
+  const calendarDays = remainingCalendarDays == null ? Number.POSITIVE_INFINITY : Math.max(0, remainingCalendarDays);
+  const dueInDays = Math.min(daysByHours, calendarDays);
+  return Number.isFinite(dueInDays) ? dueInDays : null;
+}
+
+function priorityFromDueInDays(dueInDays: number | null): string {
+  if (dueInDays == null) return "Planificar";
+  if (dueInDays <= 30) return "Inmediata";
+  if (dueInDays <= 90) return "Pronto";
+  return "Planificar";
+}
+
+/** Builds the "Control PRO" sheet from scratch (plain cells, no Excel Table
+ * structured references) instead of extending the office's original
+ * template tabs — those are a fixed-size Excel Table with a documented
+ * exceljs bug around adding/removing calculated columns (see
+ * restoreTableDefinitions's comment above), so adding a dozen new columns
+ * to them is a real corruption risk. This sheet is free-form and can carry
+ * every column Adolfo asked for: horómetro actual, horas remanentes
+ * reales, fecha límite, meses restantes, horas mensuales proyectadas,
+ * fecha estimada de agotamiento, costo estimado, lead time, prioridad de
+ * compra, ordenado sí/no, AD-SB aplicables, and observaciones de
+ * mantenimiento — without touching the original tabs at all. */
+function buildControlProSheet(
+  workbook: ExcelJS.Workbook,
+  helicopter: ExportHelicopter,
+  components: ExportComponent[],
+  flightLogs: FlightLogRow[],
+  complianceItems: ExportComplianceItem[],
+  purchaseRequests: ExportPurchaseRequest[],
+  technicalRecords: ExportTechnicalRecord[]
+) {
+  const sheet = workbook.addWorksheet("Control PRO", { views: [{ state: "frozen", ySplit: 2 }] });
+
+  sheet.getCell(1, 1).value = `${helicopter.registration} — CONTROL MAESTRO PRO DE COMPONENTES`;
+  sheet.getCell(1, 1).font = { bold: true, size: 13 };
+  sheet.mergeCells(1, 1, 1, PRO_HEADERS.length);
+
+  const headerRow = sheet.getRow(2);
+  PRO_HEADERS.forEach((label, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = label;
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F3864" } };
+    cell.alignment = { wrapText: true, vertical: "middle" };
+  });
+  headerRow.height = 30;
+  sheet.columns.forEach((col, i) => {
+    col.width = i === 0 ? 26 : i === PRO_HEADERS.length - 1 || i === PRO_HEADERS.length - 2 ? 40 : 16;
+  });
+  sheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: PRO_HEADERS.length } };
+
+  const monthlyTrend = monthlyFlightHourTrend(flightLogs, helicopter.registration);
+  const currentHourmeter = Number(helicopter.current_hourmeter) || 0;
+  const today = new Date();
+
+  components.forEach((component, i) => {
+    const rowNum = 3 + i;
+    const row = sheet.getRow(rowNum);
+    let col = 1;
+
+    const dueInDays = computeDueInDays(component.remaining_hours, component.remaining_calendar_days, monthlyTrend);
+    const monthsRemaining = dueInDays != null ? Math.round((dueInDays / 30.44) * 10) / 10 : null;
+    const exhaustionDate = dueInDays != null ? new Date(today.getTime() + dueInDays * 86400000) : null;
+
+    const adSb = complianceItems
+      .filter((c) => c.related_component_id === component.id)
+      .map((c) => `${c.compliance_type} ${c.reference_number || ""} (${c.status})`.trim())
+      .join("; ");
+
+    const matchedPurchase = purchaseRequests
+      .filter((p) => normalizePartNumber(p.part_number) === normalizePartNumber(component.part_number))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    const costoEstimado = matchedPurchase ? matchedPurchase.unit_cost : null;
+    const leadTime = matchedPurchase?.lead_time_days ?? null;
+    const prioridad = matchedPurchase?.priority || priorityFromDueInDays(dueInDays);
+    const ordenado = matchedPurchase ? (ORDERED_STATUSES.has(matchedPurchase.status) ? "Sí" : "No") : dueInDays != null && dueInDays <= 90 ? "No" : "—";
+
+    const latestRecord = technicalRecords
+      .filter((t) => t.related_component_id === component.id)
+      .sort((a, b) => (b.record_date ?? "").localeCompare(a.record_date ?? ""))[0];
+    const observacionesMantenimiento = latestRecord
+      ? `${latestRecord.record_date ?? ""} — ${latestRecord.inspection_type ?? latestRecord.title}${latestRecord.notes ? ": " + latestRecord.notes : ""}`.trim()
+      : "";
+
+    row.getCell(col++).value = component.component_name;
+    row.getCell(col++).value = component.part_number;
+    row.getCell(col++).value = component.serial_number;
+    row.getCell(col++).value = component.position ?? "";
+    writeDateCell(row.getCell(col++), component.installation_date);
+    row.getCell(col++).value = Number(component.tsn_hours) || 0;
+    row.getCell(col++).value = Number(component.tso_hours) || 0;
+    row.getCell(col++).value = Number(component.life_limit_hours) || 0;
+    row.getCell(col++).value = currentHourmeter;
+    row.getCell(col++).value = Number(component.remaining_hours) || 0;
+    writeDateCell(row.getCell(col++), component.calendar_limit_date);
+    row.getCell(col++).value = monthsRemaining ?? "";
+    row.getCell(col++).value = Math.round(monthlyTrend * 10) / 10;
+    if (exhaustionDate) writeDateCell(row.getCell(col++), exhaustionDate.toISOString().slice(0, 10));
+    else col++;
+    row.getCell(col++).value = costoEstimado ?? "";
+    row.getCell(col++).value = leadTime ?? "";
+    row.getCell(col++).value = prioridad;
+    row.getCell(col++).value = ordenado;
+    row.getCell(col++).value = adSb || "—";
+    row.getCell(col++).value = component.status;
+    row.getCell(col++).value = component.notes ?? "";
+    row.getCell(col++).value = observacionesMantenimiento || "—";
+
+    // Same visual severity cue as the rest of the app (Expired/Critical = red
+    // tint, Monitor = amber) so a técnico scanning this flat sheet doesn't
+    // have to read every "Estado" cell individually.
+    if (component.status === "Expired" || component.status === "Critical") {
+      row.eachCell((cell) => (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFCE4E4" } }));
+    } else if (component.status === "Monitor") {
+      row.eachCell((cell) => (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3CD" } }));
+    }
+  });
+}
+
+export async function buildComponentControlWorkbook(
+  helicopter: ExportHelicopter,
+  components: ExportComponent[],
+  flightLogs: FlightLogRow[] = [],
+  complianceItems: ExportComplianceItem[] = [],
+  purchaseRequests: ExportPurchaseRequest[] = [],
+  technicalRecords: ExportTechnicalRecord[] = []
+): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(TEMPLATE_PATH);
   workbook.calcProperties.fullCalcOnLoad = true;
@@ -277,6 +476,7 @@ export async function buildComponentControlWorkbook(helicopter: ExportHelicopter
 
   fillComponentTable(controlMaestro, "tblComponentes", helicopter, components, true, 43);
   if (controlMaestro2) fillComponentTable(controlMaestro2, "tblComponentes3", helicopter, components, false, 50);
+  buildControlProSheet(workbook, helicopter, components, flightLogs, complianceItems, purchaseRequests, technicalRecords);
   if (resumen) fillResumenEjecutivo(resumen, helicopter, components);
 
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());

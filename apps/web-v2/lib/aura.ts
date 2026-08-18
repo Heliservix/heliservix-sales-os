@@ -49,7 +49,7 @@ type AlertRow = {
   status: string;
 };
 
-type FlightLogRow = {
+export type FlightLogRow = {
   helicopter_registration: string;
   flight_date: string;
   flight_hours: number;
@@ -248,7 +248,12 @@ function confidenceFromEvidence(evidence: string[], base: number) {
   return Math.max(55, Math.min(99, base - Math.max(0, 4 - evidence.length) * 5));
 }
 
-function monthlyFlightHourTrend(flightLogs: FlightLogRow[], helicopterRegistration: string) {
+// Exported for reuse by lib/component-export-template.ts's "Control PRO"
+// export sheet — same 90-day trend (defaulting to 25 hrs/month with no
+// recent history) drives both AURA's fleet-wide forecast and the
+// per-component "horas mensuales proyectadas"/"fecha estimada de
+// agotamiento" export columns, so the two never quietly disagree.
+export function monthlyFlightHourTrend(flightLogs: FlightLogRow[], helicopterRegistration: string) {
   const cutoff = Date.now() - 90 * 86400000;
   const hours = flightLogs
     .filter(
