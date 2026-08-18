@@ -231,12 +231,36 @@ function fillComponentTable(
     // calendar_limit_date at all (LIFE/ON CONDITION/N/A in the source —
     // see lib/component-import.ts) correctly shows blank here, same as its
     // own Estado/Observaciones already say "no calendar limit."
-    row.getCell(col++).value = calendarLimitYears(component.installation_date, component.calendar_limit_date) ?? "";
+    // Forcing a plain "0.0" number format on both of these cells rather
+    // than trusting whatever style the template's original row happened to
+    // carry: a handful of rows in the template (SPRAG CLUTCH, STARTER, TR
+    // GEAR BOX, TR GUARD) had a leftover date-formatted style on these
+    // exact columns, so a fractional number like 11.6 rendered as a
+    // nonsense "1900-01-11" date instead of a plain number — same shared-
+    // style-object gotcha documented on setNumFmt above, just discovered
+    // on a different column this time.
+    const calYearsCell = row.getCell(col++);
+    calYearsCell.value = calendarLimitYears(component.installation_date, component.calendar_limit_date) ?? "";
+    setNumFmt(calYearsCell, "0.0");
     writeDateCell(row.getCell(col++), component.calendar_limit_date);
-    // Kept verbatim from the original template — this column's formula
-    // ("19+12-26") isn't something HSV OS introduced or can meaningfully
-    // fix; it's reproduced as-is so the file matches the source format.
-    row.getCell(col++).value = { formula: "19+12-26", result: 5 } as ExcelJS.CellFormulaValue;
+    // LIMITE DE VIDA EN AÑOS: years of calendar life REMAINING (from
+    // today), same idea as "Remanente (HRS)" two columns back but for the
+    // calendar side instead of the hour side. This used to just reproduce
+    // the original template's own leftover formula ("19+12-26" — a fixed
+    // "5" for every single row, regardless of the component) verbatim,
+    // on the reasoning that it wasn't something HSV OS introduced. Adolfo
+    // correctly flagged that every component showing exactly "5" is
+    // obviously wrong, not a harmless leftover — so it's now computed for
+    // real from remaining_calendar_days (already on this component from
+    // the fixed calendar-limit logic), and left blank for a component with
+    // no calendar limit at all rather than showing a fake "5".
+    const remainingYearsCell = row.getCell(col++);
+    if (component.remaining_calendar_days != null) {
+      remainingYearsCell.value = Math.round((component.remaining_calendar_days / 365.25) * 10) / 10;
+      setNumFmt(remainingYearsCell, "0.0");
+    } else {
+      remainingYearsCell.value = "";
+    }
     // A component with no hour-based life limit (life_limit_hours = 0 — it
     // only tracks a calendar limit) would make this formula divide by zero
     // (#DIV/0!) both in our cached result and when Excel recalculates on
