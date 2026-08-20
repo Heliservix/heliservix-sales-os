@@ -6,7 +6,7 @@ import { uploadPersonnelPhoto, type UploadPersonnelPhotoState } from "@/app/pers
 
 type PersonnelPhotoUploadFormProps = {
   personnelId: string;
-  kind: "photo" | "passport";
+  kind: "photo" | "passport" | "seaman-book";
   hasPhoto: boolean;
   label: string;
 };
@@ -35,7 +35,22 @@ export function PersonnelPhotoUploadForm({ personnelId, kind, hasPhoto, label }:
         {isPending ? "Subiendo..." : hasPhoto ? "Cambiar foto" : "Subir foto"}
       </button>
       {state.error ? <p className="max-w-[220px] text-[11px] text-status-red">{state.error}</p> : null}
-      {state.success ? <p className="text-[11px] text-status-green">Foto actualizada.</p> : null}
+      {state.success && kind !== "seaman-book" ? <p className="text-[11px] text-status-green">Foto actualizada.</p> : null}
+      {state.success && kind === "seaman-book" ? (
+        <div className="max-w-[220px] rounded-md border border-line bg-canvas-muted/40 p-2 text-[11px] leading-4 text-ink-subtle">
+          <p className="font-semibold text-status-green">Foto guardada.</p>
+          {state.extracted ? (
+            <>
+              <p className="mt-1">N°: {state.extracted.documentNumber ?? "no detectado"}</p>
+              <p>Emisión: {state.extracted.issueDate ?? "no detectada"}</p>
+              <p>Vencimiento: {state.extracted.expiryDate ?? "no detectado"}</p>
+              {state.extracted.fullNameOnDocument ? <p>Nombre en el documento: {state.extracted.fullNameOnDocument}</p> : null}
+              <p className="mt-1 text-ink-subtle">Revisa estos datos en el formulario de abajo antes de guardar.</p>
+            </>
+          ) : null}
+          {state.extractionWarning ? <p className="mt-1 text-aviation-amber">{state.extractionWarning}</p> : null}
+        </div>
+      ) : null}
     </form>
   );
 }

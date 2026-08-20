@@ -22,13 +22,14 @@ type PersonnelRow = {
   recurrency_expiry: string | null;
   flight_check_expiry: string | null;
   passport_expiry: string | null;
+  seaman_book_expiry: string | null;
 };
 
 export default async function PersonnelPage() {
   const { data, error } = await supabase
     .from("personnel")
     .select(
-      "id, full_name, role, monthly_salary, rate_per_ton, phone, status, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry"
+      "id, full_name, role, monthly_salary, rate_per_ton, phone, status, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry, seaman_book_expiry"
     )
     .eq("archived", false)
     .order("role")

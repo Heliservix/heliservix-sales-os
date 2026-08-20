@@ -93,7 +93,9 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
       supabase.from("insurance_payments").select("id, policy_id, due_date, amount, currency, status").neq("status", "Paid"),
       supabase
         .from("personnel")
-        .select("id, full_name, role, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry")
+        .select(
+          "id, full_name, role, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry, seaman_book_expiry"
+        )
         .eq("archived", false)
     ]);
 

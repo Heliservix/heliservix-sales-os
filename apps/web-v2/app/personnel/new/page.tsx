@@ -116,6 +116,21 @@ export default function NewPersonnelPage() {
               Vencimiento de pasaporte
               <input className="hsv-control" type="date" name="passportExpiry" />
             </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              N° de Seaman Book (Libreta de Marino)
+              <input className="hsv-control" name="seamanBookNumber" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha de emisión del Seaman Book
+              <input className="hsv-control" type="date" name="seamanBookIssueDate" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Vencimiento del Seaman Book
+              <input className="hsv-control" type="date" name="seamanBookExpiry" />
+            </label>
+            <p className="text-xs text-ink-subtle sm:col-span-2">
+              La foto del Seaman Book (con lectura automática del N°/fechas) se sube después de crear a la persona, en &ldquo;Editar&rdquo;.
+            </p>
 
             <div className="sm:col-span-2">
               <button className="hsv-primary-button" type="submit">

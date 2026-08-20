@@ -104,6 +104,26 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
               )}
               <PersonnelPhotoUploadForm personnelId={id} kind="passport" hasPhoto={Boolean(person.passport_photo_url)} label="Foto del pasaporte" />
             </div>
+            <div className="flex flex-col items-start gap-2">
+              {person.seaman_book_photo_url ? (
+                <Image
+                  src={person.seaman_book_photo_url}
+                  alt={`Seaman Book de ${person.full_name}`}
+                  width={96}
+                  height={96}
+                  className="rounded-md object-cover"
+                  unoptimized
+                />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-md bg-canvas-muted text-xs text-ink-subtle">Sin foto</div>
+              )}
+              <PersonnelPhotoUploadForm
+                personnelId={id}
+                kind="seaman-book"
+                hasPhoto={Boolean(person.seaman_book_photo_url)}
+                label="Foto del Seaman Book (lee el N°, emisión y vencimiento solo)"
+              />
+            </div>
           </div>
         </Panel>
 
@@ -213,6 +233,18 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Vencimiento de pasaporte
               <input className="hsv-control" type="date" name="passportExpiry" defaultValue={person.passport_expiry ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              N° de Seaman Book (Libreta de Marino)
+              <input className="hsv-control" name="seamanBookNumber" defaultValue={person.seaman_book_number ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha de emisión del Seaman Book
+              <input className="hsv-control" type="date" name="seamanBookIssueDate" defaultValue={person.seaman_book_issue_date ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Vencimiento del Seaman Book
+              <input className="hsv-control" type="date" name="seamanBookExpiry" defaultValue={person.seaman_book_expiry ?? ""} />
             </label>
 
             <div className="sm:col-span-2">

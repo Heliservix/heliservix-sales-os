@@ -16,6 +16,7 @@ export type PersonnelDocumentRow = {
   recurrency_expiry: string | null;
   flight_check_expiry: string | null;
   passport_expiry: string | null;
+  seaman_book_expiry: string | null;
 };
 
 export type DocumentStatus = {
@@ -46,7 +47,8 @@ export function getPersonnelDocumentStatuses(person: PersonnelDocumentRow): Docu
     { key: "medical", label: "Certificado médico", expiry: person.medical_certificate_expiry },
     { key: "recurrency", label: "Recurrencia", expiry: person.recurrency_expiry },
     { key: "flightCheck", label: "Chequeo de vuelo", expiry: person.flight_check_expiry },
-    { key: "passport", label: "Pasaporte", expiry: person.passport_expiry }
+    { key: "passport", label: "Pasaporte", expiry: person.passport_expiry },
+    { key: "seamanBook", label: "Seaman Book", expiry: person.seaman_book_expiry }
   ];
 
   return checks

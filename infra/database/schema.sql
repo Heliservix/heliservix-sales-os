@@ -561,6 +561,17 @@ create table personnel (
   passport_number text,
   passport_expiry date,
   passport_photo_url text,
+  -- Seaman Book / Libreta de Marino — a second ID doc some crew need
+  -- besides their passport (Aug 2026). seaman_book_photo_url's upload
+  -- flow (app/personnel/actions.ts's uploadPersonnelPhoto, kind
+  -- "seaman-book") auto-reads number/issue_date/expiry off the photo via
+  -- Claude vision (lib/document-vision.ts) — best-effort, always left for
+  -- a human to confirm/correct in the edit form, same conservative
+  -- philosophy as every other auto-extraction in this codebase.
+  seaman_book_number text,
+  seaman_book_issue_date date,
+  seaman_book_expiry date,
+  seaman_book_photo_url text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),
