@@ -401,6 +401,17 @@ function priorityFromDueInDays(dueInDays: number | null): string {
  * fecha estimada de agotamiento, costo estimado, lead time, prioridad de
  * compra, ordenado sí/no, AD-SB aplicables, and observaciones de
  * mantenimiento — without touching the original tabs at all. */
+// Rows the header block occupies before the column-header row: logo +
+// title span rows 1-3 (matching the vertical space the logo takes on
+// "Control Maestro"), row 4 is the aircraft metadata label row, row 5 is
+// the values row (Matrícula/Modelo/Fecha Fabricación/S/N/Fecha
+// Revisión/Horómetro — same six fields "Control Maestro" shows), row 6 is
+// a blank spacer, and the PRO_HEADERS column-header row is row 7.
+const PRO_META_LABEL_ROW = 4;
+const PRO_META_VALUE_ROW = 5;
+const PRO_TABLE_HEADER_ROW = 7;
+const PRO_DATA_START_ROW = 8;
+
 function buildControlProSheet(
   workbook: ExcelJS.Workbook,
   helicopter: ExportHelicopter,
@@ -408,15 +419,48 @@ function buildControlProSheet(
   flightLogs: FlightLogRow[],
   complianceItems: ExportComplianceItem[],
   purchaseRequests: ExportPurchaseRequest[],
-  technicalRecords: ExportTechnicalRecord[]
+  technicalRecords: ExportTechnicalRecord[],
+  logoImageId: number | null
 ) {
-  const sheet = workbook.addWorksheet("Control PRO", { views: [{ state: "frozen", ySplit: 2 }] });
+  const sheet = workbook.addWorksheet("Control PRO", { views: [{ state: "frozen", ySplit: PRO_TABLE_HEADER_ROW }] });
 
-  sheet.getCell(1, 1).value = `${helicopter.registration} — CONTROL MAESTRO PRO DE COMPONENTES`;
-  sheet.getCell(1, 1).font = { bold: true, size: 13 };
-  sheet.mergeCells(1, 1, 1, PRO_HEADERS.length);
+  // Same HeliServiX logo "Control Maestro" carries, reused (not
+  // re-embedded — it's the same image already loaded from the template,
+  // so the file doesn't end up with two copies of the same PNG) so this
+  // sheet doesn't look like a bare data dump next to the office's original
+  // branded tab.
+  if (logoImageId != null) {
+    sheet.addImage(logoImageId, { tl: { col: 0, row: 0.1 }, ext: { width: 300, height: 86 } });
+  }
+  sheet.getCell(1, 9).value = `${helicopter.registration} — CONTROL MAESTRO PRO DE COMPONENTES`;
+  sheet.getCell(1, 9).font = { bold: true, size: 13 };
+  sheet.mergeCells(1, 9, 1, PRO_HEADERS.length);
+  sheet.getRow(1).height = 20;
+  sheet.getRow(2).height = 20;
+  sheet.getRow(3).height = 20;
 
-  const headerRow = sheet.getRow(2);
+  // Aircraft metadata block — same six fields and layout as
+  // fillComponentTable's metaRow on "Control Maestro", so both tabs agree
+  // on the aircraft's own current hourmeter/review date instead of only
+  // showing it on one of them.
+  const META_LABELS = ["Matrícula", "Modelo", "Fecha Fabricación", "S/N Aeronave", "Fecha Revisión", "Horómetro"];
+  const metaLabelRow = sheet.getRow(PRO_META_LABEL_ROW);
+  META_LABELS.forEach((label, i) => {
+    const cell = metaLabelRow.getCell(i + 1);
+    cell.value = label;
+    cell.font = { bold: true };
+  });
+  const metaValueRow = sheet.getRow(PRO_META_VALUE_ROW);
+  metaValueRow.getCell(1).value = helicopter.registration;
+  metaValueRow.getCell(2).value = helicopter.model;
+  metaValueRow.getCell(3).value = helicopter.manufacture_year ?? "";
+  metaValueRow.getCell(4).value = helicopter.serial_number ?? "";
+  writeDateCell(metaValueRow.getCell(5), helicopter.last_review_date);
+  const hourmeterCell = metaValueRow.getCell(6);
+  hourmeterCell.value = Number(helicopter.current_hourmeter) || 0;
+  setNumFmt(hourmeterCell, '0.0" HRS"');
+
+  const headerRow = sheet.getRow(PRO_TABLE_HEADER_ROW);
   PRO_HEADERS.forEach((label, i) => {
     const cell = headerRow.getCell(i + 1);
     cell.value = label;
@@ -428,14 +472,14 @@ function buildControlProSheet(
   sheet.columns.forEach((col, i) => {
     col.width = i === 0 ? 26 : i === PRO_HEADERS.length - 1 || i === PRO_HEADERS.length - 2 ? 40 : 16;
   });
-  sheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: PRO_HEADERS.length } };
+  sheet.autoFilter = { from: { row: PRO_TABLE_HEADER_ROW, column: 1 }, to: { row: PRO_TABLE_HEADER_ROW, column: PRO_HEADERS.length } };
 
   const monthlyTrend = monthlyFlightHourTrend(flightLogs, helicopter.registration);
   const currentHourmeter = Number(helicopter.current_hourmeter) || 0;
   const today = new Date();
 
   components.forEach((component, i) => {
-    const rowNum = 3 + i;
+    const rowNum = PRO_DATA_START_ROW + i;
     const row = sheet.getRow(rowNum);
     let col = 1;
 
@@ -517,8 +561,24 @@ export async function buildComponentControlWorkbook(
   if (!controlMaestro) throw new Error('La plantilla no tiene la hoja "Control Maestro".');
 
   fillComponentTable(controlMaestro, "tblComponentes", helicopter, components, true, 43);
-  if (controlMaestro2) fillComponentTable(controlMaestro2, "tblComponentes3", helicopter, components, false, 50);
-  buildControlProSheet(workbook, helicopter, components, flightLogs, complianceItems, purchaseRequests, technicalRecords);
+  // "Control Maestro (2)" was a redundant leftover in the office's original
+  // template — same data as "Control Maestro", just 14 columns instead of
+  // 16 (no Ref.#/Posición) and a 50-row limit instead of 43. Adolfo asked
+  // to drop the duplicate now that "Control PRO" exists too. Hidden rather
+  // than deleted: exceljs has a documented bug re-serializing this
+  // template's Excel Tables (see restoreTableDefinitions above), and fully
+  // removing a sheet that owns one of those tables risks leaving an
+  // orphaned table definition that Excel would flag as corrupt on open.
+  // Hiding is the safe way to get it out of Adolfo's way without touching
+  // the file's table structure at all.
+  if (controlMaestro2) controlMaestro2.state = "veryHidden";
+  // exceljs's own type definitions disagree with themselves here:
+  // getImages() returns an imageId typed as string, but addImage() expects
+  // a number — both actually refer to the same internal numeric id, so a
+  // plain Number() conversion bridges the two without any real risk.
+  const rawLogoImageId = controlMaestro.getImages()[0]?.imageId;
+  const logoImageId = rawLogoImageId != null ? Number(rawLogoImageId) : null;
+  buildControlProSheet(workbook, helicopter, components, flightLogs, complianceItems, purchaseRequests, technicalRecords, logoImageId);
   if (resumen) fillResumenEjecutivo(resumen, helicopter, components);
 
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
