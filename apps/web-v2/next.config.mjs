@@ -28,7 +28,10 @@ const nextConfig = {
   // node_modules files directly) but crashes at import time once deployed,
   // producing Next's generic HTML error page instead of the route's JSON
   // response — exactly the "Unexpected token '<'" Adolfo hit.
-  serverExternalPackages: ["pdf-parse"],
+  // tesseract.js (used by lib/document-vision.ts to read Seaman Book
+  // photos — free, local OCR, no API key) ships worker scripts and a WASM
+  // core the same way pdf-parse does above; same fix for the same reason.
+  serverExternalPackages: ["pdf-parse", "tesseract.js"],
   // Next's Server Actions reject any request body over 1MB by default — a
   // real phone photo (uploadHelicopterPhoto, app/helicopters/actions.ts)
   // routinely runs 3-10MB, so without raising this the upload form would
