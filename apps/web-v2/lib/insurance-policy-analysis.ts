@@ -33,6 +33,32 @@
 // findDateRange() and findPolicyNumber() below each have a dedicated
 // pattern for this reversed table layout in addition to the normal
 // forward-label pattern used elsewhere.
+// A real Panama fleet policy (confirmed against "Anexo 2027.pdf", Aug 2026)
+// states a DIFFERENT pilot-experience minimum per flight type under one
+// "PILOTS:-" clause — e.g. 1,000 hours rotor wing / 350 on the R44 for
+// regular flights, but 1,200 / 500 (plus 200 hours Fish Spotting, of which
+// 100 must be ship-based) for Fish Spotting (this fleet's actual tuna-
+// spotting work). minPilotHoursTotal/minPilotHoursType above already take
+// the MAX across whichever numbers are found, so existing pilot-compliance
+// checks (app/policies/page.tsx's pilotComplianceFor) keep comparing against
+// the strictest figure without any change. This array exists purely so
+// Adolfo can SEE the breakdown per operation type instead of one collapsed
+// number — "que me muestre la información práctica de cobertura... me
+// facilita la interpretación" (Aug 2026). Best-effort: only populated when
+// the "Whilst flying X: ... minimum of N hours ..." structure is found;
+// left as an empty array for policies worded differently (older/other
+// insurers), same conservative philosophy as the rest of this file.
+export type PilotRequirementBlock = {
+  operationType: string; // e.g. "Vuelos regulares" / "Operación Atunera (Fish Spotting)"
+  minHoursTotal: number | null; // rotor wing total
+  minHoursOnType: number | null; // on make/model (R44)
+  operationSpecificHours: number | null; // e.g. 200 hours Fish Spotting
+  operationSpecificLabel: string | null; // e.g. "Fish Spotting"
+  operationSpecificSubHours: number | null; // e.g. 100 of those hours
+  operationSpecificSubLabel: string | null; // e.g. "a bordo de barco (ship based)"
+  noLossesRequired: boolean;
+};
+
 export type PolicyAnalysis = {
   policyNumber: string | null;
   insurer: string | null;
@@ -44,6 +70,7 @@ export type PolicyAnalysis = {
   minPilotHoursTotal: number | null;
   minPilotHoursType: number | null;
   requirementsSummary: string | null;
+  pilotRequirements: PilotRequirementBlock[];
 };
 
 const MONTHS_ES: Record<string, string> = {
@@ -300,6 +327,58 @@ function findMinHoursType(text: string): number | null {
   return candidates.length ? Math.max(...candidates) : null;
 }
 
+// Spanish label for the operation type found in the "Whilst flying X:"
+// lead-in of each PILOTS sub-clause — falls back to the raw English phrase
+// (title-cased) for wording this hasn't been tuned against.
+function spanishOperationLabel(raw: string): string {
+  const normalized = raw.trim().toLowerCase();
+  if (/non-fish\s*spotting/.test(normalized)) return "Vuelos regulares (No Atunera)";
+  if (/fish\s*spotting/.test(normalized)) return "Operación Atunera (Fish Spotting)";
+  return raw.trim().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Tuned against the real "PILOTS:-" clause shared by all 6 of this fleet's
+// Multibank Seguros policies (confirmed identical wording in "Anexo
+// 2027.pdf" for HP1768/69/70/82/83 and "Anexo 01 Pol 10-02-132519-1 Heliser
+// Vix 2026-2027.pdf" for HP1804, Aug 2026): one "Whilst flying X: ... a
+// minimum of N hours rotor wing time including M hours on make model [P
+// hours <activity> of which Q hours is to be <qualifier>] and no losses"
+// sentence PER flight type. Splits on "Whilst flying" so it naturally
+// handles 1, 2, or more such sentences without hardcoding exactly two.
+function findPilotRequirementBlocks(text: string): PilotRequirementBlock[] {
+  const pilotsSection = text.match(/PILOTS\s*:-?\s*([\s\S]{0,2000}?)(?:\n\s*In respect of|\n\s*Coverage\s*\d|\n\s*General Condition|$)/i);
+  const scope = pilotsSection ? pilotsSection[1] : text;
+
+  const chunks = scope.split(/(?=Whilst\s+flying)/i).filter((c) => /Whilst\s+flying/i.test(c));
+  const blocks: PilotRequirementBlock[] = [];
+
+  for (const chunk of chunks) {
+    const opMatch = chunk.match(/Whilst\s+flying\s+([^:]+):/i);
+    if (!opMatch) continue;
+    const flat = chunk.replace(/\s+/g, " ");
+
+    const totalMatch = flat.match(/minimum\s*of\s*([\d,]{3,7})\s*hours?\s*rotor\s*wing/i);
+    const typeMatch = flat.match(/([\d,]{2,6})\s*hours?\s*on\s*make\s*(?:and\s*)?model?/i);
+    // e.g. "200 hours Fish spotting of which 100 hours is to be ship based"
+    const specificMatch = flat.match(
+      /([\d,]{2,6})\s*hours?\s+([A-Za-z][A-Za-z\s]{2,30}?)\s*of\s*which\s*([\d,]{2,6})\s*hours?\s*is\s*to\s*be\s*([A-Za-z][A-Za-z\s]{2,30}?)(?:\s+and\s+no\s+losses|\.|$)/i
+    );
+
+    blocks.push({
+      operationType: spanishOperationLabel(opMatch[1]),
+      minHoursTotal: totalMatch ? Number(totalMatch[1].replace(/,/g, "")) : null,
+      minHoursOnType: typeMatch ? Number(typeMatch[1].replace(/,/g, "")) : null,
+      operationSpecificHours: specificMatch ? Number(specificMatch[1].replace(/,/g, "")) : null,
+      operationSpecificLabel: specificMatch ? specificMatch[2].trim() : null,
+      operationSpecificSubHours: specificMatch ? Number(specificMatch[3].replace(/,/g, "")) : null,
+      operationSpecificSubLabel: specificMatch ? specificMatch[4].trim() : null,
+      noLossesRequired: /no\s*losses/i.test(flat)
+    });
+  }
+
+  return blocks;
+}
+
 // Pulls out the paragraph(s) that actually discuss pilot requirements, so a
 // human reviewing this doesn't have to reread the whole policy — just this
 // excerpt — to confirm the extracted numbers (or fill them in by hand if
@@ -333,6 +412,7 @@ export function analyzePolicyText(rawText: string): PolicyAnalysis {
     currency: premium.currency,
     minPilotHoursTotal: findMinHoursTotal(text),
     minPilotHoursType: findMinHoursType(text),
-    requirementsSummary: findRequirementsSummary(text)
+    requirementsSummary: findRequirementsSummary(text),
+    pilotRequirements: findPilotRequirementBlocks(text)
   };
 }

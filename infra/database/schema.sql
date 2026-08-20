@@ -745,6 +745,18 @@ create table insurance_policies (
   -- min_pilot_hours_*/requirements_summary without touching the
   -- policy_number/dates/premium that came from the declarations page.
   anexo_url text,
+  -- Per-operation-type pilot requirement breakdown, e.g. [{"operationType":
+  -- "Vuelos regulares (No Atunera)", "minHoursTotal": 1000, "minHoursOnType":
+  -- 350, ...}, {"operationType": "Operación Atunera (Fish Spotting)",
+  -- "minHoursTotal": 1200, ...}] — see PilotRequirementBlock in
+  -- lib/insurance-policy-analysis.ts. min_pilot_hours_total/_type above
+  -- already hold the MAX across whichever numbers were found (used by
+  -- app/policies/page.tsx's pilot-compliance check), so this column is
+  -- purely for showing Adolfo the practical breakdown per flight type
+  -- instead of one collapsed number (asked for Aug 2026, after he pointed
+  -- out the real Anexo states different minimums for regular vs. Fish
+  -- Spotting/tuna-spotting flights).
+  pilot_requirements_detail jsonb,
   status text not null default 'Active' check (status in ('Active','Expired','Cancelled')),
   notes text,
   archived boolean not null default false,

@@ -119,6 +119,7 @@ export async function uploadPolicy(helicopterRegistrations: string[], _prevState
       min_pilot_hours_total: analysis.minPilotHoursTotal,
       min_pilot_hours_type: analysis.minPilotHoursType,
       requirements_summary: analysis.requirementsSummary,
+      pilot_requirements_detail: analysis.pilotRequirements.length ? analysis.pilotRequirements : null,
       requirements_reviewed: false,
       attachment_placeholder: publicUrl,
       status: "Active",
@@ -250,6 +251,7 @@ export async function attachPolicyAnexo(policyId: string, _prevState: AttachAnex
       ...(analysis.minPilotHoursTotal != null ? { min_pilot_hours_total: analysis.minPilotHoursTotal } : {}),
       ...(analysis.minPilotHoursType != null ? { min_pilot_hours_type: analysis.minPilotHoursType } : {}),
       ...(analysis.requirementsSummary != null ? { requirements_summary: analysis.requirementsSummary } : {}),
+      ...(analysis.pilotRequirements.length ? { pilot_requirements_detail: analysis.pilotRequirements } : {}),
       requirements_reviewed: false,
       updated_at: new Date().toISOString()
     })
@@ -314,6 +316,7 @@ export async function reanalyzePolicy(id: string) {
       min_pilot_hours_total: analysis.minPilotHoursTotal,
       min_pilot_hours_type: analysis.minPilotHoursType,
       requirements_summary: analysis.requirementsSummary,
+      pilot_requirements_detail: analysis.pilotRequirements.length ? analysis.pilotRequirements : null,
       requirements_reviewed: false,
       updated_at: new Date().toISOString()
     })

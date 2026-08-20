@@ -11,6 +11,7 @@ import { PolicyPaymentActions } from "@/app/policies/policy-payment-actions";
 import { ReanalyzeButton } from "@/app/policies/reanalyze-button";
 import { AnexoUploadForm } from "@/app/policies/anexo-upload-form";
 import { addPolicyPayment, markRequirementsReviewed, archivePolicy } from "@/app/policies/actions";
+import type { PilotRequirementBlock } from "@/lib/insurance-policy-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,20 @@ type PolicyRow = {
   attachment_placeholder: string | null;
   anexo_url: string | null;
   status: string;
+  pilot_requirements_detail: PilotRequirementBlock[] | null;
 };
+
+// coverage_type stores the raw "USES:-" clause as one long sentence (or a
+// "Casco Aéreo + Responsabilidad Civil..." fallback) — split into short
+// items so it reads as a practical checklist instead of a paragraph Adolfo
+// has to parse himself (asked for explicitly, Aug 2026: "que me muestre la
+// información práctica de cobertura... me facilita la interpretación").
+function splitCoverageItems(coverageType: string): string[] {
+  return coverageType
+    .split(/,| y (?=[A-ZÁÉÍÓÚ])| and /)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 1 && s.length < 120);
+}
 
 type PaymentRow = {
   id: string;
@@ -68,7 +82,7 @@ export default async function PoliciesPage() {
     supabase
       .from("insurance_policies")
       .select(
-        "id, helicopter_registration, insurer, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, anexo_url, status"
+        "id, helicopter_registration, insurer, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, anexo_url, status, pilot_requirements_detail"
       ) // coverage_type was already selected but never rendered below — fixed alongside the analyzer not extracting it at all
       .eq("archived", false)
       .order("end_date", { ascending: true, nullsFirst: false }),
@@ -243,16 +257,64 @@ export default async function PoliciesPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase text-ink-subtle">Tipo de cobertura/operación</p>
-                    <p className="text-sm text-ink-muted">{policy.coverage_type || "sin detectar"}</p>
+                    {policy.coverage_type ? (
+                      <ul className="mt-1 space-y-0.5">
+                        {splitCoverageItems(policy.coverage_type).map((item, i) => (
+                          <li key={i} className="text-sm text-ink-muted">
+                            · {item}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-ink-muted">sin detectar</p>
+                    )}
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase text-ink-subtle">Requisito de horas del piloto</p>
+                    <p className="text-xs font-semibold uppercase text-ink-subtle">Requisito de horas del piloto (más estricto)</p>
                     <p className="text-sm text-ink-muted">
                       {policy.min_pilot_hours_total != null ? `${policy.min_pilot_hours_total} hrs totales` : "sin detectar"}
                       {policy.min_pilot_hours_type != null ? ` · ${policy.min_pilot_hours_type} hrs en tipo` : ""}
                     </p>
                   </div>
                 </div>
+
+                {policy.pilot_requirements_detail?.length ? (
+                  <div className="mt-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">Horas mínimas de piloto por tipo de operación</p>
+                    <div className="hsv-table-wrap">
+                      <table className="hsv-table">
+                        <thead className="hsv-table-head">
+                          <tr>
+                            <th className="hsv-table-th">Operación</th>
+                            <th className="hsv-table-th">Hrs totales (ala rotativa)</th>
+                            <th className="hsv-table-th">Hrs en el modelo</th>
+                            <th className="hsv-table-th">Hrs específicas</th>
+                            <th className="hsv-table-th">Sin pérdidas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="hsv-table-body">
+                          {policy.pilot_requirements_detail.map((block, i) => (
+                            <tr key={i} className="hsv-table-row">
+                              <td className="hsv-table-cell font-semibold text-ink">{block.operationType}</td>
+                              <td className="hsv-table-cell hsv-technical-value">{block.minHoursTotal ?? "—"}</td>
+                              <td className="hsv-table-cell hsv-technical-value">{block.minHoursOnType ?? "—"}</td>
+                              <td className="hsv-table-cell hsv-technical-value">
+                                {block.operationSpecificHours != null
+                                  ? `${block.operationSpecificHours} hrs ${block.operationSpecificLabel ?? ""}${
+                                      block.operationSpecificSubHours != null
+                                        ? ` (${block.operationSpecificSubHours} hrs ${block.operationSpecificSubLabel ?? ""})`
+                                        : ""
+                                    }`
+                                  : "—"}
+                              </td>
+                              <td className="hsv-table-cell text-ink-muted">{block.noLossesRequired ? "Sí" : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
 
                 {policy.min_pilot_hours_total == null ? (
                   <div className="mt-3 rounded-md border border-aviation-amber/30 bg-aviation-amber/5 p-3">
