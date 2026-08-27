@@ -14,7 +14,8 @@ import {
   ShoppingCart,
   ShieldCheck,
   Umbrella,
-  UserRoundCog
+  UserRoundCog,
+  Wrench
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TranslationKey } from "@/lib/i18n";
@@ -54,7 +55,8 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Technical Records", labelKey: "nav.technicalRecords", href: "/technical-records", icon: FileText, status: "ready" },
       { label: "Compliance", labelKey: "nav.compliance", href: "/compliance", icon: ShieldCheck, status: "ready" },
       { label: "Bulletins", labelKey: "nav.bulletins", href: "/compliance/bulletins", icon: FileWarning, status: "ready" },
-      { label: "Insurance Policies", labelKey: "nav.policies", href: "/policies", icon: Umbrella, status: "ready" }
+      { label: "Insurance Policies", labelKey: "nav.policies", href: "/policies", icon: Umbrella, status: "ready" },
+      { label: "Work Orders", labelKey: "nav.workOrders", href: "/work-orders", icon: Wrench, status: "ready" }
     ]
   },
   {

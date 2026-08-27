@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bot, Gauge, Plane, TrendingUp } from "lucide-react";
+import { Bot, Gauge, Plane, TrendingUp, Wrench } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { buildAuraAnalysis } from "@/lib/aura";
 import { fetchFaenaData, computeFaenaMetrics, computeVesselSummaries, computeYearlySummaries } from "@/lib/faena-metrics";
 import { recordFleetHealthSnapshot, fetchFleetHealthTrend } from "@/lib/fleet-health-history";
+import { openWorkOrderStatuses } from "@/app/work-orders/constants";
 
 function round(value: number, decimals: number) {
   const factor = 10 ** decimals;
@@ -73,6 +74,9 @@ export default async function DashboardPage() {
     { data: openAlertsBySeverity },
     { data: flightLogTrendRows },
     { data: catchTrendRows },
+    { count: openWorkOrderCount },
+    { data: openWorkOrders },
+    { data: workOrderItemRows },
     auraAnalysis,
     faenaData
   ] = await Promise.all([
@@ -94,6 +98,15 @@ export default async function DashboardPage() {
     // closed (real bug found 2026-07-14 — see lib/faena-metrics.ts for the
     // matching fix on the Resumen de Faenas page).
     supabase.from("campaigns").select("catch_weighin_date, tons_captured_final, start_date, total_flight_hours"),
+    supabase.from("work_orders").select("*", { count: "exact", head: true }).eq("archived", false).in("status", openWorkOrderStatuses),
+    supabase
+      .from("work_orders")
+      .select("id, sequence_number, client_name, helicopter_registration, aircraft_registration, status")
+      .eq("archived", false)
+      .in("status", openWorkOrderStatuses)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase.from("work_order_items").select("work_order_id, is_complete").eq("archived", false),
     buildAuraAnalysis(),
     fetchFaenaData()
   ]);
@@ -159,6 +172,14 @@ export default async function DashboardPage() {
     tone: FLEET_STATUS_TONE[label] ?? "neutral"
   }));
 
+  const workOrderProgress = new Map<string, { done: number; total: number }>();
+  for (const item of workOrderItemRows ?? []) {
+    const entry = workOrderProgress.get(item.work_order_id) ?? { done: 0, total: 0 };
+    entry.total += 1;
+    if (item.is_complete) entry.done += 1;
+    workOrderProgress.set(item.work_order_id, entry);
+  }
+
   const severityCounts = new Map<string, number>();
   for (const row of openAlertsBySeverity ?? []) {
     severityCounts.set(row.severity, (severityCounts.get(row.severity) ?? 0) + 1);
@@ -190,7 +211,7 @@ export default async function DashboardPage() {
             </div>
           </Panel>
 
-          <section className="grid gap-4 sm:grid-cols-2">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Panel>
               <div className="flex items-center gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-canvas-muted text-ink">
@@ -210,6 +231,17 @@ export default async function DashboardPage() {
                 <div>
                   <p className="text-sm text-ink-muted">Alertas de mantenimiento abiertas</p>
                   <p className="text-2xl font-semibold text-ink">{openAlertCount ?? 0}</p>
+                </div>
+              </div>
+            </Panel>
+            <Panel>
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-canvas-muted text-ink">
+                  <Wrench className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-sm text-ink-muted">Órdenes de trabajo abiertas</p>
+                  <p className="text-2xl font-semibold text-ink">{openWorkOrderCount ?? 0}</p>
                 </div>
               </div>
             </Panel>
@@ -425,6 +457,39 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {!criticalAlerts?.length ? <p className="hsv-empty-state">Sin alertas críticas abiertas.</p> : null}
+            </div>
+          </Panel>
+
+          <Panel>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-ink">Órdenes de trabajo abiertas</h3>
+              <Link className="text-sm font-semibold text-aviation-teal hover:underline" href="/work-orders">
+                Ver todas →
+              </Link>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {(openWorkOrders ?? []).map((order) => {
+                const progress = workOrderProgress.get(order.id);
+                return (
+                  <Link
+                    key={order.id}
+                    href={`/work-orders/${order.id}`}
+                    className="block rounded-xl border border-line bg-canvas-muted/40 p-4 hover:border-aviation-teal/40"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill tone={order.status === "En Progreso" ? "blue" : "amber"}>{order.status}</StatusPill>
+                      <span className="text-sm font-semibold text-ink">OT-{String(order.sequence_number).padStart(5, "0")}</span>
+                      {order.helicopter_registration || order.aircraft_registration ? (
+                        <StatusPill tone="neutral">{order.helicopter_registration ?? order.aircraft_registration}</StatusPill>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm text-ink-subtle">
+                      {order.client_name || "Sin cliente"} · {progress ? `${progress.done}/${progress.total} tareas` : "Sin tareas"}
+                    </p>
+                  </Link>
+                );
+              })}
+              {!openWorkOrders?.length ? <p className="hsv-empty-state">Sin órdenes de trabajo abiertas.</p> : null}
             </div>
           </Panel>
 

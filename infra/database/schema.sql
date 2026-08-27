@@ -793,6 +793,88 @@ create table insurance_payments (
 );
 
 -- ========================================================================
+-- Work Orders — the shop's real "Orden de Trabajo" paper form (Formulario
+-- HS-06, from when this shop was Air Supplies International Inc.),
+-- digitized (Aug 2026) so a technician can create one, work through it as a
+-- checklist, and have the app remember exactly who completed each task.
+--
+-- Deliberate departure from the paper form: the original has two separate
+-- numbered lists ("DESCRIPCIÓN DEL TRABAJO REQUERIDO" and "TRABAJO
+-- REALIZADO") that a técnico has to keep in sync by hand. Digitally, this
+-- is ONE ordered checklist (work_order_items) per work order — an item
+-- unchecked IS "requerido", and checking it off (with who + when) IS
+-- "realizado". This is what makes it a working daily checklist instead of
+-- a static form, and it can never drift out of sync with itself. A printed
+-- copy can still show both classic sections by filtering on is_complete.
+-- ========================================================================
+
+create table work_orders (
+  id uuid primary key default gen_random_uuid(),
+  -- Display number for "ORDEN DE TRABAJO Nº ____" on the paper form —
+  -- a real auto-incrementing sequence (not a manually-typed value), so two
+  -- people creating an order at the same time can never collide or reuse a
+  -- number. Rendered as "OT-00001" in the UI.
+  sequence_number integer generated always as identity,
+  client_name text,
+  client_address text,
+  client_phone text,
+  -- Populated when the aircraft is one of this fleet's own helicopters
+  -- (links back to /helicopters/[registration]); left null for an outside
+  -- client's aircraft, same as insurance_policies.helicopter_registration.
+  helicopter_registration text references helicopters(registration),
+  aircraft_type text, -- "AERONAVE" on the paper form, e.g. "Robinson R44"
+  aircraft_registration text, -- "MATRICULA" — kept as free text too since an outside client's tail number isn't in `helicopters`
+  aircraft_serial text, -- "S/N" (aircraft)
+  engine_type text, -- "MOTOR"
+  engine_model text, -- "MODELO" (engine)
+  engine_serial text, -- "S/N" (engine)
+  estimated_hours numeric,
+  material_notes text, -- "MATERIAL"
+  contract_number text, -- "CONTRATO: No."
+  -- "TECNICO ENCARGADO" — who this order is assigned to. Filtered to
+  -- personnel.role = 'Mecánico' in the picker (no separate "Técnico" role
+  -- exists yet in personnel — flagged to Adolfo as a possible future
+  -- addition rather than widening that check constraint speculatively).
+  lead_technician_id uuid references personnel(id),
+  status text not null default 'Abierta'
+    check (status in ('Abierta','En Progreso','Completada','Cerrada')),
+  opened_at date not null default current_date,
+  -- Digital stand-in for the paper form's "TECNICO ENCARGADO / FIRMA" box:
+  -- set when the lead technician marks all their work done.
+  technician_completed_at timestamptz,
+  -- Digital stand-in for the paper form's "GERENTE GENERAL / FIRMA" box.
+  manager_approved_by uuid references personnel(id),
+  manager_approved_at timestamptz,
+  notes text,
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- The checklist itself — one row per task line. See the departure-from-paper
+-- note above: is_complete + completed_by_personnel_id + completed_at
+-- together ARE both "requerido" (when false) and "realizado" (when true,
+-- with who/when) for that line, instead of two separate lists.
+create table work_order_items (
+  id uuid primary key default gen_random_uuid(),
+  work_order_id uuid not null references work_orders(id) on delete cascade,
+  position integer not null default 0,
+  description text not null,
+  is_complete boolean not null default false,
+  -- Who actually did this specific task — joined against personnel at
+  -- display time to show "Nombre completo (N° de licencia)" per Adolfo's
+  -- request, rather than duplicating a name/license snapshot here.
+  completed_by_personnel_id uuid references personnel(id),
+  completed_at timestamptz,
+  notes text,
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ========================================================================
 -- Fleet health history — one row per calendar day, written by the
 -- dashboard the first time it's loaded that day (see
 -- lib/fleet-health-history.ts). Lets the dashboard show a trend instead of
@@ -848,7 +930,8 @@ begin
       'replacement_events','maintenance_logs','component_changes','inventory_items',
       'stock_movements','purchase_requests','campaigns','technical_records',
       'compliance_items','migration_logs','personnel',
-      'fleet_health_history','insurance_policies','insurance_payments'
+      'fleet_health_history','insurance_policies','insurance_payments',
+      'work_orders','work_order_items'
     ])
   loop
     execute format('alter table %I enable row level security;', t);
