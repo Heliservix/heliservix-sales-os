@@ -129,9 +129,67 @@ export default async function PoliciesPage() {
         ? (summary.hoursByModel[helicopterModelByRegistration.get(policy.helicopter_registration) ?? ""] ?? 0)
         : 0;
       const meetsType = policy.min_pilot_hours_type == null || hoursOnType >= policy.min_pilot_hours_type;
-      return { name: pilot?.full_name ?? "Piloto desconocido", totalHours, hoursOnType, meetsTotal, meetsType };
+      return { pilotId, name: pilot?.full_name ?? "Piloto desconocido", totalHours, hoursOnType, meetsTotal, meetsType };
     });
   }
+
+  // ==========================================================================
+  // "Resumen por Aeronave" — Adolfo asked for this (Aug 2026: "se visualiza
+  // demasiada información y me pierdo en ella... quisiera que sea más bien
+  // un dashboard que me muestre información por cada helicóptero"). One
+  // compact row per fleet aircraft instead of a full policy panel per
+  // aircraft; the detailed panels below still have everything, just
+  // collapsed behind "Ver detalle completo" so they don't have to be
+  // scrolled past to get the at-a-glance picture.
+  // ==========================================================================
+  const policyByHelicopter = new Map<string, PolicyRow>();
+  for (const p of policies) {
+    if (!p.helicopter_registration) continue;
+    const existing = policyByHelicopter.get(p.helicopter_registration);
+    if (!existing || (p.status === "Active" && existing.status !== "Active")) {
+      policyByHelicopter.set(p.helicopter_registration, p);
+    }
+  }
+
+  function nextPendingPaymentFor(policyId: string): PaymentRow | null {
+    const pending = (paymentsByPolicy.get(policyId) ?? [])
+      .filter((p) => p.status !== "Paid")
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    return pending[0] ?? null;
+  }
+
+  // "Piloto asignado actualmente" — the pilot on this helicopter's currently
+  // Active faena, if it has one. A helicopter can only be on one active
+  // faena at a time in practice; if more than one somehow shows Active,
+  // the most recently started one wins.
+  function currentAssignmentFor(registration: string) {
+    const active = campaigns
+      .filter((c) => c.helicopter_registration === registration && c.status === "Active")
+      .sort((a, b) => (b.start_date ?? "").localeCompare(a.start_date ?? ""));
+    const campaign = active[0];
+    if (!campaign) return null;
+    const pilot = campaign.pilot_id ? pilots.find((p) => p.id === campaign.pilot_id) : null;
+    return { pilotId: campaign.pilot_id, pilotName: pilot?.full_name ?? "Piloto sin identificar", campaignLabel: campaign.code || campaign.name };
+  }
+
+  const severityRank: Record<Tone, number> = { red: 0, amber: 1, neutral: 2, green: 3 };
+  function overallToneFor(policy: PolicyRow | undefined, nextPayment: PaymentRow | null): Tone {
+    if (!policy) return "neutral";
+    const tones: Tone[] = [dateTone(daysUntil(policy.end_date)), nextPayment ? dateTone(daysUntil(nextPayment.due_date)) : "green"];
+    if (!policy.requirements_reviewed) tones.push("amber");
+    return tones.sort((a, b) => severityRank[a] - severityRank[b])[0];
+  }
+
+  const helicopterSummaries = helicopters.map((h) => {
+    const policy = policyByHelicopter.get(h.registration);
+    const nextPayment = policy ? nextPendingPaymentFor(policy.id) : null;
+    const assignment = currentAssignmentFor(h.registration);
+    const compliance =
+      policy && policy.min_pilot_hours_total != null && assignment
+        ? (pilotComplianceFor(policy).find((c) => c.pilotId === assignment.pilotId) ?? null)
+        : null;
+    return { helicopter: h, policy, nextPayment, assignment, compliance, tone: overallToneFor(policy, nextPayment) };
+  });
 
   return (
     <AppShell>
@@ -163,6 +221,110 @@ export default async function PoliciesPage() {
         </div>
 
         <Panel className="mb-5">
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold text-ink">Resumen por Aeronave</h2>
+            <p className="text-xs text-ink-subtle">
+              Vista rápida por helicóptero. El detalle completo de cada póliza (cobertura, texto detectado, cumplimiento histórico) está
+              más abajo, dentro de &ldquo;Ver detalle completo&rdquo;.
+            </p>
+          </div>
+          <div className="hsv-table-wrap">
+            <table className="hsv-table">
+              <thead className="hsv-table-head">
+                <tr>
+                  <th className="hsv-table-th">Aeronave</th>
+                  <th className="hsv-table-th">Aseguradora</th>
+                  <th className="hsv-table-th">Vigencia</th>
+                  <th className="hsv-table-th">Próximo pago</th>
+                  <th className="hsv-table-th">Piloto asignado actualmente</th>
+                  <th className="hsv-table-th">Horas mínimas</th>
+                  <th className="hsv-table-th">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="hsv-table-body">
+                {helicopterSummaries.map(({ helicopter, policy, nextPayment, assignment, compliance, tone }) => {
+                  const days = daysUntil(policy?.end_date ?? null);
+                  const paymentDays = nextPayment ? daysUntil(nextPayment.due_date) : null;
+                  return (
+                    <tr key={helicopter.registration} className="hsv-table-row">
+                      <td className="hsv-table-cell hsv-technical-value">
+                        <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/helicopters/${helicopter.registration}`}>
+                          {helicopter.registration}
+                        </Link>
+                        <p className="text-xs font-normal text-ink-subtle">{helicopter.model}</p>
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">{policy?.insurer || "Sin póliza"}</td>
+                      <td className="hsv-table-cell">
+                        {policy?.end_date ? (
+                          <span
+                            className={
+                              tone === "red" ? "font-semibold text-status-red" : tone === "amber" ? "font-semibold text-amber-600" : "text-ink-muted"
+                            }
+                          >
+                            {policy.end_date}
+                            {formatDays(days)}
+                          </span>
+                        ) : (
+                          <span className="text-ink-subtle">—</span>
+                        )}
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">
+                        {nextPayment ? (
+                          <>
+                            ${Number(nextPayment.amount).toLocaleString("en-US")} {nextPayment.currency}
+                            <p className="text-xs text-ink-subtle">
+                              vence {nextPayment.due_date}
+                              {formatDays(paymentDays)}
+                            </p>
+                          </>
+                        ) : policy ? (
+                          <span className="text-ink-subtle">Sin pagos pendientes</span>
+                        ) : (
+                          <span className="text-ink-subtle">—</span>
+                        )}
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">
+                        {assignment ? (
+                          <>
+                            {assignment.pilotName}
+                            {assignment.campaignLabel ? <p className="text-xs text-ink-subtle">Faena {assignment.campaignLabel}</p> : null}
+                          </>
+                        ) : (
+                          <span className="text-ink-subtle">Sin asignar</span>
+                        )}
+                      </td>
+                      <td className="hsv-table-cell">
+                        {policy?.min_pilot_hours_total == null ? (
+                          <span className="text-xs text-ink-subtle">Sin requisito</span>
+                        ) : !assignment ? (
+                          <StatusPill tone="neutral">Sin piloto asignado</StatusPill>
+                        ) : compliance ? (
+                          <StatusPill tone={compliance.meetsTotal && compliance.meetsType ? "green" : "red"}>
+                            {compliance.meetsTotal && compliance.meetsType ? "Cumple" : "No cumple"}
+                          </StatusPill>
+                        ) : (
+                          <StatusPill tone="neutral">Sin datos de vuelo</StatusPill>
+                        )}
+                      </td>
+                      <td className="hsv-table-cell">
+                        <StatusPill tone={tone}>{!policy ? "Sin póliza" : tone === "red" ? "Atender" : tone === "amber" ? "Revisar" : "Al día"}</StatusPill>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!helicopterSummaries.length ? (
+                  <tr>
+                    <td className="hsv-empty-state" colSpan={7}>
+                      Registra primero un helicóptero en Flota para ver su resumen aquí.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel className="mb-5">
           <h2 className="mb-3 text-lg font-semibold text-ink">Subir póliza</h2>
           {helicopters.length ? (
             <PolicyUploadForm helicopters={helicopters} />
@@ -173,6 +335,7 @@ export default async function PoliciesPage() {
 
         {error ? <div className="hsv-error-banner mb-5">No se pudo conectar con la base de datos: {error.message}.</div> : null}
 
+        <h2 className="mb-3 text-lg font-semibold text-ink">Detalle completo por póliza</h2>
         <div className="grid gap-5">
           {policies.map((policy) => {
             const days = daysUntil(policy.end_date);
@@ -240,6 +403,11 @@ export default async function PoliciesPage() {
                     </form>
                   </div>
                 </div>
+
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-aviation-teal hover:underline">
+                    Ver detalle completo (cobertura, pagos, cumplimiento de pilotos)
+                  </summary>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
                   <div>
@@ -414,6 +582,7 @@ export default async function PoliciesPage() {
                     </button>
                   </form>
                 </div>
+                </details>
               </Panel>
             );
           })}
