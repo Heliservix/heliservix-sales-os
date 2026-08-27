@@ -24,6 +24,7 @@ type NonRoutinePrintSheetProps = {
     inspector_personnel_id: string | null;
     completed_at: string | null;
     status: string;
+    photo_url: string | null;
   };
   components: ComponentChangeRow[];
   personnelById: Map<string, PersonnelRow>;
@@ -81,7 +82,13 @@ export function NonRoutinePrintSheet({ report, components, personnelById, relate
 
       <div className="mt-3 border border-black text-[11px]">
         <p className="border-b border-black bg-gray-100 p-1.5 font-bold">DISCREPANCIA:</p>
-        <p className="min-h-[3em] p-1.5">{report.discrepancy || ""}</p>
+        <div className="flex items-start gap-2 p-1.5">
+          <p className="min-h-[3em] flex-1">{report.discrepancy || ""}</p>
+          {report.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={report.photo_url} alt="Foto de la anomalía" className="h-16 w-16 shrink-0 border border-black object-cover" />
+          ) : null}
+        </div>
         <div className="grid grid-cols-2 border-t border-black">
           <div className="border-r border-black p-1.5">
             <span className="font-bold">MECANICO: </span>

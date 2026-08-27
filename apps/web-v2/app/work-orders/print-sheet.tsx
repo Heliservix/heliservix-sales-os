@@ -27,6 +27,8 @@ type WorkOrderPrintSheetProps = {
     technician_completed_at: string | null;
     manager_approved_by: string | null;
     manager_approved_at: string | null;
+    technician_signature_url: string | null;
+    manager_signature_url: string | null;
   };
   items: Array<{
     id: string;
@@ -35,6 +37,8 @@ type WorkOrderPrintSheetProps = {
     is_complete: boolean;
     completed_by_personnel_id: string | null;
     completed_at: string | null;
+    photo_url: string | null;
+    signature_url: string | null;
   }>;
   personnelById: Map<string, PersonnelRow>;
 };
@@ -133,13 +137,23 @@ export function WorkOrderPrintSheet({ order, items, personnelById }: WorkOrderPr
         <div className="space-y-1 p-1.5">
           {done.length ? (
             done.map((item, i) => (
-              <p key={item.id} className="break-inside-avoid">
-                {i + 1}) {item.description}{" "}
-                <span className="text-[9px] text-gray-600">
-                  — hecho por {nameFor(item.completed_by_personnel_id) || "—"}
-                  {item.completed_at ? ` el ${fmt(item.completed_at)}` : ""}
-                </span>
-              </p>
+              <div key={item.id} className="flex items-center gap-2 break-inside-avoid">
+                <p className="flex-1">
+                  {i + 1}) {item.description}{" "}
+                  <span className="text-[9px] text-gray-600">
+                    — hecho por {nameFor(item.completed_by_personnel_id) || "—"}
+                    {item.completed_at ? ` el ${fmt(item.completed_at)}` : ""}
+                  </span>
+                </p>
+                {item.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.photo_url} alt="Foto" className="h-8 w-8 shrink-0 border border-black object-cover" />
+                ) : null}
+                {item.signature_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.signature_url} alt="Firma" className="h-6 w-auto shrink-0 border border-black bg-white" />
+                ) : null}
+              </div>
             ))
           ) : (
             <p className="text-gray-500">— Nada completado todavía —</p>
@@ -163,14 +177,26 @@ export function WorkOrderPrintSheet({ order, items, personnelById }: WorkOrderPr
       <div className="mt-6 grid grid-cols-2 gap-8 text-center text-[11px]">
         <div>
           <p className="font-bold">TECNICO ENCARGADO</p>
-          <div className="mt-8 border-t border-black pt-1">FIRMA</div>
+          {order.technician_signature_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={order.technician_signature_url} alt="Firma del técnico" className="mx-auto mt-2 h-14 w-auto object-contain" />
+          ) : (
+            <div className="mt-8" />
+          )}
+          <div className="border-t border-black pt-1">FIRMA</div>
           <p className="mt-1">{nameFor(order.lead_technician_id) || "—"}</p>
           <p className="mt-1 text-[10px]">FECHA: {order.technician_completed_at ? fmt(order.technician_completed_at) : "____________"}</p>
         </div>
         <div>
           <p className="font-bold">GERENTE GENERAL</p>
           <p className="text-[10px]">HELISER VIX INC.</p>
-          <div className="mt-4 border-t border-black pt-1">FIRMA</div>
+          {order.manager_signature_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={order.manager_signature_url} alt="Firma del gerente" className="mx-auto mt-1 h-14 w-auto object-contain" />
+          ) : (
+            <div className="mt-4" />
+          )}
+          <div className="border-t border-black pt-1">FIRMA</div>
           <p className="mt-1">{nameFor(order.manager_approved_by) || "—"}</p>
           <p className="mt-1 text-[10px]">FECHA: {order.manager_approved_at ? fmt(order.manager_approved_at) : "____________"}</p>
         </div>

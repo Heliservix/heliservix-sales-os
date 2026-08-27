@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Wrench, CheckCircle2, Circle, Download } from "lucide-react";
+import { Wrench, CheckCircle2, Circle, Download, Camera, PenLine, AlertOctagon } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
+import { SignaturePad } from "@/components/ui/signature-pad";
 import { supabase } from "@/lib/supabase";
 import {
   addWorkOrderItem,
   completeWorkOrderItem,
   undoWorkOrderItem,
   deleteWorkOrderItem,
+  uploadWorkOrderItemPhoto,
+  signWorkOrderItem,
   markTechnicianComplete,
   approveWorkOrder,
   updateWorkOrderStatus,
@@ -95,6 +98,13 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
               <Download className="h-4 w-4" aria-hidden="true" />
               Exportar
             </a>
+            <Link
+              className="hsv-ghost-button !px-3 !py-1.5 text-xs text-status-red"
+              href={`/non-routine/new?workOrderId=${id}&helicopterRegistration=${encodeURIComponent(order.helicopter_registration ?? "")}&aircraftModel=${encodeURIComponent(order.aircraft_type ?? "")}`}
+            >
+              <AlertOctagon className="h-4 w-4" aria-hidden="true" />
+              Reportar Anomalía
+            </Link>
           </div>
         </div>
 
@@ -161,6 +171,8 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
               const boundComplete = completeWorkOrderItem.bind(null, item.id, id);
               const boundUndo = undoWorkOrderItem.bind(null, item.id, id);
               const boundDelete = deleteWorkOrderItem.bind(null, item.id, id);
+              const boundItemPhoto = uploadWorkOrderItemPhoto.bind(null, item.id, id);
+              const boundItemSign = signWorkOrderItem.bind(null, item.id, id);
               const showSectionHeader = item.section_label && item.section_label !== items[index - 1]?.section_label;
               return (
                 <div key={item.id}>
@@ -214,6 +226,39 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
                           </form>
                         </div>
                       )}
+                      {item.photo_url || item.signature_url ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          {item.photo_url ? (
+                            <a href={item.photo_url} target="_blank" rel="noreferrer">
+                              <img src={item.photo_url} alt="Foto de la tarea" className="h-14 w-14 rounded-md border border-line object-cover" />
+                            </a>
+                          ) : null}
+                          {item.signature_url ? (
+                            <img src={item.signature_url} alt="Firma de la tarea" className="h-10 w-auto rounded-md border border-line bg-white" />
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex flex-wrap items-center gap-3 print:hidden">
+                        <form action={boundItemPhoto} encType="multipart/form-data" className="flex items-center gap-1.5">
+                          <input type="file" name="photo" accept="image/*" capture="environment" required className="hsv-control !w-auto !py-1 text-[11px]" />
+                          <button className="hsv-ghost-button !px-2 !py-1 text-[11px]" type="submit">
+                            <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+                            {item.photo_url ? "Cambiar" : "Subir foto"}
+                          </button>
+                        </form>
+                        <details>
+                          <summary className="hsv-ghost-button inline-flex !w-fit cursor-pointer list-none items-center gap-1 !px-2 !py-1 text-[11px]">
+                            <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+                            {item.signature_url ? "Volver a firmar" : "Firmar tarea"}
+                          </summary>
+                          <form action={boundItemSign} className="mt-2 max-w-xs">
+                            <SignaturePad name="signatureDataUrl" label="Firma" height={100} />
+                            <button className="hsv-secondary-button mt-2 !px-2 !py-1 text-[11px]" type="submit">
+                              Guardar firma
+                            </button>
+                          </form>
+                        </details>
+                      </div>
                     </div>
                   </div>
                   </div>
@@ -237,11 +282,17 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
             <div>
               <p className="text-xs font-semibold uppercase text-ink-subtle">Técnico encargado</p>
               {order.technician_completed_at ? (
-                <p className="mt-1 text-sm text-status-green">
-                  Trabajo terminado el {new Date(order.technician_completed_at).toLocaleString("es-PA")}
-                </p>
+                <div>
+                  <p className="mt-1 text-sm text-status-green">
+                    Trabajo terminado el {new Date(order.technician_completed_at).toLocaleString("es-PA")}
+                  </p>
+                  {order.technician_signature_url ? (
+                    <img src={order.technician_signature_url} alt="Firma del técnico" className="mt-2 h-16 w-auto rounded-md border border-line bg-white" />
+                  ) : null}
+                </div>
               ) : (
-                <form action={boundMarkTechComplete} className="mt-2 print:hidden">
+                <form action={boundMarkTechComplete} className="mt-2 grid gap-2 print:hidden">
+                  <SignaturePad name="signatureDataUrl" label="Firma del técnico (opcional)" height={100} />
                   <button className="hsv-secondary-button" type="submit">
                     Marcar mi trabajo como terminado
                   </button>
@@ -251,11 +302,16 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
             <div>
               <p className="text-xs font-semibold uppercase text-ink-subtle">Gerente General — Heliser Vix Inc.</p>
               {order.manager_approved_at ? (
-                <p className="mt-1 text-sm text-status-green">
-                  Aprobado por {manager?.full_name ?? "—"} el {new Date(order.manager_approved_at).toLocaleString("es-PA")}
-                </p>
+                <div>
+                  <p className="mt-1 text-sm text-status-green">
+                    Aprobado por {manager?.full_name ?? "—"} el {new Date(order.manager_approved_at).toLocaleString("es-PA")}
+                  </p>
+                  {order.manager_signature_url ? (
+                    <img src={order.manager_signature_url} alt="Firma del gerente" className="mt-2 h-16 w-auto rounded-md border border-line bg-white" />
+                  ) : null}
+                </div>
               ) : (
-                <form action={boundApprove} className="mt-2 flex flex-wrap items-center gap-2 print:hidden">
+                <form action={boundApprove} className="mt-2 grid gap-2 print:hidden">
                   <select className="hsv-control !w-auto" name="managerId" required defaultValue="">
                     <option value="" disabled>
                       Selecciona quién aprueba
@@ -266,7 +322,8 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
                       </option>
                     ))}
                   </select>
-                  <button className="hsv-primary-button" type="submit">
+                  <SignaturePad name="signatureDataUrl" label="Firma del gerente (opcional)" height={100} />
+                  <button className="hsv-primary-button w-fit" type="submit">
                     Aprobar y cerrar orden
                   </button>
                 </form>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { uploadPhotoFile } from "@/lib/media-upload";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -48,6 +49,20 @@ export async function createNonRoutineReport(formData: FormData) {
     .single();
 
   if (error) throw new Error(error.message);
+
+  // Foto opcional tomada con la cámara de la tablet al momento de reportar la
+  // anomalía — misma idea que las fotos de tareas en Órdenes de Trabajo, pero
+  // aquí documenta el hallazgo completo en vez de una tarea del checklist.
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    const extension = photo.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `non-routine/${report.id}/photo-${Date.now()}.${extension}`;
+    const { url, error: uploadError } = await uploadPhotoFile(path, photo);
+    if (uploadError) throw new Error(uploadError);
+    if (url) {
+      await supabase.from("non_routine_reports").update({ photo_url: url }).eq("id", report.id);
+    }
+  }
 
   revalidatePath("/non-routine");
   revalidatePath("/");

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { uploadDataUrlImage, uploadPhotoFile } from "@/lib/media-upload";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -204,12 +205,72 @@ export async function deleteWorkOrderItem(itemId: string, workOrderId: string) {
   revalidatePath(`/work-orders/${workOrderId}`);
 }
 
+// "Documentar con foto" — a técnico on a tablet can attach a quick photo to
+// any checklist line (evidence of the work, or of something odd worth
+// noting) straight from the camera, via <input capture="environment">. Not
+// tied to marking the item complete — can be added before, during, or
+// after.
+export async function uploadWorkOrderItemPhoto(itemId: string, workOrderId: string, formData: FormData) {
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Selecciona o toma una foto.");
+
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `work-orders/${workOrderId}/items/${itemId}-${Date.now()}.${extension}`;
+  const { url, error } = await uploadPhotoFile(path, file);
+  if (error || !url) throw new Error(error ?? "No se pudo subir la foto.");
+
+  const { error: updateError } = await supabase
+    .from("work_order_items")
+    .update({ photo_url: url, updated_at: new Date().toISOString() })
+    .eq("id", itemId);
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath(`/work-orders/${workOrderId}`);
+}
+
+// Optional per-línea signature (stylus) — separate from completeWorkOrderItem's
+// personnel picker, which is what actually drives the license-linked
+// accountability record. This is an extra, visual "firmado por" flourish
+// for shops that want a literal signature on every line, not the primary
+// audit trail.
+export async function signWorkOrderItem(itemId: string, workOrderId: string, formData: FormData) {
+  const dataUrl = text(formData, "signatureDataUrl");
+  if (!dataUrl) throw new Error("Firma en el recuadro antes de guardar.");
+
+  const path = `work-orders/${workOrderId}/items/${itemId}-signature-${Date.now()}.png`;
+  const { url, error } = await uploadDataUrlImage(path, dataUrl);
+  if (error || !url) throw new Error(error ?? "No se pudo guardar la firma.");
+
+  const { error: updateError } = await supabase
+    .from("work_order_items")
+    .update({ signature_url: url, updated_at: new Date().toISOString() })
+    .eq("id", itemId);
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath(`/work-orders/${workOrderId}`);
+}
+
 // Digital stand-in for the paper form's "TECNICO ENCARGADO / FIRMA" box —
-// the lead technician declaring their part of the job done.
-export async function markTechnicianComplete(id: string) {
+// the lead technician declaring their part of the job done. The signature
+// (from the SignaturePad, a PNG data URL in a hidden form field) is
+// optional — never blocks marking the work done if the técnico skips it.
+export async function markTechnicianComplete(id: string, formData: FormData) {
+  const dataUrl = text(formData, "signatureDataUrl");
+  let signatureUrl: string | null = null;
+  if (dataUrl) {
+    const { url, error } = await uploadDataUrlImage(`work-orders/${id}/technician-signature-${Date.now()}.png`, dataUrl);
+    if (error) throw new Error(error);
+    signatureUrl = url;
+  }
+
   const { error } = await supabase
     .from("work_orders")
-    .update({ status: "Completada", technician_completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({
+      status: "Completada",
+      technician_completed_at: new Date().toISOString(),
+      ...(signatureUrl ? { technician_signature_url: signatureUrl } : {}),
+      updated_at: new Date().toISOString()
+    })
     .eq("id", id);
   if (error) throw new Error(error.message);
 
@@ -228,6 +289,14 @@ export async function approveWorkOrder(id: string, formData: FormData) {
   const managerId = text(formData, "managerId");
   if (!managerId) throw new Error("Selecciona quién aprueba como Gerente General.");
 
+  const dataUrl = text(formData, "signatureDataUrl");
+  let signatureUrl: string | null = null;
+  if (dataUrl) {
+    const { url, error } = await uploadDataUrlImage(`work-orders/${id}/manager-signature-${Date.now()}.png`, dataUrl);
+    if (error) throw new Error(error);
+    signatureUrl = url;
+  }
+
   const { data: order, error: fetchError } = await supabase
     .from("work_orders")
     .select("sequence_number, helicopter_registration, aircraft_registration, lead_technician_id, notes")
@@ -237,7 +306,13 @@ export async function approveWorkOrder(id: string, formData: FormData) {
 
   const { error } = await supabase
     .from("work_orders")
-    .update({ status: "Cerrada", manager_approved_by: managerId, manager_approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({
+      status: "Cerrada",
+      manager_approved_by: managerId,
+      manager_approved_at: new Date().toISOString(),
+      ...(signatureUrl ? { manager_signature_url: signatureUrl } : {}),
+      updated_at: new Date().toISOString()
+    })
     .eq("id", id);
   if (error) throw new Error(error.message);
 

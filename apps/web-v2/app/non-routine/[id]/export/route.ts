@@ -114,7 +114,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   sectionHeader(sheet, r, "DISCREPANCIA:");
   r++;
-  fullRow(sheet, r, report.discrepancy ?? "");
+  fullRow(sheet, r, `${report.discrepancy ?? ""}${report.photo_url ? " [Foto adjunta]" : ""}`);
   r++;
   label(sheet.getRow(r).getCell(1), "MECANICO");
   sheet.mergeCells(r, 2, r, 4);

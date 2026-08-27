@@ -137,6 +137,14 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
             <p className="text-xs font-semibold uppercase text-ink-subtle">Discrepancia</p>
             <p className="mt-1 rounded-md border border-line bg-canvas-muted/40 p-3 text-sm text-ink">{report.discrepancy}</p>
           </div>
+          {report.photo_url ? (
+            <div className="mt-3">
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Foto de la anomalía</p>
+              <a href={report.photo_url} target="_blank" rel="noreferrer">
+                <img src={report.photo_url} alt="Foto de la anomalía" className="mt-1 h-32 w-32 rounded-md border border-line object-cover" />
+              </a>
+            </div>
+          ) : null}
           {report.manual_reference ? (
             <p className="mt-2 text-xs text-ink-subtle">Referencia: {report.manual_reference}</p>
           ) : null}

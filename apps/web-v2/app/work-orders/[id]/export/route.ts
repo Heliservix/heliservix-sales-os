@@ -146,7 +146,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
     for (const [i, item] of done.entries()) {
       const who = nameFor(item.completed_by_personnel_id) || "—";
       const when = item.completed_at ? new Date(item.completed_at).toLocaleString("es-PA") : "";
-      fullRow(sheet, r, `${i + 1}) ${item.description} — hecho por ${who}${when ? ` el ${when}` : ""}`);
+      const extras = [item.photo_url ? "Foto adjunta" : null, item.signature_url ? "Firma digital" : null].filter(Boolean).join(" · ");
+      fullRow(sheet, r, `${i + 1}) ${item.description} — hecho por ${who}${when ? ` el ${when}` : ""}${extras ? ` [${extras}]` : ""}`);
       r++;
     }
   } else {
@@ -181,13 +182,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   sheet.mergeCells(r, 1, r, 3);
   const techFirma = sheet.getRow(r).getCell(1);
-  techFirma.value = `Firma: ${nameFor(order.lead_technician_id) || "—"}`;
+  techFirma.value = `Firma: ${nameFor(order.lead_technician_id) || "—"}${order.technician_signature_url ? " (firma digital guardada)" : ""}`;
   techFirma.font = { size: 9 };
   techFirma.alignment = { horizontal: "center" };
   box(techFirma);
   sheet.mergeCells(r, 4, r, 6);
   const mgrFirma = sheet.getRow(r).getCell(4);
-  mgrFirma.value = `Firma: ${nameFor(order.manager_approved_by) || "—"}`;
+  mgrFirma.value = `Firma: ${nameFor(order.manager_approved_by) || "—"}${order.manager_signature_url ? " (firma digital guardada)" : ""}`;
   mgrFirma.font = { size: 9 };
   mgrFirma.alignment = { horizontal: "center" };
   box(mgrFirma);
