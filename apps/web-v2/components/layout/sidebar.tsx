@@ -1,14 +1,28 @@
 "use client";
 
 import { navigationGroups } from "@/lib/navigation";
+import { isMechanicAllowedPath } from "@/lib/role-access";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { usePathname } from "next/navigation";
 
-export function Sidebar() {
+type SidebarProps = {
+  restrictToMechanic?: boolean;
+};
+
+export function Sidebar({ restrictToMechanic = false }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
+
+  // A Mecánico only sees the groups/items middleware would actually let
+  // them into (Dashboard, Fleet, Mantenimiento) — everything else just
+  // disappears instead of showing as a link that bounces them back.
+  const visibleGroups = restrictToMechanic
+    ? navigationGroups
+        .map((group) => ({ ...group, items: group.items.filter((item) => isMechanicAllowedPath(item.href)) }))
+        .filter((group) => group.items.length > 0)
+    : navigationGroups;
 
   return (
     <aside className="hidden h-screen w-[21rem] shrink-0 border-r border-brand-blue/20 bg-brand-navy px-4 py-5 text-white shadow-2xl shadow-brand-navy/18 lg:sticky lg:top-0 lg:flex lg:flex-col print:hidden">
@@ -17,7 +31,7 @@ export function Sidebar() {
       </div>
 
       <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1" aria-label={t("shell.module")}>
-        {navigationGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <section key={group.label}>
             <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-white/38">
               {t(group.labelKey)}

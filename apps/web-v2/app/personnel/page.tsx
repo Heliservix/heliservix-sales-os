@@ -23,13 +23,14 @@ type PersonnelRow = {
   flight_check_expiry: string | null;
   passport_expiry: string | null;
   seaman_book_expiry: string | null;
+  account_invited_at: string | null;
 };
 
 export default async function PersonnelPage() {
   const { data, error } = await supabase
     .from("personnel")
     .select(
-      "id, full_name, role, monthly_salary, rate_per_ton, phone, status, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry, seaman_book_expiry"
+      "id, full_name, role, monthly_salary, rate_per_ton, phone, status, license_expiry, medical_certificate_expiry, recurrency_expiry, flight_check_expiry, passport_expiry, seaman_book_expiry, account_invited_at"
     )
     .eq("archived", false)
     .order("role")
@@ -84,6 +85,7 @@ export default async function PersonnelPage() {
                   <th className="hsv-table-th">Tarifa por tonelada</th>
                   <th className="hsv-table-th">Teléfono</th>
                   <th className="hsv-table-th">Estado</th>
+                  <th className="hsv-table-th">Acceso</th>
                   <th className="hsv-table-th">Documentos</th>
                 </tr>
               </thead>
@@ -114,6 +116,11 @@ export default async function PersonnelPage() {
                         <StatusPill tone={person.status === "Active" ? "green" : "neutral"}>{person.status}</StatusPill>
                       </td>
                       <td className="hsv-table-cell">
+                        <StatusPill tone={person.account_invited_at ? "green" : "neutral"}>
+                          {person.account_invited_at ? "Con acceso" : "Sin acceso"}
+                        </StatusPill>
+                      </td>
+                      <td className="hsv-table-cell">
                         {worst ? (
                           <StatusPill tone={worst}>{worst === "red" ? "Documento vencido" : "Por vencer"}</StatusPill>
                         ) : documentStatuses.length ? (
@@ -127,7 +134,7 @@ export default async function PersonnelPage() {
                 })}
                 {!personnel.length && !error ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={7}>
+                    <td className="hsv-empty-state" colSpan={8}>
                       Todavía no hay pilotos ni mecánicos registrados.
                     </td>
                   </tr>

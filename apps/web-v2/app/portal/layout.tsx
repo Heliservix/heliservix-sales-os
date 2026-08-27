@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { HardHat } from "lucide-react";
+import Link from "next/link";
+import { HardHat, UserCircle } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 
@@ -25,7 +26,16 @@ export default async function PortalLayout({ children }: { children: React.React
             </p>
           </div>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/account"
+            className="flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink-muted shadow-control transition hover:border-aviation-blue/30 hover:text-aviation-blue"
+            title="Mi cuenta"
+          >
+            <UserCircle className="h-4 w-4" aria-hidden="true" />
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
 
       <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">

@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { updatePersonnel, archivePersonnel } from "@/app/personnel/actions";
 import { personnelRoles, personnelStatuses } from "@/app/personnel/constants";
 import { PersonnelPhotoUploadForm } from "@/app/personnel/photo-upload-form";
+import { AccountAccessForm } from "@/app/personnel/account-access-form";
 import { fetchFaenaData, computePersonnelFlightHours } from "@/lib/faena-metrics";
 import { getPersonnelDocumentStatuses } from "@/lib/personnel-compliance";
 
@@ -77,6 +78,32 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
             </div>
           </Panel>
         ) : null}
+
+        <Panel className="mb-5">
+          <h2 className="text-sm font-semibold text-ink">Acceso al sistema</h2>
+          <p className="mt-1 text-xs text-ink-subtle">
+            Con esto la persona puede entrar a HeliServiX OS con su propio usuario y contraseña. Un Mecánico entra al módulo de
+            Mantenimiento y a Flota; un Piloto entra al Portal Técnico a subir sus reportes semanales.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <StatusPill tone={person.account_invited_at ? "green" : "neutral"}>
+              {person.account_invited_at ? "Con acceso" : "Sin acceso"}
+            </StatusPill>
+            {person.account_invited_at ? (
+              <span className="text-xs text-ink-subtle">
+                Creado el {new Date(person.account_invited_at).toLocaleDateString("es-PA")}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-3">
+            <AccountAccessForm
+              personnelId={id}
+              hasEmail={Boolean(person.email)}
+              isActive={person.status === "Active"}
+              alreadyInvited={Boolean(person.account_invited_at)}
+            />
+          </div>
+        </Panel>
 
         <Panel className="mb-5">
           <h2 className="mb-3 text-sm font-semibold text-ink">Fotos</h2>

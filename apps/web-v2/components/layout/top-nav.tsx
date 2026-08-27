@@ -1,18 +1,26 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, UserCircle } from "lucide-react";
+import Link from "next/link";
 import { primaryNavigation } from "@/lib/navigation";
+import { isMechanicAllowedPath } from "@/lib/role-access";
 import { languages } from "@/lib/i18n";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { usePathname, useRouter } from "next/navigation";
 
-export function TopNav() {
+type TopNavProps = {
+  restrictToMechanic?: boolean;
+};
+
+export function TopNav({ restrictToMechanic = false }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { language, setLanguage, t } = useI18n();
-  const readyNavigation = primaryNavigation.filter((item) => item.status !== "planned");
+  const readyNavigation = primaryNavigation
+    .filter((item) => item.status !== "planned")
+    .filter((item) => !restrictToMechanic || isMechanicAllowedPath(item.href));
   const activeHref =
     readyNavigation.find((item) => item.href !== "/" && pathname.startsWith(item.href))?.href ?? "/";
 
@@ -61,6 +69,14 @@ export function TopNav() {
           <ShieldCheck className="h-4 w-4 text-aviation-teal" aria-hidden="true" />
           <span className="text-sm font-medium text-ink">{t("shell.fleetOps")}</span>
         </div>
+
+        <Link
+          href="/account"
+          className="hidden h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink-muted shadow-control transition hover:border-aviation-blue/30 hover:text-aviation-blue dark:bg-canvas-muted sm:flex"
+          title="Mi cuenta"
+        >
+          <UserCircle className="h-4 w-4" aria-hidden="true" />
+        </Link>
 
         <LogoutButton />
       </div>

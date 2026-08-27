@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendAccountCreatedEmail } from "@/lib/email";
 import { extractSeamanBookFields } from "@/lib/document-vision";
 
 function text(form: FormData, key: string) {
@@ -106,6 +108,82 @@ export async function archivePersonnel(id: string) {
   revalidatePath("/personnel");
   revalidatePath("/alerts");
   redirect("/personnel");
+}
+
+export type CreateTechnicianAccountState = { error?: string; success?: boolean };
+
+function generateTempPassword() {
+  // 12 chars, letters+digits, avoids ambiguous look-alikes (0/O, 1/l/I) so
+  // it's easy to type on a tablet keyboard if the técnico ever has to enter
+  // it by hand instead of copy/paste.
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let out = "";
+  for (let i = 0; i < 12; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+// Gives a Piloto/Mecánico their own login: creates a real Supabase Auth
+// user (email + a random temporary password) and emails it to them via
+// Resend. No password ever passes through this app's UI or Adolfo's hands —
+// he only clicks a button here, the técnico gets the credentials directly
+// in their own inbox. Matching this person to their `personnel` row at
+// login time already works today via email (see lib/auth.ts's
+// getSessionUser), so nothing else needs to change once the account exists.
+export async function createTechnicianAccount(
+  personnelId: string,
+  _prevState: CreateTechnicianAccountState,
+  _formData: FormData
+): Promise<CreateTechnicianAccountState> {
+  const { data: person, error: fetchError } = await supabase
+    .from("personnel")
+    .select("full_name, email, role, status")
+    .eq("id", personnelId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!person) return { error: "No se encontró a esta persona." };
+  if (!person.email) return { error: "Primero guarda un correo para esta persona — ese correo será su usuario." };
+  if (person.status !== "Active") return { error: "Solo se puede crear acceso a personas con estado Activo." };
+
+  let admin;
+  try {
+    admin = createSupabaseAdminClient();
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo preparar la creación de la cuenta." };
+  }
+
+  const tempPassword = generateTempPassword();
+
+  const { error: createError } = await admin.auth.admin.createUser({
+    email: person.email,
+    password: tempPassword,
+    email_confirm: true
+  });
+
+  if (createError) {
+    const alreadyExists = createError.message.toLowerCase().includes("already been registered") || createError.message.toLowerCase().includes("already exists");
+    return {
+      error: alreadyExists
+        ? `${person.email} ya tiene una cuenta creada. Si perdió la contraseña, tienes que restablecerla desde el panel de Supabase (Authentication → Users).`
+        : `No se pudo crear la cuenta: ${createError.message}`
+    };
+  }
+
+  try {
+    await sendAccountCreatedEmail({ to: person.email, fullName: person.full_name, tempPassword });
+  } catch (error) {
+    return {
+      error: `Se creó la cuenta pero no se pudo enviar el correo con la contraseña: ${
+        error instanceof Error ? error.message : "error desconocido"
+      }. La cuenta ya existe — puedes restablecer la contraseña desde Supabase y avisarle por otro medio.`
+    };
+  }
+
+  await supabase.from("personnel").update({ account_invited_at: new Date().toISOString() }).eq("id", personnelId);
+  revalidatePath("/personnel");
+  revalidatePath(`/personnel/${personnelId}/edit`);
+
+  return { success: true };
 }
 
 const PERSONNEL_PHOTOS_BUCKET = "personnel-photos";
