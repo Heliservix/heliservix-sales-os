@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertOctagon } from "lucide-react";
+import { AlertOctagon, Download } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -15,6 +15,7 @@ import {
   deleteComponentChange
 } from "@/app/non-routine/actions";
 import { nonRoutineStatuses } from "@/app/non-routine/constants";
+import { PrintButton } from "@/app/reports/faena/[id]/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -65,21 +66,28 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
 
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <StatusPill tone={STATUS_TONE[report.status] ?? "neutral"}>{report.status}</StatusPill>
-          <Link className="hsv-secondary-button !px-3 !py-1.5 text-xs" href={`/non-routine/${id}/edit`}>
-            Editar datos
-          </Link>
-          <form action={boundStatus} className="flex items-center gap-2">
-            <select className="hsv-control !w-auto !py-1.5 text-xs" name="status" defaultValue={report.status}>
-              {nonRoutineStatuses.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button className="hsv-ghost-button !px-2 !py-1 text-xs" type="submit">
-              Cambiar estado
-            </button>
-          </form>
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
+            <Link className="hsv-secondary-button !px-3 !py-1.5 text-xs" href={`/non-routine/${id}/edit`}>
+              Editar datos
+            </Link>
+            <form action={boundStatus} className="flex items-center gap-2">
+              <select className="hsv-control !w-auto !py-1.5 text-xs" name="status" defaultValue={report.status}>
+                {nonRoutineStatuses.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <button className="hsv-ghost-button !px-2 !py-1 text-xs" type="submit">
+                Cambiar estado
+              </button>
+            </form>
+            <PrintButton />
+            <a className="hsv-secondary-button !px-3 !py-1.5 text-xs" href={`/non-routine/${id}/export`}>
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Exportar
+            </a>
+          </div>
         </div>
 
         <Panel className="mb-5">
@@ -142,7 +150,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
               </p>
             </div>
           ) : (
-            <form action={boundCorrective} className="grid gap-3">
+            <form action={boundCorrective} className="grid gap-3 print:hidden">
               <textarea className="hsv-textarea" name="correctiveAction" rows={3} required placeholder="Describe qué se hizo para corregir la discrepancia" />
               <div className="flex flex-wrap items-center gap-2">
                 <select className="hsv-control !w-auto" name="correctedByPersonnelId" required defaultValue="">
@@ -182,7 +190,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
                         {c.serial_installed ? `S/N instalado ${c.serial_installed}` : "S/N instalado —"}
                       </p>
                     </div>
-                    <form action={boundDelete}>
+                    <form action={boundDelete} className="print:hidden">
                       <button className="hsv-ghost-button !px-2 !py-1 text-[11px] text-status-red" type="submit">
                         Quitar
                       </button>
@@ -194,7 +202,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
             {!components.length ? <p className="hsv-empty-state">Sin cambios de componente registrados en este reporte.</p> : null}
           </div>
 
-          <form action={boundAddComponent} className="mt-4 grid gap-2 border-t border-line pt-4 sm:grid-cols-2">
+          <form action={boundAddComponent} className="mt-4 grid gap-2 border-t border-line pt-4 sm:grid-cols-2 print:hidden">
             <input className="hsv-control sm:col-span-2" name="description" placeholder="Componente, ej. Bomba de combustible" required />
             <input className="hsv-control" name="partNumber" placeholder="P/N" />
             <input className="hsv-control" name="serialRemoved" placeholder="S/N removido" />
@@ -216,7 +224,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
           ) : !report.corrective_action ? (
             <p className="text-sm text-ink-subtle">Registra primero la acción correctiva antes de poder cerrar el reporte.</p>
           ) : (
-            <form action={boundClose} className="flex flex-wrap items-center gap-2">
+            <form action={boundClose} className="flex flex-wrap items-center gap-2 print:hidden">
               <select className="hsv-control !w-auto" name="inspectorPersonnelId" required defaultValue="">
                 <option value="" disabled>
                   Selecciona quién inspecciona y cierra
@@ -234,7 +242,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
           )}
         </Panel>
 
-        <Panel className="mt-5">
+        <Panel className="mt-5 print:hidden">
           <h2 className="text-sm font-semibold text-ink">Zona de riesgo</h2>
           <p className="mt-1 text-sm text-ink-subtle">Archivar quita este reporte de la lista principal, pero conserva su historial.</p>
           <div className="mt-4">

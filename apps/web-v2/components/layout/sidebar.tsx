@@ -11,7 +11,7 @@ export function Sidebar() {
   const { t } = useI18n();
 
   return (
-    <aside className="hidden h-screen w-[21rem] shrink-0 border-r border-brand-blue/20 bg-brand-navy px-4 py-5 text-white shadow-2xl shadow-brand-navy/18 lg:sticky lg:top-0 lg:flex lg:flex-col">
+    <aside className="hidden h-screen w-[21rem] shrink-0 border-r border-brand-blue/20 bg-brand-navy px-4 py-5 text-white shadow-2xl shadow-brand-navy/18 lg:sticky lg:top-0 lg:flex lg:flex-col print:hidden">
       <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.05] p-3 shadow-control">
         <BrandLockup variant="sidebar" />
       </div>

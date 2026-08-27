@@ -17,7 +17,7 @@ export function TopNav() {
     readyNavigation.find((item) => item.href !== "/" && pathname.startsWith(item.href))?.href ?? "/";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-white/94 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 border-b border-line bg-white/94 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8 print:hidden">
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="min-w-0 lg:hidden">

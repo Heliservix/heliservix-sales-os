@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Wrench, CheckCircle2, Circle } from "lucide-react";
+import { Wrench, CheckCircle2, Circle, Download } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -17,6 +17,7 @@ import {
   archiveWorkOrder
 } from "@/app/work-orders/actions";
 import { workOrderStatuses } from "@/app/work-orders/constants";
+import { PrintButton } from "@/app/reports/faena/[id]/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -70,21 +71,28 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
 
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <StatusPill tone={STATUS_TONE[order.status] ?? "neutral"}>{order.status}</StatusPill>
-          <Link className="hsv-secondary-button !px-3 !py-1.5 text-xs" href={`/work-orders/${id}/edit`}>
-            Editar datos
-          </Link>
-          <form action={boundStatus} className="flex items-center gap-2">
-            <select className="hsv-control !w-auto !py-1.5 text-xs" name="status" defaultValue={order.status}>
-              {workOrderStatuses.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button className="hsv-ghost-button !px-2 !py-1 text-xs" type="submit">
-              Cambiar estado
-            </button>
-          </form>
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
+            <Link className="hsv-secondary-button !px-3 !py-1.5 text-xs" href={`/work-orders/${id}/edit`}>
+              Editar datos
+            </Link>
+            <form action={boundStatus} className="flex items-center gap-2">
+              <select className="hsv-control !w-auto !py-1.5 text-xs" name="status" defaultValue={order.status}>
+                {workOrderStatuses.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <button className="hsv-ghost-button !px-2 !py-1 text-xs" type="submit">
+                Cambiar estado
+              </button>
+            </form>
+            <PrintButton />
+            <a className="hsv-secondary-button !px-3 !py-1.5 text-xs" href={`/work-orders/${id}/export`}>
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Exportar
+            </a>
+          </div>
         </div>
 
         <Panel className="mb-5">
@@ -172,14 +180,14 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
                             {completedBy?.license_number ? ` (Lic. ${completedBy.license_number})` : ""} el{" "}
                             {item.completed_at ? new Date(item.completed_at).toLocaleString("es-PA") : ""}
                           </p>
-                          <form action={boundUndo}>
+                          <form action={boundUndo} className="print:hidden">
                             <button className="hsv-ghost-button !px-2 !py-0.5 text-[11px]" type="submit">
                               Deshacer
                             </button>
                           </form>
                         </div>
                       ) : (
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 print:hidden">
                           <form action={boundComplete} className="flex flex-wrap items-center gap-2">
                             <select className="hsv-control !w-auto !py-1 text-xs" name="personnelId" required defaultValue="">
                               <option value="" disabled>
@@ -212,7 +220,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
             {!items.length ? <p className="hsv-empty-state">Esta orden todavía no tiene tareas — agrega la primera abajo.</p> : null}
           </div>
 
-          <form action={boundAddItem} className="mt-4 flex flex-col gap-2 border-t border-line pt-4 sm:flex-row">
+          <form action={boundAddItem} className="mt-4 flex flex-col gap-2 border-t border-line pt-4 sm:flex-row print:hidden">
             <input className="hsv-control flex-1" name="description" placeholder="Nueva tarea, ej. Cambio de filtro de aceite" required />
             <button className="hsv-secondary-button" type="submit">
               Agregar tarea
@@ -230,7 +238,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
                   Trabajo terminado el {new Date(order.technician_completed_at).toLocaleString("es-PA")}
                 </p>
               ) : (
-                <form action={boundMarkTechComplete} className="mt-2">
+                <form action={boundMarkTechComplete} className="mt-2 print:hidden">
                   <button className="hsv-secondary-button" type="submit">
                     Marcar mi trabajo como terminado
                   </button>
@@ -244,7 +252,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
                   Aprobado por {manager?.full_name ?? "—"} el {new Date(order.manager_approved_at).toLocaleString("es-PA")}
                 </p>
               ) : (
-                <form action={boundApprove} className="mt-2 flex flex-wrap items-center gap-2">
+                <form action={boundApprove} className="mt-2 flex flex-wrap items-center gap-2 print:hidden">
                   <select className="hsv-control !w-auto" name="managerId" required defaultValue="">
                     <option value="" disabled>
                       Selecciona quién aprueba
@@ -264,7 +272,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
           </div>
         </Panel>
 
-        <Panel className="mt-5">
+        <Panel className="mt-5 print:hidden">
           <h2 className="text-sm font-semibold text-ink">Zona de riesgo</h2>
           <p className="mt-1 text-sm text-ink-subtle">Archivar quita esta orden de la lista principal, pero conserva su historial.</p>
           <div className="mt-4">
