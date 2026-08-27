@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateNonRoutineReport } from "@/app/non-routine/actions";
+import { NonRoutineAircraftFields, type NonRoutineHelicopterOption } from "@/app/non-routine/aircraft-fields";
 
 type EditNonRoutineReportPageProps = { params: Promise<{ id: string }> };
 
@@ -12,11 +13,17 @@ export default async function EditNonRoutineReportPage({ params }: EditNonRoutin
   const { id } = await params;
   const [{ data: report }, { data: helicopters }, { data: personnel }, { data: openWorkOrders }] = await Promise.all([
     supabase.from("non_routine_reports").select("*").eq("id", id).maybeSingle(),
-    supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration"),
+    supabase.from("helicopters").select("registration, model, current_hourmeter").eq("archived", false).order("registration"),
     supabase.from("personnel").select("id, full_name").eq("archived", false).order("full_name"),
     supabase.from("work_orders").select("id, sequence_number").eq("archived", false).order("created_at", { ascending: false })
   ]);
   if (!report) notFound();
+
+  const helicopterOptions: NonRoutineHelicopterOption[] = (helicopters ?? []).map((h) => ({
+    registration: h.registration,
+    model: h.model,
+    currentHourmeter: h.current_hourmeter != null ? Number(h.current_hourmeter) : null
+  }));
 
   const boundUpdate = updateNonRoutineReport.bind(null, id);
 
@@ -31,21 +38,14 @@ export default async function EditNonRoutineReportPage({ params }: EditNonRoutin
         />
         <Panel>
           <form action={boundUpdate} className="grid gap-5 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Helicóptero de la flota
-              <select className="hsv-control" name="helicopterRegistration" defaultValue={report.helicopter_registration ?? ""}>
-                <option value="">Externo / no está en la flota</option>
-                {(helicopters ?? []).map((h) => (
-                  <option key={h.registration} value={h.registration}>
-                    {h.registration} — {h.model}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Modelo de aeronave
-              <input className="hsv-control" name="aircraftModel" defaultValue={report.aircraft_model ?? ""} />
-            </label>
+            <NonRoutineAircraftFields
+              helicopters={helicopterOptions}
+              defaults={{
+                helicopterRegistration: report.helicopter_registration ?? "",
+                aircraftModel: report.aircraft_model ?? "",
+                totalTimeHours: report.total_time_hours != null ? String(report.total_time_hours) : ""
+              }}
+            />
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Orden de trabajo relacionada
               <select className="hsv-control" name="workOrderId" defaultValue={report.work_order_id ?? ""}>
@@ -56,10 +56,6 @@ export default async function EditNonRoutineReportPage({ params }: EditNonRoutin
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Horas totales (Total Time)
-              <input className="hsv-control" type="number" step="0.1" name="totalTimeHours" defaultValue={report.total_time_hours ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Fecha del reporte

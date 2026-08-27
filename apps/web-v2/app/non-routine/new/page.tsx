@@ -4,13 +4,20 @@ import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createNonRoutineReport } from "@/app/non-routine/actions";
+import { NonRoutineAircraftFields, type NonRoutineHelicopterOption } from "@/app/non-routine/aircraft-fields";
 
 export default async function NewNonRoutineReportPage() {
   const [{ data: helicopters }, { data: personnel }, { data: openWorkOrders }] = await Promise.all([
-    supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration"),
+    supabase.from("helicopters").select("registration, model, current_hourmeter").eq("archived", false).order("registration"),
     supabase.from("personnel").select("id, full_name").eq("archived", false).order("full_name"),
     supabase.from("work_orders").select("id, sequence_number").eq("archived", false).order("created_at", { ascending: false })
   ]);
+
+  const helicopterOptions: NonRoutineHelicopterOption[] = (helicopters ?? []).map((h) => ({
+    registration: h.registration,
+    model: h.model,
+    currentHourmeter: h.current_hourmeter != null ? Number(h.current_hourmeter) : null
+  }));
 
   return (
     <AppShell>
@@ -23,21 +30,10 @@ export default async function NewNonRoutineReportPage() {
         />
         <Panel>
           <form action={createNonRoutineReport} className="grid gap-5 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Helicóptero de la flota (opcional)
-              <select className="hsv-control" name="helicopterRegistration" defaultValue="">
-                <option value="">Externo / no está en la flota</option>
-                {(helicopters ?? []).map((h) => (
-                  <option key={h.registration} value={h.registration}>
-                    {h.registration} — {h.model}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Modelo de aeronave
-              <input className="hsv-control" name="aircraftModel" placeholder="Ej. Robinson R44" />
-            </label>
+            <NonRoutineAircraftFields
+              helicopters={helicopterOptions}
+              defaults={{ helicopterRegistration: "", aircraftModel: "", totalTimeHours: "" }}
+            />
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Orden de trabajo relacionada (opcional)
               <select className="hsv-control" name="workOrderId" defaultValue="">
@@ -48,10 +44,6 @@ export default async function NewNonRoutineReportPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Horas totales (Total Time)
-              <input className="hsv-control" type="number" step="0.1" name="totalTimeHours" />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Fecha del reporte

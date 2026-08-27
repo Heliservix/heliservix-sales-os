@@ -4,13 +4,25 @@ import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createWorkOrder } from "@/app/work-orders/actions";
+import { WorkOrderAircraftFields, type WorkOrderHelicopterOption } from "@/app/work-orders/aircraft-fields";
 
 export default async function NewWorkOrderPage() {
-  const [{ data: helicopters }, { data: mechanics }, { data: templates }] = await Promise.all([
-    supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration"),
+  const [{ data: helicopters }, { data: mechanics }, { data: templates }, { data: engines }] = await Promise.all([
+    supabase.from("helicopters").select("registration, model, serial_number, owner_company").eq("archived", false).order("registration"),
     supabase.from("personnel").select("id, full_name").eq("archived", false).eq("role", "Mecánico").order("full_name"),
-    supabase.from("checklist_templates").select("id, name, aircraft_model").eq("archived", false).order("name")
+    supabase.from("checklist_templates").select("id, name, aircraft_model").eq("archived", false).order("name"),
+    supabase.from("components").select("helicopter_registration, part_number, serial_number").ilike("component_name", "ENGINE").eq("archived", false)
   ]);
+
+  const engineByRegistration = new Map((engines ?? []).map((e) => [e.helicopter_registration, e]));
+  const helicopterOptions: WorkOrderHelicopterOption[] = (helicopters ?? []).map((h) => ({
+    registration: h.registration,
+    model: h.model,
+    serialNumber: h.serial_number,
+    ownerCompany: h.owner_company,
+    engineModel: engineByRegistration.get(h.registration)?.part_number ?? null,
+    engineSerial: engineByRegistration.get(h.registration)?.serial_number ?? null
+  }));
 
   return (
     <AppShell>
@@ -23,60 +35,21 @@ export default async function NewWorkOrderPage() {
         />
         <Panel>
           <form action={createWorkOrder} className="grid gap-5 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <h2 className="text-sm font-semibold text-ink">Cliente</h2>
-            </div>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Cliente
-              <input className="hsv-control" name="clientName" placeholder="Ej. Heliser Vix Inc." />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Teléfono
-              <input className="hsv-control" name="clientPhone" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
-              Dirección
-              <input className="hsv-control" name="clientAddress" />
-            </label>
-
-            <div className="sm:col-span-2 border-t border-line pt-4">
-              <h2 className="text-sm font-semibold text-ink">Aeronave</h2>
-            </div>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Helicóptero de la flota (opcional)
-              <select className="hsv-control" name="helicopterRegistration" defaultValue="">
-                <option value="">Externo / no está en la flota</option>
-                {(helicopters ?? []).map((h) => (
-                  <option key={h.registration} value={h.registration}>
-                    {h.registration} — {h.model}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Aeronave (tipo)
-              <input className="hsv-control" name="aircraftType" placeholder="Ej. Robinson R44" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Matrícula
-              <input className="hsv-control" name="aircraftRegistration" placeholder="Ej. HP-1804" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              S/N aeronave
-              <input className="hsv-control" name="aircraftSerial" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Motor
-              <input className="hsv-control" name="engineType" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Modelo (motor)
-              <input className="hsv-control" name="engineModel" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              S/N motor
-              <input className="hsv-control" name="engineSerial" />
-            </label>
+            <WorkOrderAircraftFields
+              helicopters={helicopterOptions}
+              defaults={{
+                helicopterRegistration: "",
+                clientName: "",
+                clientPhone: "",
+                clientAddress: "",
+                aircraftType: "",
+                aircraftRegistration: "",
+                aircraftSerial: "",
+                engineType: "",
+                engineModel: "",
+                engineSerial: ""
+              }}
+            />
 
             <div className="sm:col-span-2 border-t border-line pt-4">
               <h2 className="text-sm font-semibold text-ink">Trabajo</h2>

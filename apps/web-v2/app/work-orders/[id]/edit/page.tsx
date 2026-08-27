@@ -5,17 +5,29 @@ import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateWorkOrder } from "@/app/work-orders/actions";
+import { WorkOrderAircraftFields, type WorkOrderHelicopterOption } from "@/app/work-orders/aircraft-fields";
 
 type EditWorkOrderPageProps = { params: Promise<{ id: string }> };
 
 export default async function EditWorkOrderPage({ params }: EditWorkOrderPageProps) {
   const { id } = await params;
-  const [{ data: order }, { data: helicopters }, { data: mechanics }] = await Promise.all([
+  const [{ data: order }, { data: helicopters }, { data: mechanics }, { data: engines }] = await Promise.all([
     supabase.from("work_orders").select("*").eq("id", id).maybeSingle(),
-    supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration"),
-    supabase.from("personnel").select("id, full_name").eq("archived", false).eq("role", "Mecánico").order("full_name")
+    supabase.from("helicopters").select("registration, model, serial_number, owner_company").eq("archived", false).order("registration"),
+    supabase.from("personnel").select("id, full_name").eq("archived", false).eq("role", "Mecánico").order("full_name"),
+    supabase.from("components").select("helicopter_registration, part_number, serial_number").ilike("component_name", "ENGINE").eq("archived", false)
   ]);
   if (!order) notFound();
+
+  const engineByRegistration = new Map((engines ?? []).map((e) => [e.helicopter_registration, e]));
+  const helicopterOptions: WorkOrderHelicopterOption[] = (helicopters ?? []).map((h) => ({
+    registration: h.registration,
+    model: h.model,
+    serialNumber: h.serial_number,
+    ownerCompany: h.owner_company,
+    engineModel: engineByRegistration.get(h.registration)?.part_number ?? null,
+    engineSerial: engineByRegistration.get(h.registration)?.serial_number ?? null
+  }));
 
   const boundUpdate = updateWorkOrder.bind(null, id);
 
@@ -30,53 +42,21 @@ export default async function EditWorkOrderPage({ params }: EditWorkOrderPagePro
         />
         <Panel>
           <form action={boundUpdate} className="grid gap-5 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Cliente
-              <input className="hsv-control" name="clientName" defaultValue={order.client_name ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Teléfono
-              <input className="hsv-control" name="clientPhone" defaultValue={order.client_phone ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
-              Dirección
-              <input className="hsv-control" name="clientAddress" defaultValue={order.client_address ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Helicóptero de la flota
-              <select className="hsv-control" name="helicopterRegistration" defaultValue={order.helicopter_registration ?? ""}>
-                <option value="">Externo / no está en la flota</option>
-                {(helicopters ?? []).map((h) => (
-                  <option key={h.registration} value={h.registration}>
-                    {h.registration} — {h.model}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Aeronave (tipo)
-              <input className="hsv-control" name="aircraftType" defaultValue={order.aircraft_type ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Matrícula
-              <input className="hsv-control" name="aircraftRegistration" defaultValue={order.aircraft_registration ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              S/N aeronave
-              <input className="hsv-control" name="aircraftSerial" defaultValue={order.aircraft_serial ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Motor
-              <input className="hsv-control" name="engineType" defaultValue={order.engine_type ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Modelo (motor)
-              <input className="hsv-control" name="engineModel" defaultValue={order.engine_model ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              S/N motor
-              <input className="hsv-control" name="engineSerial" defaultValue={order.engine_serial ?? ""} />
-            </label>
+            <WorkOrderAircraftFields
+              helicopters={helicopterOptions}
+              defaults={{
+                helicopterRegistration: order.helicopter_registration ?? "",
+                clientName: order.client_name ?? "",
+                clientPhone: order.client_phone ?? "",
+                clientAddress: order.client_address ?? "",
+                aircraftType: order.aircraft_type ?? "",
+                aircraftRegistration: order.aircraft_registration ?? "",
+                aircraftSerial: order.aircraft_serial ?? "",
+                engineType: order.engine_type ?? "",
+                engineModel: order.engine_model ?? "",
+                engineSerial: order.engine_serial ?? ""
+              }}
+            />
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Técnico encargado
               <select className="hsv-control" name="leadTechnicianId" defaultValue={order.lead_technician_id ?? ""}>
