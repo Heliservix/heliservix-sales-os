@@ -16,6 +16,7 @@ import {
 } from "@/app/non-routine/actions";
 import { nonRoutineStatuses } from "@/app/non-routine/constants";
 import { PrintButton } from "@/app/reports/faena/[id]/print-button";
+import { NonRoutinePrintSheet } from "@/app/non-routine/print-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +54,13 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
   const boundCorrective = recordCorrectiveAction.bind(null, id);
   const boundClose = closeNonRoutineReport.bind(null, id);
   const boundAddComponent = addComponentChange.bind(null, id);
+  const relatedOrderCode = report.work_order_id ? `OT-${String(workOrdersById.get(report.work_order_id) ?? "").padStart(5, "0")}` : null;
 
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl">
+        <NonRoutinePrintSheet report={report} components={components} personnelById={personnelById} relatedOrderCode={relatedOrderCode} />
+        <div className="print:hidden">
         <SectionHeader
           eyebrow="Mantenimiento"
           title={`Reporte No Rutina NR-${String(report.sequence_number).padStart(5, "0")}`}
@@ -253,6 +257,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
             </form>
           </div>
         </Panel>
+        </div>
       </div>
     </AppShell>
   );

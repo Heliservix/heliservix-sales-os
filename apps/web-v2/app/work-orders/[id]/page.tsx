@@ -18,6 +18,7 @@ import {
 } from "@/app/work-orders/actions";
 import { workOrderStatuses } from "@/app/work-orders/constants";
 import { PrintButton } from "@/app/reports/faena/[id]/print-button";
+import { WorkOrderPrintSheet } from "@/app/work-orders/print-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,8 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl">
+        <WorkOrderPrintSheet order={order} items={items} personnelById={personnelById} />
+        <div className="print:hidden">
         <SectionHeader
           eyebrow="Mantenimiento"
           title={`Orden OT-${String(order.sequence_number).padStart(5, "0")}`}
@@ -283,6 +286,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
             </form>
           </div>
         </Panel>
+        </div>
       </div>
     </AppShell>
   );
