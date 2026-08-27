@@ -868,10 +868,88 @@ create table work_order_items (
   completed_by_personnel_id uuid references personnel(id),
   completed_at timestamptz,
   notes text,
+  -- Preserves the original grouping header from a paper checklist (e.g.
+  -- "7. Open Cowling Doors, Remove Tailcone Cowling & Mast Fairing") when
+  -- items are cloned from a checklist_template, or set manually. Null for
+  -- ordinary hand-typed work order tasks — the UI only prints a section
+  -- header when this changes between consecutive rows.
+  section_label text,
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+-- ========================================================================
+-- Checklist templates — a long inspection checklist (100hr/50hr per the
+-- MPI Air Supplies manual's AS-21/AS-22 forms) defined ONCE and then cloned
+-- into a new work order's work_order_items when selected on the "Crear
+-- Orden de Reparación" form, instead of retyping every line (up to ~168
+-- lines for the 100hr/annual form) by hand each time.
+-- ========================================================================
+
+create table checklist_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  aircraft_model text,
+  description text,
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now()
+);
+
+create table checklist_template_items (
+  id uuid primary key default gen_random_uuid(),
+  template_id uuid not null references checklist_templates(id) on delete cascade,
+  position integer not null default 0,
+  section_label text,
+  description text not null,
+  created_at timestamptz not null default now()
+);
+
+-- ========================================================================
+-- No Rutina — Formulario AS-09 from the MPI Air Supplies manual,
+-- digitized (Aug 2026): a discrepancy found during a work order or a
+-- standalone inspection, its corrective action, and an inspector's
+-- close-out. Same "attribute to a personnel_id, join for current
+-- name/license at display time" pattern as work_order_items above, but
+-- with THREE separate attributions instead of one (who found it, who
+-- corrected it, who inspected/closed it).
+-- ========================================================================
+
+create table non_routine_reports (
+  id uuid primary key default gen_random_uuid(),
+  sequence_number integer generated always as identity, -- "NR-00001" in the UI
+  helicopter_registration text references helicopters(registration),
+  work_order_id uuid references work_orders(id),
+  aircraft_model text,
+  total_time_hours numeric,
+  report_date date not null default current_date,
+  discrepancy text not null,
+  opened_by_personnel_id uuid references personnel(id),
+  corrective_action text,
+  corrected_by_personnel_id uuid references personnel(id),
+  manual_reference text, -- AD/SB/manual reference for the finding
+  inspector_personnel_id uuid references personnel(id),
+  completed_at date,
+  status text not null default 'Abierta' check (status in ('Abierta','Corregida','Cerrada')),
+  notes text,
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- "Control de Componente" — optional 0-to-many parts-swap detail embedded
+-- in a No Rutina report.
+create table non_routine_component_changes (
+  id uuid primary key default gen_random_uuid(),
+  non_routine_report_id uuid not null references non_routine_reports(id) on delete cascade,
+  description text,
+  part_number text,
+  serial_removed text,
+  serial_installed text,
+  created_at timestamptz not null default now()
 );
 
 -- ========================================================================
@@ -931,7 +1009,8 @@ begin
       'stock_movements','purchase_requests','campaigns','technical_records',
       'compliance_items','migration_logs','personnel',
       'fleet_health_history','insurance_policies','insurance_payments',
-      'work_orders','work_order_items'
+      'work_orders','work_order_items','checklist_templates','checklist_template_items',
+      'non_routine_reports','non_routine_component_changes'
     ])
   loop
     execute format('alter table %I enable row level security;', t);

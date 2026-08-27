@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { createWorkOrder } from "@/app/work-orders/actions";
 
 export default async function NewWorkOrderPage() {
-  const [{ data: helicopters }, { data: mechanics }] = await Promise.all([
+  const [{ data: helicopters }, { data: mechanics }, { data: templates }] = await Promise.all([
     supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration"),
-    supabase.from("personnel").select("id, full_name").eq("archived", false).eq("role", "Mecánico").order("full_name")
+    supabase.from("personnel").select("id, full_name").eq("archived", false).eq("role", "Mecánico").order("full_name"),
+    supabase.from("checklist_templates").select("id, name, aircraft_model").eq("archived", false).order("name")
   ]);
 
   return (
@@ -81,11 +82,25 @@ export default async function NewWorkOrderPage() {
               <h2 className="text-sm font-semibold text-ink">Trabajo</h2>
             </div>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
-              Descripción del trabajo requerido — una tarea por línea
+              Checklist de inspección (opcional)
+              <select className="hsv-control" name="checklistTemplateId" defaultValue="">
+                <option value="">Ninguno — solo escribir tareas abajo</option>
+                {(templates ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs font-normal text-ink-subtle">
+                Si eliges un checklist (ej. inspección de 100 hrs), sus líneas se agregan automáticamente a la orden — no hace falta escribirlas a mano.
+              </span>
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Tareas adicionales — una por línea
               <textarea
                 className="hsv-textarea"
                 name="tasksText"
-                rows={7}
+                rows={5}
                 placeholder={"Ej.\nCambio de aceite motor\nInspección de tren de aterrizaje\nRevisión de rotor de cola"}
               />
             </label>

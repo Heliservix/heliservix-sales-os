@@ -57,12 +57,41 @@ export async function createWorkOrder(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  // A checklist template (100hr/50hr inspection, etc.) can be cloned in as a
+  // starting point instead of retyping every line — its items are inserted
+  // first (keeping section_label headers), then any manually typed lines
+  // from tasksText are appended after.
+  const templateId = optionalText(formData, "checklistTemplateId");
+  let nextPosition = 0;
+  if (templateId) {
+    const { data: templateItems, error: templateError } = await supabase
+      .from("checklist_template_items")
+      .select("position, section_label, description")
+      .eq("template_id", templateId)
+      .order("position", { ascending: true });
+    if (templateError) throw new Error(templateError.message);
+
+    if (templateItems?.length) {
+      const { error: cloneError } = await supabase.from("work_order_items").insert(
+        templateItems.map((item, index) => ({
+          work_order_id: order.id,
+          position: index,
+          section_label: item.section_label,
+          description: item.description,
+          source: "User"
+        }))
+      );
+      if (cloneError) throw new Error(cloneError.message);
+      nextPosition = templateItems.length;
+    }
+  }
+
   const tasks = splitTaskLines(text(formData, "tasksText"));
   if (tasks.length) {
     const { error: itemsError } = await supabase.from("work_order_items").insert(
       tasks.map((description, index) => ({
         work_order_id: order.id,
-        position: index,
+        position: nextPosition + index,
         description,
         source: "User"
       }))

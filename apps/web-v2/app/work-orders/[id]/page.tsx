@@ -145,13 +145,18 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
           </div>
 
           <div className="grid gap-2">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const completedBy = item.completed_by_personnel_id ? personnelById.get(item.completed_by_personnel_id) : null;
               const boundComplete = completeWorkOrderItem.bind(null, item.id, id);
               const boundUndo = undoWorkOrderItem.bind(null, item.id, id);
               const boundDelete = deleteWorkOrderItem.bind(null, item.id, id);
+              const showSectionHeader = item.section_label && item.section_label !== items[index - 1]?.section_label;
               return (
-                <div key={item.id} className={`rounded-md border p-3 ${item.is_complete ? "border-status-green/30 bg-status-green/5" : "border-line"}`}>
+                <div key={item.id}>
+                  {showSectionHeader ? (
+                    <p className="mb-1 mt-3 text-xs font-bold uppercase tracking-wide text-ink-subtle first:mt-0">{item.section_label}</p>
+                  ) : null}
+                  <div className={`rounded-md border p-3 ${item.is_complete ? "border-status-green/30 bg-status-green/5" : "border-line"}`}>
                   <div className="flex items-start gap-3">
                     {item.is_complete ? (
                       <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-status-green" aria-hidden="true" />
@@ -199,6 +204,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
                         </div>
                       )}
                     </div>
+                  </div>
                   </div>
                 </div>
               );

@@ -39,7 +39,8 @@ export const dictionary = {
       aura: "AURA",
       weeklyReports: "Weekly Reports",
       personnel: "Personnel",
-      workOrders: "Work Orders"
+      workOrders: "Work Orders",
+      nonRoutine: "Non-Routine Reports"
     },
     navGroup: {
       operations: "Operations",
@@ -124,7 +125,8 @@ export const dictionary = {
       aura: "AURA",
       weeklyReports: "Reportes Semanales",
       personnel: "Personal",
-      workOrders: "Órdenes de Trabajo"
+      workOrders: "Órdenes de Trabajo",
+      nonRoutine: "Reportes No Rutina"
     },
     navGroup: {
       operations: "Operaciones",
