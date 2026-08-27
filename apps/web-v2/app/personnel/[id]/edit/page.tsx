@@ -44,12 +44,12 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
       <div className="mx-auto max-w-3xl">
         <SectionHeader eyebrow="Personal" title={`Editar ${person.full_name}`} description={person.role} icon={UserRoundCog} />
 
-        {flightSummary ? (
+        {flightSummary && person.role === "Piloto" ? (
           <Panel className="mb-5">
             <h2 className="text-sm font-semibold text-ink">Horas de vuelo (calculadas por el sistema)</h2>
             <p className="mt-1 text-xs text-ink-subtle">
               Suma de horas previas (manual) más lo volado en faenas asignadas a esta persona en Campañas. Solo cuenta faenas donde
-              alguien la asignó como piloto/mecánico — una faena importada del reporte semanal que nadie asignó todavía no suma aquí.
+              alguien la asignó como piloto — una faena importada del reporte semanal que nadie asignó todavía no suma aquí.
             </p>
             <p className="mt-2 text-2xl font-bold text-ink">{totalHours.toFixed(0)} hrs totales</p>
             {Object.keys(flightSummary.hoursByModel).length ? (
@@ -62,6 +62,17 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
               </div>
             ) : null}
             <p className="mt-2 text-xs text-ink-subtle">{flightSummary.faenas} faena(s) asignada(s) en el sistema.</p>
+          </Panel>
+        ) : null}
+
+        {flightSummary && person.role === "Mecánico" ? (
+          <Panel className="mb-5">
+            <h2 className="text-sm font-semibold text-ink">Faenas realizadas</h2>
+            <p className="mt-1 text-xs text-ink-subtle">
+              Cuántas faenas tiene asignadas esta persona en Campañas desde que se registró en el sistema. Las horas de vuelo no
+              aplican a un mecánico — esa métrica es solo para pilotos.
+            </p>
+            <p className="mt-2 text-2xl font-bold text-ink">{flightSummary.faenas} faena(s)</p>
           </Panel>
         ) : null}
 
