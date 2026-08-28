@@ -40,7 +40,8 @@ export const dictionary = {
       weeklyReports: "Weekly Reports",
       personnel: "Personnel",
       workOrders: "Work Orders",
-      nonRoutine: "Non-Routine Reports"
+      nonRoutine: "Non-Routine Reports",
+      library: "Robinson Technical Library"
     },
     navGroup: {
       operations: "Operations",
@@ -126,7 +127,8 @@ export const dictionary = {
       weeklyReports: "Reportes Semanales",
       personnel: "Personal",
       workOrders: "Órdenes de Trabajo",
-      nonRoutine: "Reportes No Rutina"
+      nonRoutine: "Reportes No Rutina",
+      library: "Biblioteca Técnica Robinson"
     },
     navGroup: {
       operations: "Operaciones",
