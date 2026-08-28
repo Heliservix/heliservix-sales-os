@@ -7,9 +7,10 @@
 // Dashboard ("/") + Flota (full access, per Adolfo's explicit request) +
 // the whole Mantenimiento module: Alertas, Registros Técnicos, Cumplimiento
 // (incl. Boletines, which lives under /compliance/bulletins), Órdenes de
-// Trabajo, No Rutina. Everything else (Personal, Pólizas, Compras,
-// Inventario, Vessels, Campañas, Reports, AURA, Portal Técnico's weekly-
-// report wizard) is admin-only.
+// Trabajo, No Rutina — plus AURA's advice (no dollar values live there,
+// confirmed before adding it — only maintenance/operations recommendations).
+// Everything else (Personal, Pólizas, Compras, Inventario, Vessels,
+// Campañas, Reports, Portal Técnico's weekly-report wizard) is admin-only.
 export const MECHANIC_ALLOWED_PREFIXES = [
   "/helicopters",
   "/alerts",
@@ -17,6 +18,7 @@ export const MECHANIC_ALLOWED_PREFIXES = [
   "/compliance",
   "/work-orders",
   "/non-routine",
+  "/aura",
   "/account"
 ];
 

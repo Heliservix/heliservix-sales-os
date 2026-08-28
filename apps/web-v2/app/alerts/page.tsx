@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, Plus, ShieldAlert, TrendingUp } from "lucide-react";
+import { AlertTriangle, CalendarClock, ShieldAlert, TrendingUp, Wrench, Bot } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -10,6 +10,7 @@ import { updateAlertStatus } from "@/app/alerts/actions";
 import { buildMaintenanceSchedule, type ScheduledInspection } from "@/lib/maintenance-schedule";
 import { buildAuraAnalysis, type AuraForecastBucket } from "@/lib/aura";
 import { getPersonnelDocumentStatuses, daysUntil as daysUntilDoc, documentTone, type PersonnelDocumentRow } from "@/lib/personnel-compliance";
+import { getSessionUser } from "@/lib/auth";
 
 const SCHEDULE_TONE: Record<ScheduledInspection["status"], "red" | "amber" | "green"> = {
   Overdue: "red",
@@ -76,6 +77,12 @@ type PolicyAlertRow = {
 
 export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   const { registration: selectedRegistration } = await searchParams;
+
+  const session = await getSessionUser();
+  // Un Mecánico ve este módulo para atacar mantenimiento — no necesita, y
+  // Adolfo pidió explícitamente que no vea, nada económico (vigencias de
+  // pólizas, montos de cuotas). Los admins siguen viendo todo.
+  const isMechanicViewer = Boolean(session && !session.isAdmin && session.personnelRole === "Mecánico");
 
   const [{ data, error }, schedule, { data: helicopters }, auraAnalysis, { data: policyData }, { data: paymentData }, { data: personnelData }] =
     await Promise.all([
@@ -206,6 +213,17 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
         />
 
         <div className="mb-5 flex flex-wrap items-center gap-2">
+          <Link href="/maintenance/new" className="hsv-primary-button">
+            <Wrench className="h-4 w-4" aria-hidden="true" />
+            Registrar mantenimiento en hangar
+          </Link>
+          <Link href="/aura" className="hsv-secondary-button">
+            <Bot className="h-4 w-4" aria-hidden="true" />
+            Consejos de AURA
+          </Link>
+        </div>
+
+        <div className="mb-5 flex flex-wrap items-center gap-2">
           <Link
             href="/alerts"
             className={
@@ -330,58 +348,60 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
           </div>
         </Panel>
 
-        <Panel className="mt-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-ink-muted" aria-hidden="true" />
-              <h2 className="text-lg font-semibold text-ink">Pólizas y documentos del personal</h2>
+        {!isMechanicViewer ? (
+          <Panel className="mt-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+                <h2 className="text-lg font-semibold text-ink">Pólizas y documentos del personal</h2>
+              </div>
+              {policyAlertsRed > 0 ? <StatusPill tone="red">{policyAlertsRed} vencido(s)</StatusPill> : null}
             </div>
-            {policyAlertsRed > 0 ? <StatusPill tone="red">{policyAlertsRed} vencido(s)</StatusPill> : null}
-          </div>
-          <p className="mb-4 text-sm text-ink-subtle">
-            Vigencia de pólizas, cuotas pendientes y documentos de pilotos/mecánicos (licencia, médico, recurrencia, chequeo de
-            vuelo, pasaporte) que ya vencieron o vencen dentro de 60 días.
-          </p>
-          <div className="hsv-table-wrap">
-            <table className="hsv-table">
-              <thead className="hsv-table-head">
-                <tr>
-                  <th className="hsv-table-th">Tipo</th>
-                  <th className="hsv-table-th">Quién / Qué</th>
-                  <th className="hsv-table-th">Detalle</th>
-                  <th className="hsv-table-th">Vence</th>
-                  <th className="hsv-table-th">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="hsv-table-body">
-                {policyAlerts.map((alert) => (
-                  <tr key={alert.key} className="hsv-table-row">
-                    <td className="hsv-table-cell text-ink-muted">{alert.kind}</td>
-                    <td className="hsv-table-cell">
-                      <Link className="font-semibold text-ink hover:text-aviation-teal" href={alert.href}>
-                        {alert.subject}
-                      </Link>
-                    </td>
-                    <td className="hsv-table-cell text-ink-muted">{alert.label}</td>
-                    <td className="hsv-table-cell hsv-technical-value">{alert.dueDate}</td>
-                    <td className="hsv-table-cell">
-                      <StatusPill tone={alert.tone}>
-                        {alert.daysUntil < 0 ? `vencido hace ${Math.abs(alert.daysUntil)} días` : `${alert.daysUntil} días`}
-                      </StatusPill>
-                    </td>
-                  </tr>
-                ))}
-                {!policyAlerts.length ? (
+            <p className="mb-4 text-sm text-ink-subtle">
+              Vigencia de pólizas, cuotas pendientes y documentos de pilotos/mecánicos (licencia, médico, recurrencia, chequeo de
+              vuelo, pasaporte) que ya vencieron o vencen dentro de 60 días.
+            </p>
+            <div className="hsv-table-wrap">
+              <table className="hsv-table">
+                <thead className="hsv-table-head">
                   <tr>
-                    <td className="hsv-empty-state" colSpan={5}>
-                      Nada vencido ni por vencer en pólizas o documentos del personal.
-                    </td>
+                    <th className="hsv-table-th">Tipo</th>
+                    <th className="hsv-table-th">Quién / Qué</th>
+                    <th className="hsv-table-th">Detalle</th>
+                    <th className="hsv-table-th">Vence</th>
+                    <th className="hsv-table-th">Estado</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+                </thead>
+                <tbody className="hsv-table-body">
+                  {policyAlerts.map((alert) => (
+                    <tr key={alert.key} className="hsv-table-row">
+                      <td className="hsv-table-cell text-ink-muted">{alert.kind}</td>
+                      <td className="hsv-table-cell">
+                        <Link className="font-semibold text-ink hover:text-aviation-teal" href={alert.href}>
+                          {alert.subject}
+                        </Link>
+                      </td>
+                      <td className="hsv-table-cell text-ink-muted">{alert.label}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{alert.dueDate}</td>
+                      <td className="hsv-table-cell">
+                        <StatusPill tone={alert.tone}>
+                          {alert.daysUntil < 0 ? `vencido hace ${Math.abs(alert.daysUntil)} días` : `${alert.daysUntil} días`}
+                        </StatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                  {!policyAlerts.length ? (
+                    <tr>
+                      <td className="hsv-empty-state" colSpan={5}>
+                        Nada vencido ni por vencer en pólizas o documentos del personal.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        ) : null}
 
         <Panel className="mt-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -443,10 +463,6 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
               <CalendarClock className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               <h2 className="text-lg font-semibold text-ink">Inspecciones programadas (manual Robinson)</h2>
             </div>
-            <Link className="hsv-secondary-button" href="/maintenance/new">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Registrar mantenimiento en hangar
-            </Link>
           </div>
           <p className="mb-4 text-sm text-ink-subtle">
             Calculado solo de tu historial real: detecta los tipos de inspección por horas (25 HRS, 50 HRS, 100 HRS, etc.) que ya
