@@ -6,6 +6,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
+import { getSessionUser } from "@/lib/auth";
 import { fetchDocumentCenterData, type AircraftDocumentRow } from "@/lib/document-center";
 import { DocumentUploadForm } from "@/app/helicopters/[registration]/documents/document-upload-form";
 import { EltForm } from "@/app/helicopters/[registration]/documents/elt-form";
@@ -17,7 +18,11 @@ type DocumentsPageProps = {
   params: Promise<{ registration: string }>;
 };
 
-function DocumentList({ registration, docs }: { registration: string; docs: AircraftDocumentRow[] }) {
+// hideAmounts: los mecánicos ya no ven valores económicos en ningún lugar
+// del módulo de Mantenimiento (pedido explícito de Adolfo, Ago 2026) — las
+// facturas viven aquí, así que el mismo criterio aplica: pueden ver que la
+// factura existe y abrir el archivo, pero no el monto ni el proveedor.
+function DocumentList({ registration, docs, hideAmounts }: { registration: string; docs: AircraftDocumentRow[]; hideAmounts: boolean }) {
   if (!docs.length) return <p className="text-sm text-ink-subtle">Sin documentos cargados todavía.</p>;
   return (
     <div className="hsv-table-wrap">
@@ -38,7 +43,7 @@ function DocumentList({ registration, docs }: { registration: string; docs: Airc
                 <td className="hsv-table-cell">
                   <p className="font-semibold text-ink">{doc.title}</p>
                   {doc.document_number ? <p className="text-xs text-ink-subtle">N° {doc.document_number}</p> : null}
-                  {doc.vendor || doc.amount != null ? (
+                  {!hideAmounts && (doc.vendor || doc.amount != null) ? (
                     <p className="text-xs text-ink-subtle">
                       {doc.vendor ?? ""} {doc.amount != null ? `— $${Number(doc.amount).toLocaleString("en-US")} ${doc.currency}` : ""}
                     </p>
@@ -75,6 +80,9 @@ export default async function AircraftDocumentsPage({ params }: DocumentsPagePro
   const { data: helicopter } = await supabase.from("helicopters").select("registration, model").eq("registration", registration).maybeSingle();
   if (!helicopter) notFound();
 
+  const session = await getSessionUser();
+  const isMechanicViewer = Boolean(session && !session.isAdmin && session.personnelRole === "Mecánico");
+
   const data = await fetchDocumentCenterData([registration]);
   const certificados = data.documents.filter((d) => d.helicopter_registration === registration && d.category === "Certificados");
   const bitacoras = data.documents.filter((d) => d.helicopter_registration === registration && d.category === "Bitacoras");
@@ -102,7 +110,7 @@ export default async function AircraftDocumentsPage({ params }: DocumentsPagePro
             Certificado de Aeronavegabilidad, Certificado de Matrícula, licencia de radio, certificado de ruido, y cualquier otro documento
             oficial de la aeronave.
           </p>
-          <DocumentList registration={registration} docs={certificados} />
+          <DocumentList registration={registration} docs={certificados} hideAmounts={isMechanicViewer} />
           <div className="mt-4 border-t border-line pt-4">
             <DocumentUploadForm registration={registration} category="Certificados" />
           </div>
@@ -111,7 +119,7 @@ export default async function AircraftDocumentsPage({ params }: DocumentsPagePro
         <Panel className="mb-5">
           <h2 className="mb-1 text-lg font-semibold text-ink">07 · Bitácoras</h2>
           <p className="mb-4 text-xs text-ink-subtle">Páginas escaneadas del logbook de aeronave y de motor.</p>
-          <DocumentList registration={registration} docs={bitacoras} />
+          <DocumentList registration={registration} docs={bitacoras} hideAmounts={isMechanicViewer} />
           <div className="mt-4 border-t border-line pt-4">
             <DocumentUploadForm registration={registration} category="Bitacoras" />
           </div>
@@ -120,9 +128,9 @@ export default async function AircraftDocumentsPage({ params }: DocumentsPagePro
         <Panel className="mb-5">
           <h2 className="mb-1 text-lg font-semibold text-ink">10 · Facturas relacionadas</h2>
           <p className="mb-4 text-xs text-ink-subtle">Facturas de repuestos, servicios o mantenimiento de esta aeronave.</p>
-          <DocumentList registration={registration} docs={facturas} />
+          <DocumentList registration={registration} docs={facturas} hideAmounts={isMechanicViewer} />
           <div className="mt-4 border-t border-line pt-4">
-            <DocumentUploadForm registration={registration} category="Facturas" showAmount />
+            <DocumentUploadForm registration={registration} category="Facturas" showAmount={!isMechanicViewer} />
           </div>
         </Panel>
 
