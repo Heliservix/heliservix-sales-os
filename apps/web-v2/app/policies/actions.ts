@@ -153,6 +153,7 @@ export async function updatePolicy(id: string, formData: FormData) {
     .from("insurance_policies")
     .update({
       insurer: optionalText(formData, "insurer"),
+      insured_name: optionalText(formData, "insuredName"),
       policy_number: optionalText(formData, "policyNumber"),
       coverage_type: optionalText(formData, "coverageType"),
       start_date: optionalText(formData, "startDate"),

@@ -33,6 +33,15 @@ export default async function EditPolicyPage({ params }: EditPolicyPageProps) {
               <input className="hsv-control" name="insurer" defaultValue={policy.insurer ?? ""} placeholder="Ej. ASSA, Pan-American Life" />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Asegurado (propietario de la aeronave)
+              <input
+                className="hsv-control"
+                name="insuredName"
+                defaultValue={policy.insured_name ?? ""}
+                placeholder="Ej. Tuna Air Limited"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               N° de póliza
               <input className="hsv-control" name="policyNumber" defaultValue={policy.policy_number ?? ""} />
             </label>

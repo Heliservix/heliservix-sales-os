@@ -19,6 +19,7 @@ type PolicyRow = {
   id: string;
   helicopter_registration: string | null;
   insurer: string | null;
+  insured_name: string | null;
   policy_number: string | null;
   coverage_type: string | null;
   start_date: string | null;
@@ -82,7 +83,7 @@ export default async function PoliciesPage() {
     supabase
       .from("insurance_policies")
       .select(
-        "id, helicopter_registration, insurer, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, anexo_url, status, pilot_requirements_detail"
+        "id, helicopter_registration, insurer, insured_name, policy_number, coverage_type, start_date, end_date, premium_amount, currency, min_pilot_hours_total, min_pilot_hours_type, requirements_summary, requirements_reviewed, attachment_placeholder, anexo_url, status, pilot_requirements_detail"
       ) // coverage_type was already selected but never rendered below — fixed alongside the analyzer not extracting it at all
       .eq("archived", false)
       .order("end_date", { ascending: true, nullsFirst: false }),
@@ -233,6 +234,7 @@ export default async function PoliciesPage() {
               <thead className="hsv-table-head">
                 <tr>
                   <th className="hsv-table-th">Aeronave</th>
+                  <th className="hsv-table-th">Asegurado</th>
                   <th className="hsv-table-th">Aseguradora</th>
                   <th className="hsv-table-th">Vigencia</th>
                   <th className="hsv-table-th">Próximo pago</th>
@@ -253,6 +255,7 @@ export default async function PoliciesPage() {
                         </Link>
                         <p className="text-xs font-normal text-ink-subtle">{helicopter.model}</p>
                       </td>
+                      <td className="hsv-table-cell text-ink-muted">{policy?.insured_name || <span className="text-ink-subtle">—</span>}</td>
                       <td className="hsv-table-cell text-ink-muted">{policy?.insurer || "Sin póliza"}</td>
                       <td className="hsv-table-cell">
                         {policy?.end_date ? (
@@ -314,7 +317,7 @@ export default async function PoliciesPage() {
                 })}
                 {!helicopterSummaries.length ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={7}>
+                    <td className="hsv-empty-state" colSpan={8}>
                       Registra primero un helicóptero en Flota para ver su resumen aquí.
                     </td>
                   </tr>
@@ -373,6 +376,12 @@ export default async function PoliciesPage() {
                       ) : null}
                     </p>
                     <p className="mt-1 hsv-technical-value text-sm text-ink-muted">Póliza N° {policy.policy_number || "sin detectar"}</p>
+                    {policy.insured_name ? (
+                      <p className="mt-0.5 text-sm text-ink-muted">
+                        <span className="text-xs font-semibold uppercase text-ink-subtle">Asegurado: </span>
+                        {policy.insured_name}
+                      </p>
+                    ) : null}
                     {policy.anexo_url ? (
                       <a href={policy.anexo_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-aviation-teal hover:underline">
                         Ver Anexo →
