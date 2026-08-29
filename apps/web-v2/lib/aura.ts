@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { fetchFaenaData, computeFaenaMetrics, computeVesselSummaries, type FaenaMetrics, type VesselSummary } from "@/lib/faena-metrics";
+import { fetchDocumentCenterData, computeSections, overallTone, type DocumentCenterTone } from "@/lib/document-center";
 
 // AURA is the same deterministic decision-support engine originally built in
 // apps/web/lib/copilot.ts, ported to read the real Supabase tables instead of
@@ -386,6 +387,7 @@ function buildExecutiveRecommendationEngine(input: {
   complianceItems: ComplianceItemRow[];
   helicopters: HelicopterRow[];
   operationsInsights: OperationsInsights;
+  documentCenterSummary: { registration: string; tone: DocumentCenterTone }[];
 }): AuraRecommendation[] {
   const recommendations: AuraRecommendation[] = [];
   const lowestHealth = input.fleetHealth.aircraft[0];
@@ -469,6 +471,43 @@ function buildExecutiveRecommendationEngine(input: {
       confidence: 93,
       domain: "Maintenance",
       sourceRecords: overdueCompliance.map((item) => item.id)
+    });
+  }
+
+  // Centro Documental (Aug 2026, Adolfo: "toda la información técnica...
+  // debe existir en el sistema... si mañana tu encargado no viene, tú debes
+  // poder encontrar cualquier documento importante en menos de 2 minutos").
+  // "red" aircraft are missing something safety/compliance-relevant
+  // (certificado, ELT, seguro, componente crítico, AD/SB vencido...);
+  // "amber" just need attention soon. Both matter for the digitize-everything
+  // policy, so both are surfaced — red as Critical, amber as Medium.
+  const redDocumentCenter = input.documentCenterSummary.filter((s) => s.tone === "red");
+  const amberDocumentCenter = input.documentCenterSummary.filter((s) => s.tone === "amber");
+  if (redDocumentCenter.length) {
+    recommendations.push({
+      id: "document-center-red",
+      priority: "Critical",
+      subject: "Centro Documental — aeronaves con secciones en rojo",
+      recommendation: `${redDocumentCenter.length} aeronave(s) tienen al menos una categoría del Centro Documental en rojo (documento vencido, faltante, o sin registrar).`,
+      evidence: redDocumentCenter.map((s) => s.registration),
+      operationalImpact: "Sin ese documento a la mano, una inspección de Aeronáutica Civil o una auditoría de seguro puede detener la operación de esa aeronave.",
+      recommendedAction: "Abrir el Centro Documental de cada aeronave listada (desde Flota) y completar lo que falte.",
+      confidence: 90,
+      domain: "Maintenance",
+      sourceRecords: redDocumentCenter.map((s) => s.registration)
+    });
+  } else if (amberDocumentCenter.length) {
+    recommendations.push({
+      id: "document-center-amber",
+      priority: "Medium",
+      subject: "Centro Documental — aeronaves para revisar pronto",
+      recommendation: `${amberDocumentCenter.length} aeronave(s) tienen documentos o vencimientos próximos en el Centro Documental.`,
+      evidence: amberDocumentCenter.map((s) => s.registration),
+      operationalImpact: "Si no se atiende pronto, puede pasar a estado crítico antes de la próxima revisión.",
+      recommendedAction: "Revisar el Centro Documental de cada aeronave listada y actualizar lo que esté por vencer.",
+      confidence: 82,
+      domain: "Maintenance",
+      sourceRecords: amberDocumentCenter.map((s) => s.registration)
     });
   }
 
@@ -939,13 +978,36 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
   const vesselSummaries = computeVesselSummaries(faenaRows);
   const fuelSpecAnomalies = buildFuelSpecAnomalies(faenaData.flightLogs, helicopterRows, faenaData.campaigns);
   const operationsInsights = { ...buildOperationsInsights(faenaRows, vesselSummaries), fuelSpecAnomalies };
+
+  const registrations = helicopterRows.map((h) => h.registration);
+  const documentCenterData = registrations.length
+    ? await fetchDocumentCenterData(registrations)
+    : {
+        policies: [],
+        payments: [],
+        workOrders: [],
+        components: [],
+        complianceItems: [],
+        nonRoutineReports: [],
+        maintenanceLogs: [],
+        componentChanges: [],
+        campaigns: [],
+        documents: [],
+        eltByRegistration: new Map()
+      };
+  const documentCenterSummary = registrations.map((registration) => ({
+    registration,
+    tone: overallTone(computeSections(registration, documentCenterData))
+  }));
+
   const executiveRecommendations = buildExecutiveRecommendationEngine({
     fleetHealth,
     maintenanceForecast,
     openAlerts: alertRows,
     complianceItems: complianceItemRows,
     helicopters: helicopterRows,
-    operationsInsights
+    operationsInsights,
+    documentCenterSummary
   });
   const helicopterRisks = helicopterRows
     .map((h) => buildHelicopterRisk(h, componentRows, alertRows))

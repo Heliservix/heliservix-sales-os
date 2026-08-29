@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, Pencil, Plane, Plus, Trash2, UploadCloud } from "lucide-react";
+import { BookOpen, Download, FolderOpen, Pencil, Plane, Plus, Trash2, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -9,6 +9,7 @@ import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
 import { PhotoUploadForm } from "@/app/helicopters/photo-upload-form";
 import { supabase } from "@/lib/supabase";
 import { deleteHelicopter } from "@/app/helicopters/actions";
+import { fetchDocumentCenterData, computeSections, overallTone } from "@/lib/document-center";
 
 // A component is "calendar-driven" when its calendar expiry is the tighter
 // constraint than its hours remaining — i.e. exactly the case where a part
@@ -47,6 +48,22 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
     .order("remaining_hours", { ascending: true });
 
   const boundDelete = deleteHelicopter.bind(null, registration);
+
+  const documentCenterData = await fetchDocumentCenterData([registration]);
+  const sections = computeSections(registration, documentCenterData);
+  const fleetTone = overallTone(sections);
+  const toneDot: Record<string, string> = {
+    green: "bg-aviation-green",
+    amber: "bg-aviation-amber",
+    red: "bg-aviation-red",
+    neutral: "bg-ink-subtle"
+  };
+  const toneText: Record<string, string> = {
+    green: "text-aviation-green",
+    amber: "text-aviation-amber",
+    red: "text-aviation-red",
+    neutral: "text-ink-subtle"
+  };
 
   return (
     <AppShell>
@@ -101,6 +118,44 @@ export default async function HelicopterDetailPage({ params }: HelicopterDetailP
             </div>
           </div>
           {helicopter.notes ? <p className="mt-5 text-sm leading-6 text-ink-subtle">{helicopter.notes}</p> : null}
+        </Panel>
+
+        <Panel className="mb-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-aviation-blue" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-ink">Centro Documental</h2>
+              <span className={`h-2.5 w-2.5 rounded-full ${toneDot[fleetTone]}`} aria-hidden="true" />
+              <span className={`text-xs font-semibold ${toneText[fleetTone]}`}>
+                {fleetTone === "green" ? "Todo vigente" : fleetTone === "amber" ? "Revisar pronto" : fleetTone === "red" ? "Atención" : "Sin datos"}
+              </span>
+            </div>
+            <Link className="hsv-secondary-button" href={`/helicopters/${registration}/documents`}>
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+              Certificados, bitácoras, facturas y ELT
+            </Link>
+          </div>
+          <p className="mb-4 text-xs text-ink-subtle">
+            Las 12 categorías de documentación de esta aeronave, en un solo lugar — si el técnico encargado no está, cualquiera puede
+            encontrar aquí lo que necesita.
+          </p>
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {sections.map((section) => (
+              <Link
+                key={section.key}
+                href={section.href}
+                className="flex items-start gap-2.5 rounded-lg border border-line bg-white px-3 py-2.5 text-sm shadow-control transition hover:border-aviation-blue/40 hover:shadow-panel dark:bg-canvas-muted/60"
+              >
+                <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${toneDot[section.tone]}`} aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block font-semibold text-ink">
+                    {section.key} · {section.label}
+                  </span>
+                  <span className="block text-xs text-ink-subtle">{section.summary}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
         </Panel>
 
         <Panel>

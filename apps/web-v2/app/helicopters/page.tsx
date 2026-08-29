@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plane, Plus, UploadCloud } from "lucide-react";
+import { FolderOpen, Plane, Plus, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
 import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
 import { supabase } from "@/lib/supabase";
+import { fetchDocumentCenterData, computeSections, overallTone } from "@/lib/document-center";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,31 @@ export default async function HelicoptersPage() {
   ]);
 
   const helicopters = (data ?? []) as unknown as HelicopterRow[];
+  const registrations = helicopters.map((h) => h.registration);
+  const documentCenterData = registrations.length
+    ? await fetchDocumentCenterData(registrations)
+    : {
+        policies: [],
+        payments: [],
+        workOrders: [],
+        components: [],
+        complianceItems: [],
+        nonRoutineReports: [],
+        maintenanceLogs: [],
+        componentChanges: [],
+        campaigns: [],
+        documents: [],
+        eltByRegistration: new Map()
+      };
+  const documentCenterToneByRegistration = new Map(
+    registrations.map((registration) => [registration, overallTone(computeSections(registration, documentCenterData))])
+  );
+  const toneDot: Record<string, string> = {
+    green: "bg-aviation-green",
+    amber: "bg-aviation-amber",
+    red: "bg-aviation-red",
+    neutral: "bg-ink-subtle"
+  };
 
   const componentStatusCounts = new Map<string, number>();
   for (const row of componentStatusRows ?? []) {
@@ -134,6 +160,7 @@ export default async function HelicoptersPage() {
                   <th className="hsv-table-th">Horas remanentes</th>
                   <th className="hsv-table-th">Estado</th>
                   <th className="hsv-table-th">Barco asignado</th>
+                  <th className="hsv-table-th">Centro Documental</th>
                 </tr>
               </thead>
               <tbody className="hsv-table-body">
@@ -180,11 +207,28 @@ export default async function HelicoptersPage() {
                       </StatusPill>
                     </td>
                     <td className="hsv-table-cell text-ink-muted">{helicopter.vessels?.name ?? "Sin asignar"}</td>
+                    <td className="hsv-table-cell">
+                      {(() => {
+                        const tone = documentCenterToneByRegistration.get(helicopter.registration) ?? "neutral";
+                        return (
+                          <Link
+                            href={`/helicopters/${helicopter.registration}`}
+                            className="inline-flex items-center gap-1.5 hover:text-aviation-teal"
+                          >
+                            <FolderOpen className="h-3.5 w-3.5 text-ink-subtle" aria-hidden="true" />
+                            <span className={`h-2.5 w-2.5 rounded-full ${toneDot[tone]}`} aria-hidden="true" />
+                            <span className="text-xs text-ink-muted">
+                              {tone === "green" ? "Todo vigente" : tone === "amber" ? "Revisar" : tone === "red" ? "Atención" : "Sin datos"}
+                            </span>
+                          </Link>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 ))}
                 {!helicopters.length && !error ? (
                   <tr>
-                    <td className="hsv-empty-state" colSpan={6}>
+                    <td className="hsv-empty-state" colSpan={7}>
                       Todavía no hay helicópteros. Crea el primero con el botón de arriba.
                     </td>
                   </tr>

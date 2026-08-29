@@ -953,6 +953,58 @@ create table non_routine_component_changes (
 );
 
 -- ========================================================================
+-- Centro Documental — biblioteca de documentos por aeronave (Aug 2026,
+-- Adolfo: "quiero desarrollar dentro del sistema un centro documental
+-- organizado por aeronave... la regla debería ser: si mañana tu encargado
+-- no viene, tú debes poder encontrar cualquier documento importante en
+-- menos de 2 minutos"). De las 12 categorías que pidió, 8 ya existían en
+-- el sistema (Seguro, Órdenes de Trabajo, Mantenimiento programado y
+-- Control de Componentes, AD/SB, Reparaciones, Repuestos instalados,
+-- Operaciones/Campañas) y se leen en vivo desde sus propias tablas — ver
+-- lib/document-center.ts. Solo 4 categorías eran genuinamente nuevas:
+-- Certificados, Bitácoras, Facturas (biblioteca genérica de documentos,
+-- ver aircraft_documents abajo) y ELT (campos propios, ver aircraft_elt).
+-- ========================================================================
+
+create table aircraft_documents (
+  id uuid primary key default gen_random_uuid(),
+  helicopter_registration text references helicopters(registration),
+  category text not null check (category in ('Certificados','Bitacoras','Facturas')),
+  title text not null,
+  document_number text,
+  issue_date date,
+  expiry_date date,
+  amount numeric,
+  currency text not null default 'USD',
+  vendor text,
+  file_url text,
+  notes text,
+  archived boolean not null default false,
+  source text not null default 'User' check (source in ('Demo','User')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index aircraft_documents_registration_idx on aircraft_documents (helicopter_registration, category);
+
+-- Un registro por aeronave — a diferencia de aircraft_documents, el ELT
+-- tiene campos propios que se repiten siempre (vencimiento de batería,
+-- última inspección), así que no encaja en la biblioteca genérica.
+create table aircraft_elt (
+  id uuid primary key default gen_random_uuid(),
+  helicopter_registration text unique references helicopters(registration),
+  manufacturer text,
+  model text,
+  serial_number text,
+  battery_expiry_date date,
+  last_inspection_date date,
+  next_inspection_date date,
+  certificate_url text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ========================================================================
 -- Fleet health history — one row per calendar day, written by the
 -- dashboard the first time it's loaded that day (see
 -- lib/fleet-health-history.ts). Lets the dashboard show a trend instead of
@@ -1010,7 +1062,8 @@ begin
       'compliance_items','migration_logs','personnel',
       'fleet_health_history','insurance_policies','insurance_payments',
       'work_orders','work_order_items','checklist_templates','checklist_template_items',
-      'non_routine_reports','non_routine_component_changes'
+      'non_routine_reports','non_routine_component_changes',
+      'aircraft_documents','aircraft_elt'
     ])
   loop
     execute format('alter table %I enable row level security;', t);
