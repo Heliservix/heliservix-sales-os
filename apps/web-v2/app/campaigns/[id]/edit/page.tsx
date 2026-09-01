@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateCampaign, deleteCampaign } from "@/app/campaigns/actions";
 import { campaignStatuses } from "@/app/campaigns/constants";
+import { FishingDaysField } from "@/app/campaigns/fishing-days-field";
 
 type EditCampaignPageProps = {
   params: Promise<{ id: string }>;
@@ -78,14 +79,6 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
               </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Fecha inicio
-              <input className="hsv-control" type="date" name="startDate" defaultValue={campaign.start_date ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Fecha fin
-              <input className="hsv-control" type="date" name="endDate" defaultValue={campaign.end_date ?? ""} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Área de operación
               <input className="hsv-control" name="operationArea" defaultValue={campaign.operation_area ?? ""} />
             </label>
@@ -105,10 +98,11 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
                 ))}
               </select>
             </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Días de pesca
-              <input className="hsv-control" type="number" step="1" name="fishingDays" defaultValue={campaign.fishing_days ?? ""} />
-            </label>
+            <FishingDaysField
+              defaultStartDate={campaign.start_date ?? ""}
+              defaultEndDate={campaign.end_date ?? ""}
+              defaultFishingDays={campaign.fishing_days != null ? String(campaign.fishing_days) : ""}
+            />
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Horas de vuelo antes de subir reportes semanales (opcional)
               <input className="hsv-control" type="number" step="0.1" name="totalFlightHours" defaultValue={campaign.total_flight_hours ?? ""} placeholder="Se suma a las horas de los reportes semanales, no las reemplaza" />

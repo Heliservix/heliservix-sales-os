@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createCampaign } from "@/app/campaigns/actions";
 import { campaignStatuses } from "@/app/campaigns/constants";
+import { FishingDaysField } from "@/app/campaigns/fishing-days-field";
 
 export default async function NewCampaignPage() {
   const [{ data: helicopters }, { data: vessels }, { data: personnel }] = await Promise.all([
@@ -72,14 +73,6 @@ export default async function NewCampaignPage() {
               </select>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Fecha inicio
-              <input className="hsv-control" type="date" name="startDate" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Fecha fin
-              <input className="hsv-control" type="date" name="endDate" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Área de operación
               <input className="hsv-control" name="operationArea" />
             </label>
@@ -99,10 +92,7 @@ export default async function NewCampaignPage() {
                 ))}
               </select>
             </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Días de pesca
-              <input className="hsv-control" type="number" step="1" name="fishingDays" placeholder="Se llena al cerrar la marea" />
-            </label>
+            <FishingDaysField defaultStartDate="" defaultEndDate="" defaultFishingDays="" />
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Horas de vuelo antes de subir reportes semanales (opcional)
               <input className="hsv-control" type="number" step="0.1" name="totalFlightHours" placeholder="Se suma a las horas de los reportes semanales, no las reemplaza" />
