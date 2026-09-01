@@ -10,6 +10,10 @@ import { purchaseRequestStatuses, openPurchaseRequestStatuses } from "@/app/purc
 
 export const dynamic = "force-dynamic";
 
+type PurchasingPageProps = {
+  searchParams: Promise<{ registration?: string; campaign?: string }>;
+};
+
 type PurchaseRequestRow = {
   id: string;
   supplier: string;
@@ -26,6 +30,7 @@ type PurchaseRequestRow = {
   notes: string | null;
   created_at: string;
   vessels: { id: string; name: string } | null;
+  campaigns: { id: string; code: string | null; name: string } | null;
 };
 
 const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "neutral"> = {
@@ -41,16 +46,34 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
   Closed: "neutral"
 };
 
-export default async function PurchasingPage() {
-  const { data, error } = await supabase
+export default async function PurchasingPage({ searchParams }: PurchasingPageProps) {
+  const { registration: selectedRegistration, campaign: selectedCampaignId } = await searchParams;
+
+  let query = supabase
     .from("purchase_requests")
     .select(
-      "id, supplier, item_name, part_number, quantity, unit_cost, currency, related_helicopter, related_maintenance_event, status, lead_time_days, priority, notes, created_at, vessels:related_vessel_id(id, name)"
+      "id, supplier, item_name, part_number, quantity, unit_cost, currency, related_helicopter, related_maintenance_event, status, lead_time_days, priority, notes, created_at, vessels:related_vessel_id(id, name), campaigns:related_campaign_id(id, code, name)"
     )
     .eq("archived", false)
     .order("created_at", { ascending: false });
 
+  if (selectedRegistration) query = query.eq("related_helicopter", selectedRegistration);
+  if (selectedCampaignId) query = query.eq("related_campaign_id", selectedCampaignId);
+
+  const [{ data, error }, { data: helicopterData }, { data: campaignData }] = await Promise.all([
+    query,
+    supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
+    supabase
+      .from("campaigns")
+      .select("id, code, name, vessels:vessel_id(name)")
+      .eq("archived", false)
+      .order("start_date", { ascending: false })
+  ]);
+
   const requests = ((data ?? []) as unknown as PurchaseRequestRow[]);
+  const helicopters = (helicopterData ?? []) as { registration: string }[];
+  const campaignOptions = (campaignData ?? []) as unknown as { id: string; code: string | null; name: string; vessels: { name: string } | null }[];
+  const hasFilters = Boolean(selectedRegistration || selectedCampaignId);
   const open = requests.filter((r) => (openPurchaseRequestStatuses as readonly string[]).includes(r.status));
   const urgent = open.filter((r) => /urgen/i.test(r.notes ?? ""));
 
@@ -91,6 +114,39 @@ export default async function PurchasingPage() {
             </Link>
           </div>
 
+          <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-canvas-muted p-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-ink-subtle">Helicóptero</label>
+              <select name="registration" defaultValue={selectedRegistration ?? ""} className="hsv-control !py-1.5 text-sm">
+                <option value="">Todos</option>
+                {helicopters.map((h) => (
+                  <option key={h.registration} value={h.registration}>
+                    {h.registration}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-ink-subtle">Faena</label>
+              <select name="campaign" defaultValue={selectedCampaignId ?? ""} className="hsv-control !py-1.5 text-sm">
+                <option value="">Todas</option>
+                {campaignOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {(c.code || c.name) + (c.vessels?.name ? ` — ${c.vessels.name}` : "")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="hsv-secondary-button !py-1.5 text-sm">
+              Filtrar
+            </button>
+            {hasFilters ? (
+              <Link href="/purchasing" className="text-sm font-semibold text-aviation-teal hover:underline">
+                Quitar filtros
+              </Link>
+            ) : null}
+          </form>
+
           {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}
 
           <div className="hsv-table-wrap">
@@ -129,7 +185,16 @@ export default async function PurchasingPage() {
                         )}
                       </td>
                       <td className="hsv-table-cell text-ink-muted">
-                        {[request.vessels?.name, request.related_maintenance_event].filter(Boolean).join(" · ") || "—"}
+                        {request.campaigns ? (
+                          <>
+                            <Link className="font-semibold text-ink hover:text-aviation-teal" href={`/campaigns/${request.campaigns.id}`}>
+                              {request.campaigns.code || request.campaigns.name}
+                            </Link>
+                            {request.vessels?.name ? <p className="mt-0.5 text-xs text-ink-subtle">{request.vessels.name}</p> : null}
+                          </>
+                        ) : (
+                          [request.vessels?.name, request.related_maintenance_event].filter(Boolean).join(" · ") || "—"
+                        )}
                       </td>
                       <td className="hsv-table-cell text-ink-muted">
                         {isUrgent ? <span className="mr-1 font-semibold text-status-red">URGENTE ·</span> : null}
@@ -175,8 +240,9 @@ export default async function PurchasingPage() {
                 {!requests.length && !error ? (
                   <tr>
                     <td className="hsv-empty-state" colSpan={9}>
-                      Todavía no hay pedidos. Se crean automáticamente al importar la hoja &ldquo;PEDIDOS&rdquo; del reporte
-                      semanal, o puedes crear uno manual.
+                      {hasFilters
+                        ? "No hay pedidos con este filtro."
+                        : 'Todavía no hay pedidos. Se crean automáticamente al importar la hoja "PEDIDOS" del reporte semanal, o puedes crear uno manual.'}
                     </td>
                   </tr>
                 ) : null}
