@@ -524,7 +524,11 @@ create table purchase_requests (
 create table personnel (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
-  role text not null check (role in ('Piloto','Mecánico')),
+  -- Administrativo (Aug 2026, Adolfo): acceso total al sistema, igual que un
+  -- admin de ADMIN_EMAILS — ver lib/auth.ts / middleware.ts. Gestionado
+  -- enteramente desde Personal (Agregar persona + Crear acceso), sin editar
+  -- variables de entorno.
+  role text not null check (role in ('Piloto','Mecánico','Administrativo')),
   monthly_salary numeric,
   rate_per_ton numeric,
   phone text,

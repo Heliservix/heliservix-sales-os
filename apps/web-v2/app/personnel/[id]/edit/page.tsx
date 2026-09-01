@@ -94,7 +94,8 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
           <h2 className="text-sm font-semibold text-ink">Acceso al sistema</h2>
           <p className="mt-1 text-xs text-ink-subtle">
             Con esto la persona puede entrar a HeliServiX OS con su propio usuario y contraseña. Un Mecánico entra al módulo de
-            Mantenimiento y a Flota; un Piloto entra al Portal Técnico a subir sus reportes semanales.
+            Mantenimiento y a Flota; un Piloto entra al Portal Técnico a subir sus reportes semanales; un Administrativo entra
+            a todo el sistema, igual que Adolfo.
           </p>
           <div className="mt-3 flex items-center gap-2">
             <StatusPill tone={person.account_invited_at ? "green" : "neutral"}>

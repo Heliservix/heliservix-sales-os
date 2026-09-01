@@ -111,6 +111,13 @@ export async function middleware(request: NextRequest) {
 
   const role = await getPersonnelRole(email);
 
+  // Administrativo (Aug 2026, Adolfo: quiere poder dar acceso total al
+  // sistema sin depender de que yo edite ADMIN_EMAILS en Vercel cada vez) —
+  // full access, exactly like an ADMIN_EMAILS admin. Managed entirely from
+  // Personal: role="Administrativo" + "Crear acceso". Mirrored in
+  // lib/auth.ts's getSessionUser, which is what the rest of the app reads.
+  if (role === "Administrativo") return response;
+
   // Mecánico: Dashboard + Fleet + full Mantenimiento module, nothing else.
   if (role === "Mecánico") {
     if (!isMechanicAllowedPath(pathname)) {

@@ -1,3 +1,3 @@
-export const personnelRoles = ["Piloto", "Mecánico"] as const;
+export const personnelRoles = ["Piloto", "Mecánico", "Administrativo"] as const;
 
 export const personnelStatuses = ["Active", "Inactive"] as const;

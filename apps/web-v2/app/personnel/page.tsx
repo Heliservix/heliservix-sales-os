@@ -39,6 +39,7 @@ export default async function PersonnelPage() {
   const personnel = (data ?? []) as PersonnelRow[];
   const pilots = personnel.filter((p) => p.role === "Piloto");
   const mechanics = personnel.filter((p) => p.role === "Mecánico");
+  const admins = personnel.filter((p) => p.role === "Administrativo");
 
   return (
     <AppShell>
@@ -50,7 +51,7 @@ export default async function PersonnelPage() {
           icon={UserRoundCog}
         />
 
-        <div className="mb-5 grid gap-4 sm:grid-cols-2">
+        <div className="mb-5 grid gap-4 sm:grid-cols-3">
           <Panel>
             <p className="text-xs font-semibold uppercase text-ink-subtle">Pilotos</p>
             <p className="mt-1 text-2xl font-bold text-ink">{pilots.length}</p>
@@ -59,13 +60,17 @@ export default async function PersonnelPage() {
             <p className="text-xs font-semibold uppercase text-ink-subtle">Mecánicos</p>
             <p className="mt-1 text-2xl font-bold text-ink">{mechanics.length}</p>
           </Panel>
+          <Panel>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">Administrativos</p>
+            <p className="mt-1 text-2xl font-bold text-ink">{admins.length}</p>
+          </Panel>
         </div>
 
         <Panel>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <UserRoundCog className="h-5 w-5 text-ink-muted" aria-hidden="true" />
-              <h2 className="text-lg font-semibold text-ink">Pilotos y mecánicos</h2>
+              <h2 className="text-lg font-semibold text-ink">Personal</h2>
             </div>
             <Link className="hsv-primary-button" href="/personnel/new">
               <Plus className="h-4 w-4" aria-hidden="true" />

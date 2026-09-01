@@ -16,7 +16,7 @@ export type SessionUser = {
   isAdmin: boolean;
   personnelId: string | null;
   personnelName: string | null;
-  personnelRole: "Piloto" | "Mecánico" | null;
+  personnelRole: "Piloto" | "Mecánico" | "Administrativo" | null;
 };
 
 // The single place that answers "who is logged in, and are they an admin
@@ -47,11 +47,21 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .eq("archived", false)
     .maybeSingle();
 
+  // An "Administrativo" person (Aug 2026, Adolfo: acceso total al sistema,
+  // igual que yo) is a personnel row, not an ADMIN_EMAILS entry — Adolfo
+  // manages them entirely from Personal ("Agregar persona" + "Crear
+  // acceso"), no .env edit needed. Treated identically to isAdmin below and
+  // in middleware.ts's matching branch.
+  const role = (person?.role as "Piloto" | "Mecánico" | "Administrativo" | undefined) ?? null;
+  if (role === "Administrativo") {
+    return { email, isAdmin: true, personnelId: person?.id ?? null, personnelName: person?.full_name ?? null, personnelRole: role };
+  }
+
   return {
     email,
     isAdmin: false,
     personnelId: person?.id ?? null,
     personnelName: person?.full_name ?? null,
-    personnelRole: (person?.role as "Piloto" | "Mecánico" | undefined) ?? null
+    personnelRole: role
   };
 }
