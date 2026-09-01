@@ -311,7 +311,7 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
 
         <Panel>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-ink">Historial de horas de vuelo por faena</h2>
+            <h2 className="text-lg font-semibold text-ink">Reportes semanales de esta faena</h2>
             <p className="text-sm text-ink-muted">
               Total: <span className="hsv-technical-value font-semibold text-ink">{totalHours.toFixed(1)} hrs</span>
               {loggedHours > 0

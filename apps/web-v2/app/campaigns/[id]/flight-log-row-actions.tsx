@@ -37,7 +37,7 @@ export function FlightLogRowActions({
         action={deleteAction}
         onSubmit={(event) => {
           const confirmed = window.confirm(
-            "¿Eliminar este reporte semanal?\n\nEsto NO devuelve las horas ya descontadas del helicóptero ni de sus componentes — solo úsalo si este reporte fue un duplicado real que nunca debió existir. Si las horas se aplicaron mal, pide ayuda para corregirlas aparte."
+            "¿Eliminar este reporte semanal?\n\nEsto SÍ devuelve automáticamente las horas a los componentes activos de este helicóptero y corrige el horómetro cuando es seguro hacerlo. No borra por su cuenta lo que este reporte haya registrado en Mantenimiento o Registros Técnicos (inspecciones, No Rutina, cambios de filtro) — revísalos aparte si también quedaron duplicados."
           );
           if (!confirmed) event.preventDefault();
         }}
