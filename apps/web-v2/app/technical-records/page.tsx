@@ -9,6 +9,10 @@ import { archiveTechnicalRecord } from "@/app/technical-records/actions";
 
 export const dynamic = "force-dynamic";
 
+type TechnicalRecordsPageProps = {
+  searchParams: Promise<{ registration?: string; campaign?: string }>;
+};
+
 type TechnicalRecordRow = {
   id: string;
   record_type: string;
@@ -42,8 +46,10 @@ const TYPE_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "n
   Other: "neutral"
 };
 
-export default async function TechnicalRecordsPage() {
-  const { data, error } = await supabase
+export default async function TechnicalRecordsPage({ searchParams }: TechnicalRecordsPageProps) {
+  const { registration: selectedRegistration, campaign: selectedCampaignId } = await searchParams;
+
+  let query = supabase
     .from("technical_records")
     .select(
       "id, record_type, related_helicopter, title, record_date, document_number, notes, hourmeter, aircraft_hours, engine_hours, inspection_type, technician_name, created_at, campaigns:related_campaign_id(id, code, name, vessels:vessel_id(name))"
@@ -51,7 +57,23 @@ export default async function TechnicalRecordsPage() {
     .eq("archived", false)
     .order("created_at", { ascending: false });
 
+  if (selectedRegistration) query = query.eq("related_helicopter", selectedRegistration);
+  if (selectedCampaignId) query = query.eq("related_campaign_id", selectedCampaignId);
+
+  const [{ data, error }, { data: helicopterData }, { data: campaignData }] = await Promise.all([
+    query,
+    supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
+    supabase
+      .from("campaigns")
+      .select("id, code, name, vessels:vessel_id(name)")
+      .eq("archived", false)
+      .order("start_date", { ascending: false })
+  ]);
+
   const records = (data ?? []) as unknown as TechnicalRecordRow[];
+  const helicopters = (helicopterData ?? []) as { registration: string }[];
+  const campaignOptions = (campaignData ?? []) as unknown as { id: string; code: string | null; name: string; vessels: { name: string } | null }[];
+  const hasFilters = Boolean(selectedRegistration || selectedCampaignId);
 
   return (
     <AppShell>
@@ -74,6 +96,39 @@ export default async function TechnicalRecordsPage() {
               Agregar registro
             </Link>
           </div>
+
+          <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-canvas-muted p-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-ink-subtle">Helicóptero</label>
+              <select name="registration" defaultValue={selectedRegistration ?? ""} className="hsv-control !py-1.5 text-sm">
+                <option value="">Todos</option>
+                {helicopters.map((h) => (
+                  <option key={h.registration} value={h.registration}>
+                    {h.registration}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-ink-subtle">Faena</label>
+              <select name="campaign" defaultValue={selectedCampaignId ?? ""} className="hsv-control !py-1.5 text-sm">
+                <option value="">Todas</option>
+                {campaignOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {(c.code || c.name) + (c.vessels?.name ? ` — ${c.vessels.name}` : "")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="hsv-secondary-button !py-1.5 text-sm">
+              Filtrar
+            </button>
+            {hasFilters ? (
+              <Link href="/technical-records" className="text-sm font-semibold text-aviation-teal hover:underline">
+                Quitar filtros
+              </Link>
+            ) : null}
+          </form>
 
           {error ? <div className="hsv-error-banner">No se pudo conectar con la base de datos: {error.message}.</div> : null}
 
@@ -149,7 +204,7 @@ export default async function TechnicalRecordsPage() {
                 {!records.length && !error ? (
                   <tr>
                     <td className="hsv-empty-state" colSpan={8}>
-                      Todavía no hay registros técnicos.
+                      {hasFilters ? "No hay registros técnicos con este filtro." : "Todavía no hay registros técnicos."}
                     </td>
                   </tr>
                 ) : null}
