@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Anchor, Bot, ShoppingCart, Wrench } from "lucide-react";
+import { Anchor, Bot, Search, ShoppingCart, Wrench } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -14,6 +14,7 @@ import {
   type ProcurementUrgency,
   type AuraForecastBucket
 } from "@/lib/aura";
+import { searchAcrossSystem } from "@/lib/aura-search";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,14 @@ const BUCKET_LABEL: Record<number, string> = { 30: "30 días", 60: "60 días", 9
 const URGENCY_TONE: Record<ProcurementUrgency, AuraTone> = { Immediate: "red", Soon: "amber", "Plan ahead": "blue" };
 const URGENCY_LABEL: Record<ProcurementUrgency, string> = { Immediate: "Inmediato", Soon: "Pronto", "Plan ahead": "Planificar" };
 
-export default async function AuraPage() {
-  const analysis = await buildAuraAnalysis();
+type AuraPageProps = {
+  searchParams: Promise<{ q?: string }>;
+};
+
+export default async function AuraPage({ searchParams }: AuraPageProps) {
+  const { q } = await searchParams;
+  const query = q?.trim() ?? "";
+  const [analysis, searchResults] = await Promise.all([buildAuraAnalysis(), query ? searchAcrossSystem(query) : Promise.resolve([])]);
   const nearForecast = [
     ...analysis.maintenanceForecast[30],
     ...analysis.maintenanceForecast[60],
@@ -46,6 +53,65 @@ export default async function AuraPage() {
           description="Motor de reglas determinístico sobre tus datos reales — sin IA externa, sin costo por uso. Cada número aquí viene de una fórmula auditable, no de un modelo de lenguaje."
           icon={Bot}
         />
+
+        <Panel className="mb-5">
+          <div className="flex items-center gap-2">
+            <Search className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-ink">Buscador universal</h2>
+          </div>
+          <p className="mt-1 text-sm text-ink-subtle">
+            Busca un número de serie, número de parte o palabra clave — AURA revisa componentes instalados, cambios de pieza
+            (Órdenes de Trabajo y No Rutina), compras, inventario, Registros Técnicos, Centro Documental y Órdenes de Trabajo,
+            todo a la vez. Si el mismo número de parte aparece varias veces, quedan una debajo de otra para comparar.
+          </p>
+          <form method="get" className="mt-3 flex flex-wrap gap-2">
+            <input
+              type="text"
+              name="q"
+              defaultValue={query}
+              placeholder="Ej. número de serie del alternador, P/N, N° de factura…"
+              className="hsv-control min-w-[280px] flex-1 text-sm"
+            />
+            <button type="submit" className="hsv-primary-button">
+              Buscar
+            </button>
+            {query ? (
+              <Link href="/aura" className="hsv-ghost-button">
+                Limpiar
+              </Link>
+            ) : null}
+          </form>
+
+          {query ? (
+            <div className="mt-4">
+              <p className="mb-3 text-sm text-ink-subtle">
+                {searchResults.length
+                  ? `${searchResults.length} resultado${searchResults.length === 1 ? "" : "s"} para "${query}"`
+                  : `Sin resultados para "${query}" en ningún módulo.`}
+              </p>
+              <div className="grid gap-2">
+                {searchResults.map((result) => {
+                  const card = (
+                    <div className="rounded-lg border border-line bg-canvas-muted/30 p-3 transition hover:border-aviation-teal">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill tone={result.tone}>{result.source}</StatusPill>
+                        <span className="text-sm font-semibold text-ink">{result.title}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-ink-subtle">{result.detail}</p>
+                    </div>
+                  );
+                  return result.href ? (
+                    <Link key={result.id} href={result.href}>
+                      {card}
+                    </Link>
+                  ) : (
+                    <div key={result.id}>{card}</div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </Panel>
 
         <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Panel>
