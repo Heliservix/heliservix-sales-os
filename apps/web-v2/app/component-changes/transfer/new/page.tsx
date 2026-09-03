@@ -22,7 +22,7 @@ export default async function TransferComponentPage() {
         <SectionHeader
           eyebrow="Mantenimiento — Cambios de Componentes"
           title="Transferir componente entre helicópteros"
-          description="Mueve la misma pieza física de un helicóptero a otro. Sus horas TSN/TSO, horas remanentes y límite de calendario viajan con ella — no se resetean."
+          description="Mueve la misma pieza física de un helicóptero a otro. Sus horas TSN/TSO, horas remanentes y límite de calendario viajan con ella — no se resetean. Si el destino te da otra pieza a cambio (intercambio), agrégala abajo para que ambas se muevan en la misma acción."
           icon={ArrowLeftRight}
         />
         <Panel>
@@ -67,6 +67,27 @@ export default async function TransferComponentPage() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <div className="sm:col-span-2 rounded-lg border border-line bg-canvas-muted p-3">
+              <p className="text-sm font-semibold text-ink">¿Es un intercambio?</p>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Si el helicóptero destino te entrega otra pieza a cambio (ej. cambiaron carburadores entre dos helicópteros),
+                selecciónala aquí — se mueve de vuelta al origen en esta misma acción. Si dejas &ldquo;No&rdquo;, solo se mueve la
+                pieza de arriba, en un solo sentido.
+              </p>
+            </div>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Componente que regresa a cambio (opcional)
+              <select className="hsv-control" name="returnComponentId" defaultValue="">
+                <option value="">No, es solo un movimiento en un sentido</option>
+                {components.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-ink-subtle">Debe pertenecer al helicóptero destino que elegiste arriba.</span>
             </label>
 
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">

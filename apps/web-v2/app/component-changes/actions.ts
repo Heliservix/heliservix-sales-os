@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { uploadDataUrlImage, uploadPhotoFile } from "@/lib/media-upload";
 import { defaultCalendarLimitDate } from "@/lib/component-calendar";
@@ -70,63 +71,55 @@ function revalidateEverywhere(registrations: string[]) {
   for (const r of registrations) revalidatePath(`/helicopters/${r}`);
 }
 
-// Flujo 1 — Transferir: la MISMA pieza física se mueve de un helicóptero a
-// otro. Se actualiza helicopter_registration en la fila existente de
-// components (mismo id) — TSN, TSO, horas remanentes y límite de calendario
-// viajan con ella sin tocarse, que es justo la trazabilidad que Adolfo pidió.
-export async function transferComponent(formData: FormData) {
-  const componentId = text(formData, "componentId");
-  const toRegistration = text(formData, "toRegistration");
-  const technicianId = text(formData, "technicianId");
-  const reason = optionalText(formData, "reason");
-  const notes = optionalText(formData, "notes");
-
-  if (!componentId) throw new Error("Selecciona el componente a mover.");
-  if (!toRegistration) throw new Error("Selecciona el helicóptero destino.");
-  if (!technicianId) throw new Error("Selecciona qué técnico hace el cambio.");
-
+async function moveComponentLeg(params: {
+  componentId: string;
+  toRegistration: string;
+  technicianId: string;
+  technicianName: string | null;
+  reason: string | null;
+  notes: string | null;
+  swapGroupId: string | null;
+}) {
   const { data: component, error: fetchError } = await supabase
     .from("components")
     .select("id, helicopter_registration, component_name, part_number, serial_number, status")
-    .eq("id", componentId)
+    .eq("id", params.componentId)
     .maybeSingle();
   if (fetchError) throw new Error(fetchError.message);
   if (!component) throw new Error("Ese componente ya no existe.");
   if (component.status === "Removed") throw new Error("Ese componente ya está marcado como removido.");
 
   const fromRegistration = component.helicopter_registration;
-  if (fromRegistration === toRegistration) {
-    throw new Error("El helicóptero destino debe ser diferente al de origen.");
+  if (fromRegistration === params.toRegistration) {
+    throw new Error(`${component.component_name} ya está en ${params.toRegistration} — no hay nada que mover ahí.`);
   }
 
   const { data: destination, error: destError } = await supabase
     .from("helicopters")
     .select("registration, current_hourmeter")
-    .eq("registration", toRegistration)
+    .eq("registration", params.toRegistration)
     .maybeSingle();
   if (destError) throw new Error(destError.message);
   if (!destination) throw new Error("No se encontró el helicóptero destino.");
 
   const { error: updateError } = await supabase
     .from("components")
-    .update({ helicopter_registration: toRegistration, updated_at: new Date().toISOString() })
-    .eq("id", componentId);
+    .update({ helicopter_registration: params.toRegistration, updated_at: new Date().toISOString() })
+    .eq("id", params.componentId);
   if (updateError) {
     if (updateError.code === "23505") {
-      throw new Error(`${toRegistration} ya tiene un componente con el mismo P/N + S/N. Revisa antes de mover este.`);
+      throw new Error(`${params.toRegistration} ya tiene un componente con el mismo P/N + S/N que ${component.component_name}. Revisa antes de mover este.`);
     }
     throw new Error(updateError.message);
   }
-
-  const { data: technician } = await supabase.from("personnel").select("full_name").eq("id", technicianId).maybeSingle();
 
   const { data: swap, error: swapError } = await supabase
     .from("component_changes")
     .insert({
       helicopter_registration: fromRegistration,
-      to_helicopter_registration: toRegistration,
+      to_helicopter_registration: params.toRegistration,
       swap_type: "Transfer",
-      component_id: componentId,
+      component_id: params.componentId,
       removed_component_id: null,
       installed_component_name: component.component_name,
       installed_part_number: component.part_number,
@@ -134,32 +127,103 @@ export async function transferComponent(formData: FormData) {
       removed_component_name: null,
       installation_date: new Date().toISOString().slice(0, 10),
       removal_date: null,
-      reason,
-      technician: technician?.full_name ?? null,
-      technician_id: technicianId,
+      reason: params.reason,
+      technician: params.technicianName,
+      technician_id: params.technicianId,
       hourmeter_at_change: destination.current_hourmeter,
-      notes,
+      notes: params.notes,
+      swap_group_id: params.swapGroupId,
       source: "User"
     })
     .select("id")
     .single();
   if (swapError) throw new Error(swapError.message);
 
-  await uploadEvidence(swap.id, formData);
-
   await supabase.from("technical_records").insert({
     record_type: "Component change",
-    related_helicopter: toRegistration,
-    related_component_id: componentId,
-    title: `Transferencia — ${component.component_name} (${fromRegistration} → ${toRegistration})`,
+    related_helicopter: params.toRegistration,
+    related_component_id: params.componentId,
+    title: `Transferencia — ${component.component_name} (${fromRegistration} → ${params.toRegistration})`,
     record_date: new Date().toISOString().slice(0, 10),
     document_number: null,
-    technician_name: technician?.full_name ?? null,
-    notes: reason,
+    technician_name: params.technicianName,
+    notes: params.reason,
     source: "User"
   });
 
-  revalidateEverywhere([fromRegistration, toRegistration]);
+  return { swapId: swap.id as string, fromRegistration, componentName: component.component_name };
+}
+
+// Flujo 1 — Transferir: la MISMA pieza física se mueve de un helicóptero a
+// otro. Se actualiza helicopter_registration en la fila existente de
+// components (mismo id) — TSN, TSO, horas remanentes y límite de calendario
+// viajan con ella sin tocarse, que es justo la trazabilidad que Adolfo pidió.
+//
+// "Componente que regresa a cambio" es opcional: si el destino ya tiene una
+// pieza equivalente y esto es un intercambio real (Adolfo, Sept 2026: "del
+// helicoptero A le pasa al helicoptero B, y viceversa"), esa segunda pieza
+// se mueve de vuelta al origen en la MISMA acción, con ambas patas del
+// intercambio agrupadas por swap_group_id. Si se deja vacío, es un
+// movimiento en un solo sentido (por ejemplo, hacia un helicóptero que
+// todavía no tiene esa pieza).
+export async function transferComponent(formData: FormData) {
+  const componentId = text(formData, "componentId");
+  const toRegistration = text(formData, "toRegistration");
+  const returnComponentId = optionalText(formData, "returnComponentId");
+  const technicianId = text(formData, "technicianId");
+  const reason = optionalText(formData, "reason");
+  const notes = optionalText(formData, "notes");
+
+  if (!componentId) throw new Error("Selecciona el componente a mover.");
+  if (!toRegistration) throw new Error("Selecciona el helicóptero destino.");
+  if (!technicianId) throw new Error("Selecciona qué técnico hace el cambio.");
+  if (returnComponentId === componentId) {
+    throw new Error("El componente que regresa a cambio no puede ser el mismo que se está moviendo.");
+  }
+
+  const { data: technician } = await supabase.from("personnel").select("full_name").eq("id", technicianId).maybeSingle();
+  const technicianName = technician?.full_name ?? null;
+  const swapGroupId = returnComponentId ? randomUUID() : null;
+
+  const outbound = await moveComponentLeg({
+    componentId,
+    toRegistration,
+    technicianId,
+    technicianName,
+    reason,
+    notes,
+    swapGroupId
+  });
+
+  await uploadEvidence(outbound.swapId, formData);
+
+  if (returnComponentId) {
+    // Verify the "coming back" piece actually belongs to the destination
+    // aircraft BEFORE moving it — otherwise a técnico picking the wrong
+    // component here would silently relocate an unrelated part.
+    const { data: returnComponent } = await supabase
+      .from("components")
+      .select("helicopter_registration")
+      .eq("id", returnComponentId)
+      .maybeSingle();
+    if (!returnComponent) throw new Error("El componente que regresa a cambio ya no existe.");
+    if (returnComponent.helicopter_registration !== toRegistration) {
+      throw new Error(`El componente que regresa a cambio debe pertenecer a ${toRegistration}, el helicóptero destino.`);
+    }
+
+    const inbound = await moveComponentLeg({
+      componentId: returnComponentId,
+      toRegistration: outbound.fromRegistration,
+      technicianId,
+      technicianName,
+      reason,
+      notes,
+      swapGroupId
+    });
+    await uploadEvidence(inbound.swapId, formData);
+  }
+
+  revalidateEverywhere([outbound.fromRegistration, toRegistration]);
   redirect("/component-changes");
 }
 

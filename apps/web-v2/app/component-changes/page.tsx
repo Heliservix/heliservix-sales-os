@@ -27,6 +27,7 @@ type ComponentChangeRow = {
   technician: string | null;
   technician_signature_url: string | null;
   photo_url: string | null;
+  swap_group_id: string | null;
   created_at: string;
 };
 
@@ -36,7 +37,7 @@ export default async function ComponentChangesPage({ searchParams }: ComponentCh
   let query = supabase
     .from("component_changes")
     .select(
-      "id, swap_type, helicopter_registration, to_helicopter_registration, installed_component_name, installed_part_number, installed_serial_number, removed_component_name, installation_date, removal_date, reason, technician, technician_signature_url, photo_url, created_at"
+      "id, swap_type, helicopter_registration, to_helicopter_registration, installed_component_name, installed_part_number, installed_serial_number, removed_component_name, installation_date, removal_date, reason, technician, technician_signature_url, photo_url, swap_group_id, created_at"
     )
     .order("created_at", { ascending: false });
 
@@ -136,6 +137,12 @@ export default async function ComponentChangesPage({ searchParams }: ComponentCh
                       <StatusPill tone={c.swap_type === "Transfer" ? "blue" : "teal"}>
                         {c.swap_type === "Transfer" ? "Transferencia" : "Cambio por nuevo"}
                       </StatusPill>
+                      {c.swap_group_id ? (
+                        <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-aviation-teal">
+                          <ArrowLeftRight className="h-3 w-3" aria-hidden="true" />
+                          Intercambio
+                        </p>
+                      ) : null}
                     </td>
                     <td className="hsv-table-cell">
                       <p className="font-semibold text-ink">{c.installed_component_name ?? "—"}</p>
