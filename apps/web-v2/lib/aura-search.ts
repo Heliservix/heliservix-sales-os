@@ -55,7 +55,7 @@ export async function searchAcrossSystem(rawQuery: string): Promise<AuraSearchRe
     supabase
       .from("component_changes")
       .select(
-        "id, helicopter_registration, removed_component_name, installed_component_name, installed_part_number, installed_serial_number, removal_date, installation_date, reason"
+        "id, helicopter_registration, to_helicopter_registration, swap_type, removed_component_name, installed_component_name, installed_part_number, installed_serial_number, removal_date, installation_date, reason, technician"
       )
       .or(
         `installed_part_number.ilike.${like},installed_serial_number.ilike.${like},removed_component_name.ilike.${like},installed_component_name.ilike.${like}`
@@ -114,6 +114,8 @@ export async function searchAcrossSystem(rawQuery: string): Promise<AuraSearchRe
   for (const cc of (componentChanges ?? []) as Array<{
     id: string;
     helicopter_registration: string;
+    to_helicopter_registration: string | null;
+    swap_type: "Transfer" | "Replacement" | null;
     removed_component_name: string | null;
     installed_component_name: string | null;
     installed_part_number: string | null;
@@ -121,17 +123,21 @@ export async function searchAcrossSystem(rawQuery: string): Promise<AuraSearchRe
     removal_date: string | null;
     installation_date: string | null;
     reason: string | null;
+    technician: string | null;
   }>) {
+    const isTransfer = cc.swap_type === "Transfer";
     results.push({
       id: `component-change-${cc.id}`,
-      source: "Cambio de componente (hangar)",
-      title: `${cc.helicopter_registration} — ${cc.installed_component_name || cc.removed_component_name || "Cambio de pieza"}`,
-      detail: `Instalado: ${cc.installed_component_name || "—"} (P/N ${cc.installed_part_number || "—"}, S/N ${
-        cc.installed_serial_number || "—"
-      })${cc.installation_date ? `, ${cc.installation_date}` : ""}. Removido: ${cc.removed_component_name || "—"}${
-        cc.removal_date ? ` (${cc.removal_date})` : ""
-      }.${cc.reason ? ` Motivo: ${cc.reason}.` : ""}`,
-      href: `/helicopters/${cc.helicopter_registration}`,
+      source: isTransfer ? "Transferencia entre helicópteros" : "Cambio de componente",
+      title: isTransfer
+        ? `${cc.installed_component_name || "Componente"} — ${cc.helicopter_registration} → ${cc.to_helicopter_registration}`
+        : `${cc.helicopter_registration} — ${cc.installed_component_name || cc.removed_component_name || "Cambio de pieza"}`,
+      detail: `P/N ${cc.installed_part_number || "—"}, S/N ${cc.installed_serial_number || "—"}${
+        cc.installation_date ? `, ${cc.installation_date}` : ""
+      }${!isTransfer && cc.removed_component_name ? `. Removido: ${cc.removed_component_name}` : ""}${
+        cc.reason ? `. Motivo: ${cc.reason}` : ""
+      }${cc.technician ? `. Técnico: ${cc.technician}` : ""}`,
+      href: `/component-changes`,
       tone: "blue"
     });
   }

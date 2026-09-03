@@ -43,6 +43,7 @@ const TYPE_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "n
   Certificate: "teal",
   "Release to service": "green",
   Inspection: "blue",
+  "Component change": "amber",
   Other: "neutral"
 };
 

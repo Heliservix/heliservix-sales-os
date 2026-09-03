@@ -17,7 +17,8 @@ import {
   UserRoundCog,
   Wrench,
   AlertOctagon,
-  BookOpen
+  BookOpen,
+  ArrowLeftRight
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TranslationKey } from "@/lib/i18n";
@@ -60,7 +61,8 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Robinson Technical Library", labelKey: "nav.library", href: "/library", icon: BookOpen, status: "ready" },
       { label: "Insurance Policies", labelKey: "nav.policies", href: "/policies", icon: Umbrella, status: "ready" },
       { label: "Work Orders", labelKey: "nav.workOrders", href: "/work-orders", icon: Wrench, status: "ready" },
-      { label: "Non-Routine Reports", labelKey: "nav.nonRoutine", href: "/non-routine", icon: AlertOctagon, status: "ready" }
+      { label: "Non-Routine Reports", labelKey: "nav.nonRoutine", href: "/non-routine", icon: AlertOctagon, status: "ready" },
+      { label: "Component Changes", labelKey: "nav.componentChanges", href: "/component-changes", icon: ArrowLeftRight, status: "ready" }
     ]
   },
   {

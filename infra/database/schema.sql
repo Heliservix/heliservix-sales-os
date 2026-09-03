@@ -259,6 +259,13 @@ begin
     )
     on conflict (component_id, alert_type) where status <> 'Resolved'
     do update set
+      -- Sept 2026: without this, a component that's already Monitor/
+      -- Critical/Expired and gets moved to a different aircraft (see
+      -- app/component-changes — Transferir) would keep showing its open
+      -- alert under the OLD helicopter forever, since ON CONFLICT only hit
+      -- the UPDATE branch (no fresh row) and helicopter_registration wasn't
+      -- in the original SET list.
+      helicopter_registration = excluded.helicopter_registration,
       severity = excluded.severity,
       remaining_hours = excluded.remaining_hours,
       remaining_calendar_days = excluded.remaining_calendar_days,
@@ -403,9 +410,22 @@ create table maintenance_logs (
 
 create index idx_maintenance_logs_helicopter_type on maintenance_logs(helicopter_registration, maintenance_type, log_date desc);
 
+-- Sept 2026, Adolfo: "muchas veces intercambiamos de un helicoptero a otro
+-- un componente... hay que actualizar el control de componentes,
+-- manteniendo la informacion de cada uno" — extended with the columns
+-- below (app/component-changes) to actually drive components, not just log
+-- it in prose. component_id always points at the resulting/current
+-- components row: for a Transfer that's the SAME row (helicopter_registration
+-- moved between aircraft; the physical part's own TSN/TSO/remaining_hours/
+-- calendar limit travel with it, untouched). For a Replacement it's a
+-- freshly inserted row, and removed_component_id points at the old row
+-- that got soft-removed (status='Removed').
 create table component_changes (
   id uuid primary key default gen_random_uuid(),
   helicopter_registration text not null references helicopters(registration) on delete cascade,
+  to_helicopter_registration text references helicopters(registration),
+  swap_type text not null default 'Replacement' check (swap_type in ('Transfer','Replacement')),
+  component_id uuid references components(id),
   removed_component_id uuid references components(id),
   removed_component_name text,
   installed_component_name text,
@@ -415,6 +435,10 @@ create table component_changes (
   installation_date date,
   reason text,
   technician text,
+  technician_id uuid references personnel(id),
+  technician_signature_url text,
+  photo_url text,
+  hourmeter_at_change numeric,
   supporting_document_placeholder text,
   notes text,
   source text not null default 'User' check (source in ('Demo','User')),
@@ -649,7 +673,7 @@ alter table purchase_requests add constraint fk_purchase_campaign foreign key (r
 create table technical_records (
   id uuid primary key default gen_random_uuid(),
   record_type text not null
-    check (record_type in ('8130','Logbook page','Work order','Invoice','Photo','Certificate','Release to service','Inspection','Other')),
+    check (record_type in ('8130','Logbook page','Work order','Invoice','Photo','Certificate','Release to service','Inspection','Component change','Other')),
   related_helicopter text references helicopters(registration),
   related_component_id uuid references components(id),
   related_maintenance_event uuid references maintenance_logs(id),
