@@ -82,14 +82,24 @@ export async function extractInvoiceWithClaude(fileBytes: Uint8Array, mimeType: 
     { type: "text", text: PROMPT }
   ];
 
+  // Las claves "identity-linked" que da console.anthropic.com cuando la
+  // cuenta tiene acceso a más de un workspace exigen indicar en QUÉ
+  // workspace actúa cada request (si no, la API responde 400 "anthropic-
+  // workspace-id is required..." — el error real que le salió a Adolfo la
+  // primera vez que probó esto). ANTHROPIC_WORKSPACE_ID es opcional: solo
+  // hace falta si la clave es de ese tipo multi-workspace.
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01"
+  };
+  if (workspaceId) headers["anthropic-workspace-id"] = workspaceId;
+
   try {
     const response = await fetch(ANTHROPIC_API_URL, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01"
-      },
+      headers,
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2000,
@@ -99,6 +109,13 @@ export async function extractInvoiceWithClaude(fileBytes: Uint8Array, mimeType: 
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
+      if (response.status === 400 && body.includes("anthropic-workspace-id")) {
+        return {
+          ok: false,
+          error:
+            "Tu clave de Anthropic requiere indicar el workspace — falta configurar ANTHROPIC_WORKSPACE_ID en Vercel (ver .env.example para dónde encontrarlo en console.anthropic.com). La factura se guardó, completa los ítems a mano abajo mientras tanto."
+        };
+      }
       return { ok: false, error: `El servicio de lectura de facturas respondió con un error (${response.status}). ${body.slice(0, 300)}` };
     }
 
