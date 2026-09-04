@@ -10,6 +10,7 @@ import {
   FileWarning,
   Gauge,
   Plane,
+  Receipt,
   ReceiptText,
   ShoppingCart,
   ShieldCheck,
@@ -70,7 +71,8 @@ export const navigationGroups: NavigationGroup[] = [
     labelKey: "navGroup.supplyChain",
     items: [
       { label: "Inventory", labelKey: "nav.inventory", href: "/inventory", icon: Boxes, status: "ready" },
-      { label: "Purchasing", labelKey: "nav.purchasing", href: "/purchasing", icon: ShoppingCart, status: "ready" }
+      { label: "Purchasing", labelKey: "nav.purchasing", href: "/purchasing", icon: ShoppingCart, status: "ready" },
+      { label: "Invoices", labelKey: "nav.invoices", href: "/invoices", icon: Receipt, status: "ready" }
     ]
   },
   {

@@ -1109,6 +1109,38 @@ create table migration_logs (
 -- figure that depends on it).
 
 -- ========================================================================
+-- Costo real de faena + Facturas (IA) — Sept 2026
+-- ========================================================================
+-- Adolfo: los informes de faena solo mostraban el costo de nómina, no el
+-- material consumido reportado en cada reporte semanal ni la póliza de
+-- seguro prorrateada por días de faena. Cálculo en lib/faena-cost.ts, usado
+-- por app/campaigns/[id]/page.tsx y lib/faena-report.ts.
+--   alter table inventory_items add column unit_cost numeric;        -- costo promedio, ver invoice_line_items abajo
+--   alter table stock_movements add column campaign_id uuid references campaigns(id);
+--
+-- Además, Adolfo puede subir facturas (desde una faena o desde Compras) y
+-- pidió explícitamente conectar IA de pago (Claude, vía ANTHROPIC_API_KEY)
+-- para leerlas automáticamente — ver lib/invoice-extraction.ts. Los
+-- archivos se guardan en el bucket "aircraft-documents" ya existente, bajo
+-- el prefijo "invoices/". La factura queda en extraction_status='Extracted'
+-- para que Adolfo revise/corrija antes de "Reviewed" (confirmar), que es
+-- cuando cada línea sube stock_movements (Received) y actualiza
+-- inventory_items.unit_cost como promedio ponderado — nunca se aplica al
+-- inventario sin ese paso de confirmación humana, aunque la IA haya leído
+-- bien el documento.
+--   create table invoices (id, campaign_id, vessel_id, helicopter_registration,
+--     vendor, invoice_number, invoice_date, currency, total_amount, file_url,
+--     extraction_status check in ('Pending','Extracted','Reviewed','Failed'),
+--     ai_notes, notes, archived, source, created_at, updated_at);
+--   create table invoice_line_items (id, invoice_id, item_name, part_number,
+--     quantity, unit_cost, line_total, matched_inventory_item_id, created_at);
+--
+-- Las facturas vinculadas a una faena (invoices.campaign_id) se suman como
+-- costo APARTE del total de esa faena (decisión explícita de Adolfo, para no
+-- cruzarlas con el cálculo de material consumido y evitar contar el mismo
+-- gasto dos veces).
+
+-- ========================================================================
 -- Row Level Security
 -- ========================================================================
 -- MVP posture: no login exists yet (matches HSV OS 0.2/0.3's own

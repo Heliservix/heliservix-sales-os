@@ -42,7 +42,8 @@ export const dictionary = {
       workOrders: "Work Orders",
       nonRoutine: "Non-Routine Reports",
       library: "Robinson Technical Library",
-      componentChanges: "Component Changes"
+      componentChanges: "Component Changes",
+      invoices: "Invoices"
     },
     navGroup: {
       operations: "Operations",
@@ -130,7 +131,8 @@ export const dictionary = {
       workOrders: "Órdenes de Trabajo",
       nonRoutine: "Reportes No Rutina",
       library: "Biblioteca Técnica Robinson",
-      componentChanges: "Cambios de Componentes"
+      componentChanges: "Cambios de Componentes",
+      invoices: "Facturas"
     },
     navGroup: {
       operations: "Operaciones",

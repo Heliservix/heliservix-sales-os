@@ -11,6 +11,7 @@
 // ON TOP of this (rephrase/expand these sentences), not replace the numbers.
 import { supabase } from "@/lib/supabase";
 import { calculatePayroll, resolveWorkDays, type PayrollBreakdown } from "@/lib/payroll";
+import { computeFaenaCost, type FaenaCostBreakdown } from "@/lib/faena-cost";
 import { ROBINSON_R44_AVGAS_SPEC, isRobinsonR44 } from "@/lib/aura";
 import { fetchFaenaData, computeFaenaMetrics, vesselKey, type FaenaMetrics } from "@/lib/faena-metrics";
 
@@ -45,6 +46,7 @@ export type FaenaReport = {
     people: PersonPayroll[];
     totalPaid: number | null;
   };
+  costs: FaenaCostBreakdown;
   reportQuality: {
     weeksReported: number;
     expectedWeeks: number | null;
@@ -195,6 +197,15 @@ export async function buildFaenaReport(campaignId: string): Promise<FaenaReport 
   }
   const totalPaid = people.length ? people.reduce((sum, p) => sum + (p.breakdown.total ?? 0), 0) : null;
 
+  const costs = await computeFaenaCost({
+    campaignId: row.campaign.id,
+    campaignCode: row.campaign.code,
+    helicopterRegistration: row.campaign.helicopter_registration,
+    startDate: fullCampaign.start_date,
+    endDate: fullCampaign.end_date,
+    payrollCost: totalPaid
+  });
+
   // Técnico report-quality: how many weeks were actually reported vs how
   // many should have been (fishing_days / 7, rounded up), and how complete
   // each report was (fuel + oil fields filled in). This is a data-hygiene
@@ -298,6 +309,11 @@ export async function buildFaenaReport(campaignId: string): Promise<FaenaReport 
   if (totalPaid != null) {
     managementOpinion.push(`Costo de nómina de esta faena: $${totalPaid.toFixed(2)} entre piloto y mecánico asignados.`);
   }
+  if (costs.totalCost != null) {
+    managementOpinion.push(
+      `Costo total estimado de la faena (nómina + material consumido + póliza prorrateada + facturas): $${costs.totalCost.toFixed(2)}.`
+    );
+  }
   managementOpinion.push(
     vsPeerTonsPerHourPct != null && vsPeerTonsPerHourPct < -20
       ? "Recomendación: investigar esta faena antes de repetir las mismas condiciones en la próxima marea de este barco."
@@ -318,6 +334,7 @@ export async function buildFaenaReport(campaignId: string): Promise<FaenaReport 
     metrics: row,
     vesselComparison: { peerAvgTonsPerHour, peerAvgTonsPerDay, peerCount: peers.length, vsPeerTonsPerHourPct },
     payroll: { people, totalPaid },
+    costs,
     reportQuality: { weeksReported, expectedWeeks, missingWeeks, fuelReportedWeeks, oilReportedWeeks, completenessScore, assessment },
     maintenance: { maintenanceLogsCount: maintenanceLogsList.length, nonRoutineCount, filterChangesCount, componentChangesCount: (componentChanges ?? []).length, openAlertsNow, fuelAnomalies },
     advisories,

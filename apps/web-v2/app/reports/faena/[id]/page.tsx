@@ -123,6 +123,26 @@ export default async function FaenaReportPage({ params }: { params: Promise<{ id
           ) : null}
         </div>
 
+        {/* Costos de la faena */}
+        <div className="hsv-panel mt-5 print:border-line">
+          <h2 className="text-lg font-semibold text-ink">Costos de la faena</h2>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Stat label="Nómina" value={report.costs.payrollCost != null ? `$${report.costs.payrollCost.toFixed(2)}` : "—"} />
+            <Stat label="Material consumido" value={`$${report.costs.materialsCost.toFixed(2)}`} />
+            <Stat label="Póliza prorrateada" value={`$${report.costs.insuranceProrated.toFixed(2)}`} />
+            <Stat label="Facturas" value={`$${report.costs.invoicesTotal.toFixed(2)}`} />
+          </div>
+          {report.costs.materialsMissingCostCount > 0 ? (
+            <p className="mt-3 text-xs text-ink-subtle">
+              {report.costs.materialsMissingCostCount} ítem(s) consumido(s) sin costo promedio registrado — no incluido(s) en el material
+              consumido.
+            </p>
+          ) : null}
+          {report.costs.totalCost != null ? (
+            <p className="mt-4 text-sm font-semibold text-ink">Costo total estimado de la faena: ${report.costs.totalCost.toFixed(2)}</p>
+          ) : null}
+        </div>
+
         {/* Efectividad del técnico */}
         <div className="hsv-panel mt-5 print:border-line">
           <h2 className="text-lg font-semibold text-ink">Efectividad del técnico en el llenado de reportes semanales</h2>

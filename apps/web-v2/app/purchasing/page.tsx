@@ -108,10 +108,15 @@ export default async function PurchasingPage({ searchParams }: PurchasingPagePro
               <ShoppingCart className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               <h2 className="text-lg font-semibold text-ink">Pedidos</h2>
             </div>
-            <Link className="hsv-primary-button" href="/purchasing/new">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Crear pedido manual
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link className="hsv-primary-button" href="/purchasing/new">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Crear pedido manual
+              </Link>
+              <Link className="hsv-secondary-button" href="/invoices/new">
+                Subir factura
+              </Link>
+            </div>
           </div>
 
           <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-canvas-muted p-3">

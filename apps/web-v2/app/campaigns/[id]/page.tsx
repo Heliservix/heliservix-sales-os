@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarRange, Pencil, Trash2, Wallet } from "lucide-react";
+import { CalendarRange, Pencil, Receipt, Trash2, Wallet } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { archiveCampaign } from "@/app/campaigns/actions";
 import { calculatePayroll, resolveWorkDays } from "@/lib/payroll";
+import { computeFaenaCost } from "@/lib/faena-cost";
 import { ROBINSON_R44_AVGAS_SPEC, isRobinsonR44 } from "@/lib/aura";
 import { FlightLogRowActions } from "@/app/campaigns/[id]/flight-log-row-actions";
 
@@ -139,6 +140,16 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
         }
       : null
   ].filter((row): row is NonNullable<typeof row> => row != null);
+
+  const payrollTotal = payrollRows.length ? payrollRows.reduce((sum, row) => sum + (row.breakdown.total ?? 0), 0) : null;
+  const faenaCost = await computeFaenaCost({
+    campaignId: id,
+    campaignCode: campaign.code,
+    helicopterRegistration: campaign.helicopter_registration,
+    startDate: campaign.start_date,
+    endDate: campaign.end_date,
+    payrollCost: payrollTotal
+  });
 
   return (
     <AppShell>
@@ -324,6 +335,67 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
             de contrato distinta para piloto o mecánico — útil cuando uno llega antes o se queda después que el otro). El bono por tonelada
             se paga en dos partes: 80% sobre lo capturado aproximado (pago al cierre de la faena) y el saldo una vez llega el pesaje final de
             la planta — no un 20% fijo del total, sino lo que falte para completar el bono calculado sobre el peso final.
+          </p>
+        </Panel>
+
+        <Panel className="mb-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-ink">Costos de la faena</h2>
+            </div>
+            <Link className="hsv-secondary-button" href={`/invoices/new?campaignId=${id}`}>
+              <Receipt className="h-4 w-4" aria-hidden="true" />
+              Subir factura
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Nómina</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">
+                {faenaCost.payrollCost != null ? `$${faenaCost.payrollCost.toFixed(2)}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Material consumido</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">${faenaCost.materialsCost.toFixed(2)}</p>
+              {faenaCost.materialsMissingCostCount > 0 ? (
+                <p className="mt-0.5 text-xs text-aviation-amber">
+                  {faenaCost.materialsMissingCostCount} ítem(s) consumido(s) sin costo registrado — no incluido(s).
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Póliza prorrateada</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">${faenaCost.insuranceProrated.toFixed(2)}</p>
+              {faenaCost.insuranceBreakdown.length ? (
+                <p className="mt-0.5 text-xs text-ink-subtle">
+                  {faenaCost.insuranceBreakdown.map((b, i) => (
+                    <span key={i}>
+                      {i > 0 ? " · " : ""}
+                      {b.coverageType ?? b.insurer ?? "Póliza"} ({b.days}d): ${b.amount.toFixed(2)}
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-subtle">Facturas de la faena</p>
+              <p className="hsv-technical-value mt-1 text-xl font-bold text-ink">${faenaCost.invoicesTotal.toFixed(2)}</p>
+              {faenaCost.invoicesCount > 0 ? (
+                <Link className="mt-0.5 block text-xs text-aviation-teal hover:underline" href="/invoices">
+                  {faenaCost.invoicesCount} factura(s) subida(s)
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          {faenaCost.totalCost != null ? (
+            <p className="mt-5 text-sm font-semibold text-ink">Costo total estimado de la faena: ${faenaCost.totalCost.toFixed(2)}</p>
+          ) : null}
+          <p className="mt-3 text-xs text-ink-subtle">
+            Material consumido = ítems marcados como &ldquo;Consumido&rdquo; en esta faena × su costo promedio (se actualiza al confirmar
+            una factura). Póliza prorrateada = prima de cada póliza del helicóptero asignado, por los días de esta faena que caen dentro de
+            su vigencia. Las facturas subidas directamente a la faena se suman aparte.
           </p>
         </Panel>
 
