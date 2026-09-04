@@ -29,6 +29,23 @@ function optionalNumber(form: FormData, key: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// Safety net for fishing_days: the form (FishingDaysField) auto-fills it in
+// the browser as the user types the two dates, but that's client-side only —
+// if a campaign is ever saved without the field getting touched (paste,
+// autofill, a future bulk importer), fishing_days would silently stay null
+// and every ratio/report/payroll figure that depends on it (lib/faena-metrics,
+// lib/payroll) would show "—" with no explanation. Bug found 2026-09-04:
+// Marea M02-2026 Caroní II had 0 días de pesca in its report despite having
+// both dates. This mirrors the exact same (end - start + 1) formula as the
+// client field, so it never disagrees with what the user sees while typing.
+function resolveFishingDays(form: FormData, startDate: string | null, endDate: string | null): number | null {
+  const manual = optionalNumber(form, "fishingDays");
+  if (manual != null) return manual;
+  if (!startDate || !endDate) return null;
+  const diff = Math.round((new Date(`${endDate}T00:00:00Z`).getTime() - new Date(`${startDate}T00:00:00Z`).getTime()) / 86400000) + 1;
+  return diff > 0 ? diff : null;
+}
+
 // pilot_id/mechanic_id (FK to personnel) are the source of truth going
 // forward, but campaigns.pilot/mechanic stay as plain text too — several
 // pages (campaign detail, AURA evidence strings) already read those text
@@ -48,6 +65,9 @@ export async function createCampaign(formData: FormData) {
   const mechanicId = optionalText(formData, "mechanicId");
   const [pilotName, mechanicName] = await Promise.all([resolvePersonName(pilotId), resolvePersonName(mechanicId)]);
 
+  const startDate = optionalText(formData, "startDate");
+  const endDate = optionalText(formData, "endDate");
+
   const { data, error } = await supabase
     .from("campaigns")
     .insert({
@@ -60,14 +80,14 @@ export async function createCampaign(formData: FormData) {
       mechanic_id: mechanicId,
       pilot: pilotName,
       mechanic: mechanicName,
-      start_date: optionalText(formData, "startDate"),
-      end_date: optionalText(formData, "endDate"),
+      start_date: startDate,
+      end_date: endDate,
       operation_area: optionalText(formData, "operationArea"),
       contract_reference: optionalText(formData, "contractReference"),
       status: text(formData, "status") || "Draft",
       tons_captured_estimate: optionalNumber(formData, "tonsCapturedEstimate"),
       tons_captured_final: optionalNumber(formData, "tonsCapturedFinal"),
-      fishing_days: optionalNumber(formData, "fishingDays"),
+      fishing_days: resolveFishingDays(formData, startDate, endDate),
       catch_weighin_date: optionalText(formData, "catchWeighinDate"),
       pilot_anticipos: optionalNumber(formData, "pilotAnticipos"),
       mechanic_anticipos: optionalNumber(formData, "mechanicAnticipos"),
@@ -92,6 +112,9 @@ export async function updateCampaign(id: string, formData: FormData) {
   const mechanicId = optionalText(formData, "mechanicId");
   const [pilotName, mechanicName] = await Promise.all([resolvePersonName(pilotId), resolvePersonName(mechanicId)]);
 
+  const startDate = optionalText(formData, "startDate");
+  const endDate = optionalText(formData, "endDate");
+
   const { error } = await supabase
     .from("campaigns")
     .update({
@@ -104,14 +127,14 @@ export async function updateCampaign(id: string, formData: FormData) {
       mechanic_id: mechanicId,
       pilot: pilotName,
       mechanic: mechanicName,
-      start_date: optionalText(formData, "startDate"),
-      end_date: optionalText(formData, "endDate"),
+      start_date: startDate,
+      end_date: endDate,
       operation_area: optionalText(formData, "operationArea"),
       contract_reference: optionalText(formData, "contractReference"),
       status: text(formData, "status") || "Draft",
       tons_captured_estimate: optionalNumber(formData, "tonsCapturedEstimate"),
       tons_captured_final: optionalNumber(formData, "tonsCapturedFinal"),
-      fishing_days: optionalNumber(formData, "fishingDays"),
+      fishing_days: resolveFishingDays(formData, startDate, endDate),
       catch_weighin_date: optionalText(formData, "catchWeighinDate"),
       pilot_anticipos: optionalNumber(formData, "pilotAnticipos"),
       mechanic_anticipos: optionalNumber(formData, "mechanicAnticipos"),
