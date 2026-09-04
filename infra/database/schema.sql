@@ -1068,6 +1068,34 @@ create table migration_logs (
 );
 
 -- ========================================================================
+-- Letterhead fields (vessels) + discharge port (campaigns) — Sept 2026
+-- ========================================================================
+-- Adolfo used to build "Autorización de Pago" letters (80% / 20% of a
+-- faena's tonnage bonus) by hand in Word, addressed to Departamento de
+-- Nóminas on the owning pesquera's letterhead, to trigger the office
+-- releasing funds. app/reports/faena-authorization/[id]/page.tsx now
+-- generates that letter + the per-person payroll cuadro automatically from
+-- real data (lib/faena-authorization.ts, built on the already-verified
+-- lib/payroll.ts formula). Each vessel can belong to a different
+-- pesquera/owner, so the letterhead lives on `vessels`, not a single global
+-- setting — every faena of that vessel reuses it automatically.
+--   alter table vessels
+--     add column letterhead_company_name text,   -- ej. "PESQUERA CARONI, C. A"
+--     add column letterhead_address text,        -- bloque de dirección/teléfonos, multilínea
+--     add column letterhead_phone text,
+--     add column letterhead_signers text,         -- ej. "Doménico Pinto / Domenico A. Spinali"
+--     add column letterhead_city text default 'Panamá';
+--   alter table campaigns
+--     add column discharge_port text;             -- ej. "Puerto Manta/Ecuador", citado en la carta
+--
+-- Also: campaigns.fishing_days is auto-computed ((end_date - start_date) + 1)
+-- server-side in app/campaigns/actions.ts whenever the form doesn't supply a
+-- manual value — a safety net for the client-side auto-fill in
+-- FishingDaysField, after a real gap was found 2026-09-04 (a faena with both
+-- dates saved but fishing_days left null, breaking every ratio/report/payroll
+-- figure that depends on it).
+
+-- ========================================================================
 -- Row Level Security
 -- ========================================================================
 -- MVP posture: no login exists yet (matches HSV OS 0.2/0.3's own

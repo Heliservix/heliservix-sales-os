@@ -189,10 +189,20 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                 <p className="text-sm text-ink-muted">{campaign.operation_area || "N/A"}</p>
               </div>
             </div>
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <Link className="hsv-secondary-button" href={`/reports/faena/${id}`}>
                 Ver informe
               </Link>
+              {tonsEstimate != null ? (
+                <Link className="hsv-secondary-button" href={`/reports/faena-authorization/${id}?tranche=80`}>
+                  Autorización 80%
+                </Link>
+              ) : null}
+              {tonsFinal != null ? (
+                <Link className="hsv-secondary-button" href={`/reports/faena-authorization/${id}?tranche=20`}>
+                  Autorización 20%
+                </Link>
+              ) : null}
               <Link className="hsv-secondary-button" href={`/campaigns/${id}/edit`}>
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Editar

@@ -58,6 +58,40 @@ export default async function EditVesselPage({ params }: EditVesselPageProps) {
               Notas
               <textarea className="hsv-textarea" name="notes" defaultValue={vessel.notes ?? ""} />
             </label>
+
+            <div className="sm:col-span-2 rounded-lg border border-line bg-canvas-muted p-3">
+              <p className="text-sm font-semibold text-ink">Membrete para cartas de Autorización de Pago</p>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Estos datos se usan para generar la carta de autorización (80% / 20%) dirigida a Departamento de Nóminas
+                cuando cierra una faena de este barco.
+              </p>
+            </div>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Razón social (membrete)
+              <input
+                className="hsv-control"
+                name="letterheadCompanyName"
+                placeholder="PESQUERA CARONI, C. A"
+                defaultValue={vessel.letterhead_company_name ?? ""}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Dirección / teléfonos del membrete
+              <textarea className="hsv-textarea" name="letterheadAddress" rows={3} defaultValue={vessel.letterhead_address ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Ciudad de origen de la carta
+              <input className="hsv-control" name="letterheadCity" defaultValue={vessel.letterhead_city ?? "Panamá"} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Teléfono adicional (opcional)
+              <input className="hsv-control" name="letterheadPhone" defaultValue={vessel.letterhead_phone ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
+              Firmantes autorizados
+              <input className="hsv-control" name="letterheadSigners" defaultValue={vessel.letterhead_signers ?? ""} />
+            </label>
+
             <div className="sm:col-span-2">
               <button className="hsv-primary-button" type="submit">
                 Guardar cambios

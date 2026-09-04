@@ -120,6 +120,10 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
               <input className="hsv-control" type="date" name="catchWeighinDate" defaultValue={campaign.catch_weighin_date ?? ""} />
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Puerto de descarga
+              <input className="hsv-control" name="dischargePort" defaultValue={campaign.discharge_port ?? ""} placeholder="Puerto Manta/Ecuador" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Anticipos entregados al piloto (USD)
               <input className="hsv-control" type="number" step="0.01" name="pilotAnticipos" defaultValue={campaign.pilot_anticipos ?? ""} />
             </label>

@@ -33,7 +33,12 @@ export async function createVessel(formData: FormData) {
       home_port: optionalText(formData, "homePort"),
       capacity_tons: optionalNumber(formData, "capacityTons"),
       status: text(formData, "status") || "Prospect",
-      notes: optionalText(formData, "notes")
+      notes: optionalText(formData, "notes"),
+      letterhead_company_name: optionalText(formData, "letterheadCompanyName"),
+      letterhead_address: optionalText(formData, "letterheadAddress"),
+      letterhead_phone: optionalText(formData, "letterheadPhone"),
+      letterhead_signers: optionalText(formData, "letterheadSigners"),
+      letterhead_city: optionalText(formData, "letterheadCity") ?? "Panamá"
     })
     .select("id")
     .single();
@@ -57,7 +62,12 @@ export async function updateVessel(id: string, formData: FormData) {
       home_port: optionalText(formData, "homePort"),
       capacity_tons: optionalNumber(formData, "capacityTons"),
       status: text(formData, "status") || "Prospect",
-      notes: optionalText(formData, "notes")
+      notes: optionalText(formData, "notes"),
+      letterhead_company_name: optionalText(formData, "letterheadCompanyName"),
+      letterhead_address: optionalText(formData, "letterheadAddress"),
+      letterhead_phone: optionalText(formData, "letterheadPhone"),
+      letterhead_signers: optionalText(formData, "letterheadSigners"),
+      letterhead_city: optionalText(formData, "letterheadCity") ?? "Panamá"
     })
     .eq("id", id);
 
