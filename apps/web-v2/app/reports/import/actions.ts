@@ -18,6 +18,7 @@ export type WeeklyImportState = {
   materialsConsumedReview?: string[];
   purchaseRequestsCreated?: number;
   inventoryCountSynced?: { created: number; updated: number };
+  nonRoutineReportsCreated?: number;
   warnings?: string[];
 };
 
@@ -61,7 +62,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   // a brand-new tail number. Use the Control de Componentes importer for that first.
   const { data: helicopter, error: helicopterLookupError } = await supabase
     .from("helicopters")
-    .select("registration, assigned_vessel_id")
+    .select("registration, assigned_vessel_id, model")
     .eq("registration", helicopterRegistration)
     .maybeSingle();
 
@@ -375,6 +376,58 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     }
   }
 
+  // 5c. Create real "No Rutina" reports (Reportes No Rutina / AS-09 digital)
+  // for each new non-routine event — before this, these events only existed
+  // as a maintenance_logs/technical_records mirror, invisible to the actual
+  // No Rutina module (with its Abierta → Corregida → Cerrada workflow) that
+  // Adolfo's office works from. Reuses newNonRoutineEvents, so it inherits
+  // the exact same de-dup as step 5: an event already logged for this
+  // helicopter/date/hourmeter on a prior import is skipped here too.
+  let nonRoutineReportsCreated = 0;
+  if (newNonRoutineEvents.length > 0) {
+    const { data: personnelRows } = await supabase.from("personnel").select("id, full_name").eq("status", "Active");
+    const personnelByName = new Map((personnelRows ?? []).map((p) => [p.full_name.trim().toLowerCase(), p.id]));
+    function resolvePersonnelId(name: string | null) {
+      if (!name) return null;
+      return personnelByName.get(name.trim().toLowerCase()) ?? null;
+    }
+
+    const nonRoutineRows = newNonRoutineEvents.map((event) => {
+      const materialsNote = event.materials.length
+        ? `Materiales: ${event.materials.map((m) => `${m.description}${m.partNumber ? ` (${m.partNumber})` : ""}${m.quantity ? ` x${m.quantity}` : ""}`).join("; ")}`
+        : null;
+      // El técnico nombrado en la fila de la hoja NO RUTINAS es quien lo
+      // encontró y, cuando hay acción de gestión ya descrita, también quien
+      // la corrigió — si esa fila no trae nombre, cae al mecánico asignado
+      // a la faena (mismo fallback que technical_records arriba).
+      const personnelId = resolvePersonnelId(event.technician) ?? resolvePersonnelId(campaignMechanic);
+      const hasCorrectiveAction = Boolean(event.managementAction);
+      const status: "Abierta" | "Corregida" = hasCorrectiveAction ? "Corregida" : "Abierta";
+      return {
+        helicopter_registration: helicopterRegistration,
+        aircraft_model: helicopter.model ?? null,
+        total_time_hours: event.aircraftHours ?? event.hobbs ?? null,
+        report_date: event.date ?? reportDate ?? new Date().toISOString().slice(0, 10),
+        discrepancy: event.novelty || "Novedad reportada en el reporte semanal (sin descripción detallada).",
+        opened_by_personnel_id: personnelId,
+        corrective_action: event.managementAction || null,
+        corrected_by_personnel_id: hasCorrectiveAction ? personnelId : null,
+        status,
+        notes: [`Origen: reporte semanal — Marea ${mareaCode || "N/A"}, Semana ${weekNumber}.`, materialsNote].filter(Boolean).join(" "),
+        source: "User" as const
+      };
+    });
+
+    const { error: nonRoutineError, data: nonRoutineData } = await supabase.from("non_routine_reports").insert(nonRoutineRows).select("id");
+    if (nonRoutineError) {
+      // Non-fatal, same reasoning as technical_records above — flight hours
+      // and maintenance_logs are already applied and shouldn't roll back.
+      warnings.push(`No se pudieron crear los reportes de No Rutina: ${nonRoutineError.message}`);
+    } else {
+      nonRoutineReportsCreated = nonRoutineData?.length ?? nonRoutineRows.length;
+    }
+  }
+
   // 6. Log detected component changes for human review — try to match the removed
   // part against an existing component so the record links to it, but never touch
   // the live components table automatically.
@@ -551,6 +604,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
   revalidatePath("/inventory");
   revalidatePath("/campaigns");
   revalidatePath("/technical-records");
+  revalidatePath("/non-routine");
   if (campaignId) revalidatePath(`/campaigns/${campaignId}`);
   if (vesselId) revalidatePath(`/vessels/${vesselId}/inventory`);
   revalidatePath("/");
@@ -568,6 +622,7 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
     materialsConsumedReview,
     purchaseRequestsCreated,
     inventoryCountSynced,
+    nonRoutineReportsCreated,
     warnings
   };
 }

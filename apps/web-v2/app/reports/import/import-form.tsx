@@ -31,7 +31,8 @@ export function WeeklyImportForm() {
           &ldquo;CAMBIO FILTROS&rdquo;, &ldquo;CONSUMO MATERIALES&rdquo;, &ldquo;PEDIDOS&rdquo; e &ldquo;INVENTARIO
           BODEGA&rdquo;. El helicóptero debe existir ya en el sistema. Las horas de la semana se descuentan automáticamente
           de todos sus componentes activos, el consumo de materiales se descuenta de la bodega del barco, los pedidos quedan
-          registrados en Compras, y si el archivo trae el conteo completo de bodega, la actualiza directamente.
+          registrados en Compras, la hoja &ldquo;NO RUTINAS&rdquo; crea reportes en Reportes No Rutina automáticamente, y si
+          el archivo trae el conteo completo de bodega, la actualiza directamente.
         </p>
         <div>
           <SubmitButton />
@@ -49,6 +50,15 @@ export function WeeklyImportForm() {
               Se agregaron {state.technicalRecordsCreated} registro(s) técnico(s) de esta faena en{" "}
               <Link className="underline" href="/technical-records">
                 Registros Técnicos
+              </Link>
+              .
+            </p>
+          )}
+          {state.nonRoutineReportsCreated != null && state.nonRoutineReportsCreated > 0 && (
+            <p className="mt-2">
+              Se crearon {state.nonRoutineReportsCreated} reporte(s) de No Rutina en{" "}
+              <Link className="underline" href="/non-routine">
+                Reportes No Rutina
               </Link>
               .
             </p>
