@@ -1,7 +1,11 @@
-// Carta de "Autorización de Pago" (80% / 20%) + cuadro de nómina por persona,
-// para reemplazar el proceso manual en Word/Excel que Adolfo usa hoy para
-// pedirle a cada pesquera/propietario que autorice el pago a piloto y
-// mecánico.
+// Carta de "Solicitud de Fondos" (80% / 20%) + cuadro de nómina por persona,
+// para reemplazar el proceso manual en Word/Excel que Adolfo usa hoy. La
+// carta ya NO pide "autorizar" el pago — parte de que esa autorización ya
+// fue otorgada, e invoca esa autorización para solicitarle a la pesquera/
+// propietario el desembolso real de los fondos correspondientes al pago de
+// piloto y mecánico (sept 2026, a pedido de Adolfo). Se genera como
+// documento de una sola página (carta + cuadro juntos) para imprimir o
+// guardar como PDF y enviar directo a la pesquera.
 //
 // Contexto real (Adolfo, sept 2026): al cerrar una faena se paga al piloto y
 // mecánico el 80% del bono por tonelada (sobre el estimado) más los días

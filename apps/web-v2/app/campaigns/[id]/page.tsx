@@ -211,12 +211,12 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
               </Link>
               {tonsEstimate != null ? (
                 <Link className="hsv-secondary-button" href={`/reports/faena-authorization/${id}?tranche=80`}>
-                  Autorización 80%
+                  Solicitud de Fondos 80%
                 </Link>
               ) : null}
               {tonsFinal != null ? (
                 <Link className="hsv-secondary-button" href={`/reports/faena-authorization/${id}?tranche=20`}>
-                  Autorización 20%
+                  Solicitud de Fondos 20%
                 </Link>
               ) : null}
               <Link className="hsv-secondary-button" href={`/campaigns/${id}/edit`}>
