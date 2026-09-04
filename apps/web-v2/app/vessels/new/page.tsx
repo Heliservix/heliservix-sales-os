@@ -53,36 +53,15 @@ export default function NewVesselPage() {
             </label>
 
             <div className="sm:col-span-2 rounded-lg border border-line bg-canvas-muted p-3">
-              <p className="text-sm font-semibold text-ink">Membrete para cartas de Autorización de Pago</p>
+              <p className="text-sm font-semibold text-ink">Cartas de Autorización de Pago</p>
               <p className="mt-1 text-xs text-ink-subtle">
-                Estos datos se usan para generar la carta de autorización (80% / 20%) dirigida a Departamento de Nóminas
-                cuando cierra una faena de este barco. Puedes dejarlos en blanco y completarlos después.
+                Las cartas de autorización (80% / 20%) las emite Pacific Helicopter Supplies o HeliServiX (eliges cuál al generar cada
+                carta) — este nombre es solo a quién va dirigida, la pesquera/propietario dueña de este barco.
               </p>
             </div>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
-              Razón social (membrete)
+              Razón social de la pesquera/propietario (destinatario de la carta)
               <input className="hsv-control" name="letterheadCompanyName" placeholder="PESQUERA CARONI, C. A" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
-              Dirección / teléfonos del membrete
-              <textarea
-                className="hsv-textarea"
-                name="letterheadAddress"
-                rows={3}
-                placeholder="Vía Ferry-Mar - Sector El Salado - Local Nº 1 - Tels.: ..."
-              />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Ciudad de origen de la carta
-              <input className="hsv-control" name="letterheadCity" placeholder="Panamá" defaultValue="Panamá" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink">
-              Teléfono adicional (opcional)
-              <input className="hsv-control" name="letterheadPhone" />
-            </label>
-            <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
-              Firmantes autorizados
-              <input className="hsv-control" name="letterheadSigners" placeholder="Doménico Pinto / Domenico A. Spinali" />
             </label>
 
             <div className="sm:col-span-2">

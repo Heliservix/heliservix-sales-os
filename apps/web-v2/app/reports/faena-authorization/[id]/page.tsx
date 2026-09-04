@@ -2,40 +2,61 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { buildFaenaAuthorization, type AuthorizationTranche } from "@/lib/faena-authorization";
+import type { CompanyProfileId } from "@/lib/company-profiles";
 import { PrintButton } from "@/app/reports/faena/[id]/print-button";
 
 export const dynamic = "force-dynamic";
 
 type FaenaAuthorizationPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tranche?: string }>;
+  searchParams: Promise<{ tranche?: string; issuer?: string }>;
 };
+
+function paramsWith(id: string, tranche: string, issuer: string) {
+  return `/reports/faena-authorization/${id}?tranche=${tranche}&issuer=${issuer}`;
+}
 
 export default async function FaenaAuthorizationPage({ params, searchParams }: FaenaAuthorizationPageProps) {
   const { id } = await params;
-  const { tranche: trancheParam } = await searchParams;
+  const { tranche: trancheParam, issuer: issuerParam } = await searchParams;
   const tranche: AuthorizationTranche = trancheParam === "20" ? "20" : "80";
+  const issuerId: CompanyProfileId = issuerParam === "heliservix" ? "heliservix" : "pacific";
 
-  const auth = await buildFaenaAuthorization(id, tranche);
+  const auth = await buildFaenaAuthorization(id, tranche, issuerId);
   if (!auth) notFound();
 
   return (
     <div className="min-h-screen bg-canvas-muted px-4 py-8 print:bg-white print:px-0 print:py-0">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-5 flex items-center justify-between print:hidden">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <Link href={`/campaigns/${id}`} className="hsv-ghost-button -ml-2.5">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Volver a la faena
           </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase text-ink-subtle">Emitir como:</span>
+            <Link
+              href={paramsWith(id, tranche, "pacific")}
+              className={`hsv-secondary-button ${issuerId === "pacific" ? "!border-aviation-teal !text-aviation-teal" : ""}`}
+            >
+              Pacific Helicopter Supplies
+            </Link>
+            <Link
+              href={paramsWith(id, tranche, "heliservix")}
+              className={`hsv-secondary-button ${issuerId === "heliservix" ? "!border-aviation-teal !text-aviation-teal" : ""}`}
+            >
+              HeliServiX
+            </Link>
+          </div>
           <div className="flex items-center gap-2">
             <Link
-              href={`/reports/faena-authorization/${id}?tranche=80`}
+              href={paramsWith(id, "80", issuerId)}
               className={`hsv-secondary-button ${tranche === "80" ? "!border-aviation-teal !text-aviation-teal" : ""}`}
             >
               Ver 80%
             </Link>
             <Link
-              href={`/reports/faena-authorization/${id}?tranche=20`}
+              href={paramsWith(id, "20", issuerId)}
               className={`hsv-secondary-button ${tranche === "20" ? "!border-aviation-teal !text-aviation-teal" : ""}`}
             >
               Ver 20%
@@ -44,23 +65,29 @@ export default async function FaenaAuthorizationPage({ params, searchParams }: F
           </div>
         </div>
 
-        {auth.missingData ? (
-          <div className="hsv-error-banner print:hidden">{auth.missingData}</div>
-        ) : null}
+        {auth.missingData ? <div className="hsv-error-banner print:hidden">{auth.missingData}</div> : null}
 
-        {/* Carta de autorización — imita el formato real que ya usa Adolfo */}
+        {/* Carta de autorización — imita el formato real que ya usa Adolfo, emitida por la empresa elegida */}
         <div className="hsv-panel print:border-none print:shadow-none">
-          <p className="text-2xl font-semibold uppercase text-ink">{auth.letterhead.companyName}</p>
-          {auth.letterhead.address ? (
-            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-ink-subtle">{auth.letterhead.address}</p>
-          ) : null}
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={auth.issuer.logoSrc} alt={auth.issuer.legalName} className="h-16 w-auto object-contain" />
+            <div>
+              <p className="text-xl font-semibold uppercase text-ink">{auth.issuer.legalName}</p>
+              {auth.issuer.ruc ? <p className="text-xs text-ink-subtle">RUC {auth.issuer.ruc}</p> : null}
+              {auth.issuer.addressLines.map((line, i) => (
+                <p key={i} className="text-xs text-ink-subtle">
+                  {line}
+                </p>
+              ))}
+              <p className="text-xs text-ink-subtle">{auth.issuer.phones.join(" · ")}</p>
+            </div>
+          </div>
 
-          <p className="mt-6 text-sm text-ink">
-            {auth.letterhead.city}, {auth.dateLine}.
-          </p>
+          <p className="mt-6 text-sm text-ink">Panamá, {auth.dateLine}.</p>
 
           <p className="mt-6 text-sm text-ink">Para: Departamento de Nóminas</p>
-          <p className="mt-1 text-sm text-ink">De Señores: {auth.letterhead.signers || "—"}</p>
+          <p className="mt-1 text-sm font-semibold text-ink">{auth.addressee.companyName}</p>
           <p className="mt-1 text-sm text-ink">
             Ref. Autorización de Pago {auth.tranche}% {auth.campaignCode ? `Marea ${auth.campaignCode}` : auth.campaignName}.
           </p>
@@ -68,8 +95,8 @@ export default async function FaenaAuthorizationPage({ params, searchParams }: F
           <p className="mt-6 text-sm font-semibold text-ink">M/N {auth.vesselName}:</p>
 
           <p className="mt-6 text-sm leading-6 text-ink">
-            Por medio de la presente autorizamos pagar el {auth.tranche}% de la {auth.campaignCode ? `Marea ${auth.campaignCode}` : auth.campaignName}{" "}
-            de la M/N {auth.vesselName} con{" "}
+            Por medio de la presente solicitamos autorizar el pago del {auth.tranche}% de la{" "}
+            {auth.campaignCode ? `Marea ${auth.campaignCode}` : auth.campaignName} de la M/N {auth.vesselName} con{" "}
             <strong>
               {auth.tranche === "80"
                 ? auth.tonsEstimate != null
@@ -90,8 +117,8 @@ export default async function FaenaAuthorizationPage({ params, searchParams }: F
               </>
             ) : (
               <>
-                {auth.tonsFinal ?? "—"} Toneladas Finales, menos {auth.tonsAlreadyPaidIn80 != null ? auth.tonsAlreadyPaidIn80.toFixed(0) : "—"} Toneladas
-                pagadas en el 80% ={" "}
+                {auth.tonsFinal ?? "—"} Toneladas Finales, menos {auth.tonsAlreadyPaidIn80 != null ? auth.tonsAlreadyPaidIn80.toFixed(0) : "—"}{" "}
+                Toneladas pagadas en el 80% ={" "}
                 <strong>{auth.tonsToPayThisTranche != null ? auth.tonsToPayThisTranche.toFixed(0) : "—"} Toneladas a Pagar.</strong>
               </>
             )}
@@ -101,12 +128,13 @@ export default async function FaenaAuthorizationPage({ params, searchParams }: F
 
           <div className="mt-16 text-sm text-ink">
             <p>Atentamente por,</p>
-            <p className="mt-2 font-semibold">{auth.letterhead.companyName}</p>
+            <p className="mt-2 font-semibold uppercase">{auth.issuer.legalName}</p>
             <div className="mt-10 max-w-xs border-t border-ink pt-1">
-              <p className="text-xs text-ink-subtle">{auth.letterhead.signers || ""}</p>
+              <p className="font-semibold text-ink">{auth.issuer.signerName}</p>
+              <p className="text-xs text-ink-subtle">{auth.issuer.signerTitle}</p>
             </div>
             <p className="mt-4 text-xs uppercase text-ink-subtle">
-              {auth.letterhead.companyName}
+              {auth.issuer.legalName}
               <br />
               M/N {auth.vesselName}
             </p>
@@ -172,7 +200,8 @@ export default async function FaenaAuthorizationPage({ params, searchParams }: F
         </div>
 
         <p className="mt-5 text-center text-xs text-ink-subtle print:mt-8">
-          Generado automáticamente por HeliServiX OS a partir de datos reales de la faena y del personal. Verifica los montos antes de enviar.
+          Generado automáticamente por HeliServiX OS a partir de datos reales de la faena y del personal, bajo gestión de{" "}
+          {auth.issuer.signerName}. Verifica los montos antes de enviar.
         </p>
       </div>
     </div>

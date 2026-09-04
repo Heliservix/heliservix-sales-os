@@ -1088,6 +1088,19 @@ create table migration_logs (
 --   alter table campaigns
 --     add column discharge_port text;             -- ej. "Puerto Manta/Ecuador", citado en la carta
 --
+-- CORRECTION (same day, a few hours later): Adolfo clarified the letter is
+-- NOT sent on the vessel/pesquera's own letterhead — it's sent BY his
+-- companies (Pacific Helicopter Supplies, the entity that actually invoices
+-- each pesquera for maintenance/contract admin and requests these payments;
+-- or HeliServiX as an alternate) TO the pesquera. So vessels.letterhead_address/
+-- letterhead_phone/letterhead_signers/letterhead_city ended up unused —
+-- vessels.letterhead_company_name is kept, repurposed as the ADDRESSEE name
+-- on the letter, not the sender. The sender's fixed profile data (name, RUC,
+-- shared Panama hangar address/phones, logo, and Adolfo Spinali as the
+-- signer — he asked his name always appear at the end of these letters and
+-- of faena reports) lives in code, not the database: see
+-- apps/web-v2/lib/company-profiles.ts.
+--
 -- Also: campaigns.fishing_days is auto-computed ((end_date - start_date) + 1)
 -- server-side in app/campaigns/actions.ts whenever the form doesn't supply a
 -- manual value — a safety net for the client-side auto-fill in

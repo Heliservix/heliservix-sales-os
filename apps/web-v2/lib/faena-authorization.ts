@@ -1,21 +1,32 @@
 // Carta de "Autorización de Pago" (80% / 20%) + cuadro de nómina por persona,
 // para reemplazar el proceso manual en Word/Excel que Adolfo usa hoy para
-// pedirle a la oficina principal que libere fondos a cada pesquera/armador.
+// pedirle a cada pesquera/propietario que autorice el pago a piloto y
+// mecánico.
 //
 // Contexto real (Adolfo, sept 2026): al cerrar una faena se paga al piloto y
 // mecánico el 80% del bono por tonelada (sobre el estimado) más los días
 // laborados según su contrato. Cuando la planta pesa la captura y llega la
 // autorización oficial del 20% restante, se calcula el saldo (bono sobre el
 // peso final, menos lo ya adelantado en el 80%, menos cualquier anticipo
-// extra dado). Cada paso genera una carta firmada dirigida a "Departamento
-// de Nóminas" en el membrete del dueño del barco — dos PDFs de ejemplo reales
-// (PESQUERA CARONI, C.A.) sirvieron de plantilla exacta para el texto legal.
+// extra dado).
+//
+// Quién manda la carta (corregido sept 2026 — versión anterior asumía mal
+// que el membrete era del barco/pesquera): Adolfo es Gerente General de
+// PACIFIC HELICOPTER SUPPLIES, la empresa que factura a cada pesquera por
+// mantenimiento/administración de contratos atuneros y que les SOLICITA el
+// pago de honorarios de piloto/mecánico (80%, días lab., 20%) — HeliServiX
+// es la otra marca desde la que también puede emitir, a su elección. La
+// carta va dirigida ("Para: Departamento de Nóminas") a la pesquera/
+// propietario dueña del barco de esta faena, y siempre debe cerrar con el
+// nombre de Adolfo Spinali como responsable de la gestión, sin importar cuál
+// empresa emisora se elija — ver lib/company-profiles.ts.
 //
 // La aritmética NO se reinventa aquí: usa calculatePayroll() de lib/payroll.ts,
 // la misma función ya verificada centavo a centavo contra los contratos reales
 // y usada en la ficha de campaña y el informe de faena.
 import { supabase } from "@/lib/supabase";
 import { calculatePayroll, resolveWorkDays, type PayrollBreakdown } from "@/lib/payroll";
+import { resolveCompanyProfile, type CompanyProfile, type CompanyProfileId } from "@/lib/company-profiles";
 
 export type AuthorizationTranche = "80" | "20";
 
@@ -43,11 +54,12 @@ export type FaenaAuthorization = {
   tonsAlreadyPaidIn80: number | null;
   tonsToPayThisTranche: number | null;
   missingData: string | null;
-  letterhead: {
+  /** Empresa que emite/firma la carta (Pacific Helicopter Supplies o HeliServiX). */
+  issuer: CompanyProfile;
+  /** A quién va dirigida — la pesquera/propietario dueña del barco. */
+  addressee: {
     companyName: string;
-    address: string | null;
-    city: string;
-    signers: string | null;
+    ownerName: string | null;
   };
   dateLine: string;
   people: AuthorizationPersonRow[];
@@ -97,12 +109,14 @@ function personRows(
   };
 }
 
-export async function buildFaenaAuthorization(campaignId: string, tranche: AuthorizationTranche): Promise<FaenaAuthorization | null> {
+export async function buildFaenaAuthorization(
+  campaignId: string,
+  tranche: AuthorizationTranche,
+  issuerId: CompanyProfileId
+): Promise<FaenaAuthorization | null> {
   const { data: campaign } = await supabase
     .from("campaigns")
-    .select(
-      "*, vessels:vessel_id(id, name, owner, letterhead_company_name, letterhead_address, letterhead_phone, letterhead_signers, letterhead_city)"
-    )
+    .select("*, vessels:vessel_id(id, name, owner, letterhead_company_name)")
     .eq("id", campaignId)
     .maybeSingle();
   if (!campaign) return null;
@@ -141,10 +155,6 @@ export async function buildFaenaAuthorization(campaignId: string, tranche: Autho
     name: string;
     owner: string | null;
     letterhead_company_name: string | null;
-    letterhead_address: string | null;
-    letterhead_phone: string | null;
-    letterhead_signers: string | null;
-    letterhead_city: string | null;
   } | null;
 
   const vesselName = vessel?.name ?? campaign.name;
@@ -206,11 +216,10 @@ export async function buildFaenaAuthorization(campaignId: string, tranche: Autho
     tonsAlreadyPaidIn80,
     tonsToPayThisTranche,
     missingData,
-    letterhead: {
+    issuer: resolveCompanyProfile(issuerId),
+    addressee: {
       companyName: vessel?.letterhead_company_name || vessel?.owner || vesselName,
-      address: vessel?.letterhead_address ?? null,
-      city: vessel?.letterhead_city || "Panamá",
-      signers: vessel?.letterhead_signers ?? null
+      ownerName: vessel?.owner ?? null
     },
     dateLine: formatSpanishDate(new Date()),
     people,

@@ -200,7 +200,8 @@ export default async function FaenaReportPage({ params }: { params: Promise<{ id
         </div>
 
         <p className="mt-5 text-center text-xs text-ink-subtle print:mt-8">
-          Generado automáticamente por HeliServiX OS a partir de datos reales. No sustituye el juicio del administrador.
+          Generado automáticamente por HeliServiX OS a partir de datos reales, bajo gestión de Adolfo Spinali. No sustituye el juicio del
+          administrador.
         </p>
       </div>
     </div>
