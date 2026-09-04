@@ -15,7 +15,7 @@
 // la misma función ya verificada centavo a centavo contra los contratos reales
 // y usada en la ficha de campaña y el informe de faena.
 import { supabase } from "@/lib/supabase";
-import { calculatePayroll, type PayrollBreakdown } from "@/lib/payroll";
+import { calculatePayroll, resolveWorkDays, type PayrollBreakdown } from "@/lib/payroll";
 
 export type AuthorizationTranche = "80" | "20";
 
@@ -116,7 +116,13 @@ export async function buildFaenaAuthorization(campaignId: string, tranche: Autho
       : Promise.resolve({ data: null })
   ]);
 
-  const fishingDays = campaign.fishing_days != null ? Number(campaign.fishing_days) : null;
+  // Días laborados por persona: no siempre coinciden con las fechas de la
+  // faena (el mecánico a veces llega antes o se queda después) — usa el
+  // rango propio de cada uno si se guardó uno, si no cae de vuelta a las
+  // fechas de la faena. Ver lib/payroll.ts.
+  const pilotWork = resolveWorkDays(campaign.pilot_start_date, campaign.pilot_end_date, campaign.start_date, campaign.end_date);
+  const mechanicWork = resolveWorkDays(campaign.mechanic_start_date, campaign.mechanic_end_date, campaign.start_date, campaign.end_date);
+
   const tonsEstimate = campaign.tons_captured_estimate != null ? Number(campaign.tons_captured_estimate) : null;
   const tonsFinal = campaign.tons_captured_final != null ? Number(campaign.tons_captured_final) : null;
   const tonsAlreadyPaidIn80 = tonsEstimate != null ? tonsEstimate * 0.8 : null;
@@ -149,26 +155,36 @@ export async function buildFaenaAuthorization(campaignId: string, tranche: Autho
     const breakdown = calculatePayroll({
       monthlySalary: pilotPerson.monthly_salary != null ? Number(pilotPerson.monthly_salary) : null,
       ratePerTon: pilotPerson.rate_per_ton != null ? Number(pilotPerson.rate_per_ton) : null,
-      fishingDays,
+      workDays: pilotWork.days,
       tonsCapturedEstimate: tonsEstimate,
       tonsCapturedFinal: tonsFinal,
       extraAdvance: campaign.pilot_anticipos != null ? Number(campaign.pilot_anticipos) : null
     });
     people.push(
-      personRows(tranche, "Piloto", pilotPerson.full_name, breakdown, campaignLabel, tonsEstimate, tonsFinal, campaign.start_date, campaign.end_date)
+      personRows(tranche, "Piloto", pilotPerson.full_name, breakdown, campaignLabel, tonsEstimate, tonsFinal, pilotWork.startDate, pilotWork.endDate)
     );
   }
   if (mechanicPerson) {
     const breakdown = calculatePayroll({
       monthlySalary: mechanicPerson.monthly_salary != null ? Number(mechanicPerson.monthly_salary) : null,
       ratePerTon: mechanicPerson.rate_per_ton != null ? Number(mechanicPerson.rate_per_ton) : null,
-      fishingDays,
+      workDays: mechanicWork.days,
       tonsCapturedEstimate: tonsEstimate,
       tonsCapturedFinal: tonsFinal,
       extraAdvance: campaign.mechanic_anticipos != null ? Number(campaign.mechanic_anticipos) : null
     });
     people.push(
-      personRows(tranche, "Mecánico", mechanicPerson.full_name, breakdown, campaignLabel, tonsEstimate, tonsFinal, campaign.start_date, campaign.end_date)
+      personRows(
+        tranche,
+        "Mecánico",
+        mechanicPerson.full_name,
+        breakdown,
+        campaignLabel,
+        tonsEstimate,
+        tonsFinal,
+        mechanicWork.startDate,
+        mechanicWork.endDate
+      )
     );
   }
 

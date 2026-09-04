@@ -113,6 +113,30 @@ export default async function NewCampaignPage() {
               Puerto de descarga
               <input className="hsv-control" name="dischargePort" placeholder="Puerto Manta/Ecuador" />
             </label>
+            <div className="sm:col-span-2 rounded-lg border border-line bg-canvas-muted p-3">
+              <p className="text-sm font-semibold text-ink">Días laborados por persona (opcional)</p>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Completa estas fechas solo si el piloto y el mecánico no llegaron/salieron el mismo día que la faena (ej. el mecánico llega
+                antes a preparar el helicóptero). Si las dejas en blanco, se usan las fechas de la faena de arriba.
+              </p>
+            </div>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha inicio contrato — Piloto
+              <input className="hsv-control" type="date" name="pilotStartDate" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha fin contrato — Piloto
+              <input className="hsv-control" type="date" name="pilotEndDate" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha inicio contrato — Mecánico
+              <input className="hsv-control" type="date" name="mechanicStartDate" />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha fin contrato — Mecánico
+              <input className="hsv-control" type="date" name="mechanicEndDate" />
+            </label>
+
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Anticipos entregados al piloto (USD)
               <input className="hsv-control" type="number" step="0.01" name="pilotAnticipos" placeholder="Adelantos fuera del 80/20, si los hubo" />

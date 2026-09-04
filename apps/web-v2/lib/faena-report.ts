@@ -10,7 +10,7 @@
 // cost or new dependency. If a real LLM gets wired in later, it should sit
 // ON TOP of this (rephrase/expand these sentences), not replace the numbers.
 import { supabase } from "@/lib/supabase";
-import { calculatePayroll, type PayrollBreakdown } from "@/lib/payroll";
+import { calculatePayroll, resolveWorkDays, type PayrollBreakdown } from "@/lib/payroll";
 import { ROBINSON_R44_AVGAS_SPEC, isRobinsonR44 } from "@/lib/aura";
 import { fetchFaenaData, computeFaenaMetrics, vesselKey, type FaenaMetrics } from "@/lib/faena-metrics";
 
@@ -152,6 +152,18 @@ export async function buildFaenaReport(campaignId: string): Promise<FaenaReport 
         : Promise.resolve({ data: [] as { component_name: string | null; severity: string; description: string | null }[] })
     ]);
 
+  // Días laborados por persona: no siempre son los mismos que la faena (el
+  // mecánico a veces llega antes o se queda después que el piloto) — usa el
+  // rango propio de cada uno si se guardó uno, si no cae de vuelta a las
+  // fechas de la faena. Ver lib/payroll.ts.
+  const pilotWork = resolveWorkDays(fullCampaign.pilot_start_date, fullCampaign.pilot_end_date, fullCampaign.start_date, fullCampaign.end_date);
+  const mechanicWork = resolveWorkDays(
+    fullCampaign.mechanic_start_date,
+    fullCampaign.mechanic_end_date,
+    fullCampaign.start_date,
+    fullCampaign.end_date
+  );
+
   const people: PersonPayroll[] = [];
   if (pilotPerson) {
     people.push({
@@ -160,10 +172,10 @@ export async function buildFaenaReport(campaignId: string): Promise<FaenaReport 
       breakdown: calculatePayroll({
         monthlySalary: pilotPerson.monthly_salary != null ? Number(pilotPerson.monthly_salary) : null,
         ratePerTon: pilotPerson.rate_per_ton != null ? Number(pilotPerson.rate_per_ton) : null,
-        fishingDays: row.fishingDays,
+        workDays: pilotWork.days,
         tonsCapturedEstimate: row.campaign.tons_captured_estimate != null ? Number(row.campaign.tons_captured_estimate) : null,
         tonsCapturedFinal: row.tonsFinal,
-        extraAdvance: null
+        extraAdvance: fullCampaign.pilot_anticipos != null ? Number(fullCampaign.pilot_anticipos) : null
       })
     });
   }
@@ -174,10 +186,10 @@ export async function buildFaenaReport(campaignId: string): Promise<FaenaReport 
       breakdown: calculatePayroll({
         monthlySalary: mechanicPerson.monthly_salary != null ? Number(mechanicPerson.monthly_salary) : null,
         ratePerTon: mechanicPerson.rate_per_ton != null ? Number(mechanicPerson.rate_per_ton) : null,
-        fishingDays: row.fishingDays,
+        workDays: mechanicWork.days,
         tonsCapturedEstimate: row.campaign.tons_captured_estimate != null ? Number(row.campaign.tons_captured_estimate) : null,
         tonsCapturedFinal: row.tonsFinal,
-        extraAdvance: null
+        extraAdvance: fullCampaign.mechanic_anticipos != null ? Number(fullCampaign.mechanic_anticipos) : null
       })
     });
   }

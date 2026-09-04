@@ -7,7 +7,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { archiveCampaign } from "@/app/campaigns/actions";
-import { calculatePayroll } from "@/lib/payroll";
+import { calculatePayroll, resolveWorkDays } from "@/lib/payroll";
 import { ROBINSON_R44_AVGAS_SPEC, isRobinsonR44 } from "@/lib/aura";
 import { FlightLogRowActions } from "@/app/campaigns/[id]/flight-log-row-actions";
 
@@ -104,15 +104,19 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
       : Promise.resolve({ data: null })
   ]);
 
+  const pilotWork = resolveWorkDays(campaign.pilot_start_date, campaign.pilot_end_date, campaign.start_date, campaign.end_date);
+  const mechanicWork = resolveWorkDays(campaign.mechanic_start_date, campaign.mechanic_end_date, campaign.start_date, campaign.end_date);
+
   const payrollRows = [
     pilotPerson
       ? {
           role: "Piloto",
           name: pilotPerson.full_name,
+          workDays: pilotWork.days,
           breakdown: calculatePayroll({
             monthlySalary: pilotPerson.monthly_salary != null ? Number(pilotPerson.monthly_salary) : null,
             ratePerTon: pilotPerson.rate_per_ton != null ? Number(pilotPerson.rate_per_ton) : null,
-            fishingDays,
+            workDays: pilotWork.days,
             tonsCapturedEstimate: tonsEstimate,
             tonsCapturedFinal: tonsFinal,
             extraAdvance: campaign.pilot_anticipos != null ? Number(campaign.pilot_anticipos) : null
@@ -123,10 +127,11 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
       ? {
           role: "Mecánico",
           name: mechanicPerson.full_name,
+          workDays: mechanicWork.days,
           breakdown: calculatePayroll({
             monthlySalary: mechanicPerson.monthly_salary != null ? Number(mechanicPerson.monthly_salary) : null,
             ratePerTon: mechanicPerson.rate_per_ton != null ? Number(mechanicPerson.rate_per_ton) : null,
-            fishingDays,
+            workDays: mechanicWork.days,
             tonsCapturedEstimate: tonsEstimate,
             tonsCapturedFinal: tonsFinal,
             extraAdvance: campaign.mechanic_anticipos != null ? Number(campaign.mechanic_anticipos) : null
@@ -267,6 +272,7 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                   <tr>
                     <th className="hsv-table-th">Rol</th>
                     <th className="hsv-table-th">Nombre</th>
+                    <th className="hsv-table-th">Días laborados</th>
                     <th className="hsv-table-th">Salario prorateado</th>
                     <th className="hsv-table-th">Anticipo 80% (aprox.)</th>
                     <th className="hsv-table-th">Saldo 20% (peso final)</th>
@@ -281,6 +287,7 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
                     <tr key={row.role} className="hsv-table-row">
                       <td className="hsv-table-cell text-ink-muted">{row.role}</td>
                       <td className="hsv-table-cell font-semibold text-ink">{row.name}</td>
+                      <td className="hsv-table-cell hsv-technical-value">{row.workDays ?? "—"}</td>
                       <td className="hsv-table-cell hsv-technical-value">
                         {row.breakdown.proratedSalary != null ? `$${row.breakdown.proratedSalary.toFixed(2)}` : "—"}
                       </td>
@@ -313,9 +320,10 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
             </p>
           )}
           <p className="mt-4 text-xs text-ink-subtle">
-            Salario prorateado = salario mensual ÷ 30 × días de pesca. El bono por tonelada se paga en dos partes: 80% sobre lo capturado
-            aproximado (pago al cierre de la faena) y el saldo una vez llega el pesaje final de la planta — no un 20% fijo del total, sino
-            lo que falte para completar el bono calculado sobre el peso final.
+            Salario prorateado = salario mensual ÷ 30 × días laborados de esa persona (usa las fechas de la faena salvo que edites una fecha
+            de contrato distinta para piloto o mecánico — útil cuando uno llega antes o se queda después que el otro). El bono por tonelada
+            se paga en dos partes: 80% sobre lo capturado aproximado (pago al cierre de la faena) y el saldo una vez llega el pesaje final de
+            la planta — no un 20% fijo del total, sino lo que falte para completar el bono calculado sobre el peso final.
           </p>
         </Panel>
 

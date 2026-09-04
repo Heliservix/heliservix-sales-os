@@ -123,6 +123,31 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
               Puerto de descarga
               <input className="hsv-control" name="dischargePort" defaultValue={campaign.discharge_port ?? ""} placeholder="Puerto Manta/Ecuador" />
             </label>
+            <div className="sm:col-span-2 rounded-lg border border-line bg-canvas-muted p-3">
+              <p className="text-sm font-semibold text-ink">Días laborados por persona (opcional)</p>
+              <p className="mt-1 text-xs text-ink-subtle">
+                El salario prorateado se paga por días de contrato, y no siempre coinciden con las fechas de la faena — el mecánico a veces
+                llega antes o se queda después que el piloto. Completa estas fechas solo si son distintas a las fechas de la faena de arriba;
+                si las dejas en blanco, se usan esas mismas fechas para calcular los días de esa persona.
+              </p>
+            </div>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha inicio contrato — Piloto
+              <input className="hsv-control" type="date" name="pilotStartDate" defaultValue={campaign.pilot_start_date ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha fin contrato — Piloto
+              <input className="hsv-control" type="date" name="pilotEndDate" defaultValue={campaign.pilot_end_date ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha inicio contrato — Mecánico
+              <input className="hsv-control" type="date" name="mechanicStartDate" defaultValue={campaign.mechanic_start_date ?? ""} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Fecha fin contrato — Mecánico
+              <input className="hsv-control" type="date" name="mechanicEndDate" defaultValue={campaign.mechanic_end_date ?? ""} />
+            </label>
+
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Anticipos entregados al piloto (USD)
               <input className="hsv-control" type="number" step="0.01" name="pilotAnticipos" defaultValue={campaign.pilot_anticipos ?? ""} />
