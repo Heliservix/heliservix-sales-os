@@ -5,9 +5,12 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createComplianceItem } from "@/app/compliance/actions";
 import { complianceAuthorities, complianceTypes, complianceStatuses } from "@/app/compliance/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export default async function NewComplianceItemPage() {
-  const { data: helicopters } = await supabase.from("helicopters").select("registration").eq("archived", false).order("registration");
+  const { scopedRegistration } = await getTechnicianScope();
+  const { data: helicopterData } = await supabase.from("helicopters").select("registration").eq("archived", false).order("registration");
+  const helicopters = scopedRegistration ? (helicopterData ?? []).filter((h) => h.registration === scopedRegistration) : (helicopterData ?? []);
 
   return (
     <AppShell>
@@ -48,7 +51,7 @@ export default async function NewComplianceItemPage() {
               Helicóptero relacionado
               <select className="hsv-control" name="relatedHelicopter" defaultValue="">
                 <option value="">Toda la flota</option>
-                {(helicopters ?? []).map((h) => (
+                {helicopters.map((h) => (
                   <option key={h.registration} value={h.registration}>{h.registration}</option>
                 ))}
               </select>

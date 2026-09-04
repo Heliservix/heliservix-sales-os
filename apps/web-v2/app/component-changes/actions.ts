@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { uploadDataUrlImage, uploadPhotoFile } from "@/lib/media-upload";
 import { defaultCalendarLimitDate } from "@/lib/component-calendar";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -79,6 +80,11 @@ async function moveComponentLeg(params: {
   reason: string | null;
   notes: string | null;
   swapGroupId: string | null;
+  // Solo se exige en la pata "de salida" que arranca transferComponent — un
+  // técnico acotado solo puede mover piezas que salgan de SU helicóptero. La
+  // pata de regreso de un intercambio (return leg) no pasa esto: esa pieza
+  // legítimamente sale del helicóptero destino, no del suyo.
+  requireFromRegistration?: string | null;
 }) {
   const { data: component, error: fetchError } = await supabase
     .from("components")
@@ -90,6 +96,9 @@ async function moveComponentLeg(params: {
   if (component.status === "Removed") throw new Error("Ese componente ya está marcado como removido.");
 
   const fromRegistration = component.helicopter_registration;
+  if (params.requireFromRegistration && fromRegistration !== params.requireFromRegistration) {
+    throw new Error("Solo puedes mover componentes de tu helicóptero asignado.");
+  }
   if (fromRegistration === params.toRegistration) {
     throw new Error(`${component.component_name} ya está en ${params.toRegistration} — no hay nada que mover ahí.`);
   }
@@ -181,6 +190,8 @@ export async function transferComponent(formData: FormData) {
     throw new Error("El componente que regresa a cambio no puede ser el mismo que se está moviendo.");
   }
 
+  const { scopedRegistration } = await getTechnicianScope();
+
   const { data: technician } = await supabase.from("personnel").select("full_name").eq("id", technicianId).maybeSingle();
   const technicianName = technician?.full_name ?? null;
   const swapGroupId = returnComponentId ? randomUUID() : null;
@@ -192,7 +203,8 @@ export async function transferComponent(formData: FormData) {
     technicianName,
     reason,
     notes,
-    swapGroupId
+    swapGroupId,
+    requireFromRegistration: scopedRegistration
   });
 
   await uploadEvidence(outbound.swapId, formData);
@@ -250,6 +262,11 @@ export async function replaceComponent(formData: FormData) {
   if (fetchError) throw new Error(fetchError.message);
   if (!oldComponent) throw new Error("Ese componente ya no existe.");
   if (oldComponent.status === "Removed") throw new Error("Ese componente ya está marcado como removido.");
+
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && oldComponent.helicopter_registration !== scopedRegistration) {
+    throw new Error("Solo puedes cambiar componentes de tu helicóptero asignado.");
+  }
 
   const registration = oldComponent.helicopter_registration;
 

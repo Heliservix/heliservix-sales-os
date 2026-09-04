@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { classifyBulletinZone, ZONE_LABEL } from "@/lib/aircraft-zones";
 import { supabase } from "@/lib/supabase";
 import { VerifyBulletinsButton } from "@/app/compliance/bulletins/verify-bulletins-button";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,8 @@ function extractRegistrations(text: string | null): string[] {
 }
 
 export default async function BulletinsPage() {
+  const { scopedRegistration } = await getTechnicianScope();
+
   const [{ data, error }, { data: helicopterData }] = await Promise.all([
     supabase
       .from("compliance_items")
@@ -65,8 +68,20 @@ export default async function BulletinsPage() {
     supabase.from("helicopters").select("registration").eq("archived", false).order("registration")
   ]);
 
-  const bulletins = (data ?? []) as BulletinRow[];
-  const fleet = (helicopterData ?? []) as HelicopterRow[];
+  const allBulletins = (data ?? []) as BulletinRow[];
+  // La aplicabilidad no es una columna, es texto libre con matrículas
+  // mencionadas (extractRegistrations abajo) — un boletín que NO menciona
+  // ninguna matrícula todavía es ambiguo/genérico y sigue mostrándose;
+  // uno que sí las menciona pero no incluye la del técnico se oculta.
+  const bulletins = scopedRegistration
+    ? allBulletins.filter((b) => {
+        const regs = extractRegistrations(b.applicability);
+        return regs.length === 0 || regs.includes(scopedRegistration);
+      })
+    : allBulletins;
+  const fleet = scopedRegistration
+    ? ((helicopterData ?? []) as HelicopterRow[]).filter((h) => h.registration === scopedRegistration)
+    : ((helicopterData ?? []) as HelicopterRow[]);
 
   const needsReview = bulletins.filter((b) => b.status === "Not reviewed");
   const applicable = bulletins.filter((b) => b.status === "Applicable");

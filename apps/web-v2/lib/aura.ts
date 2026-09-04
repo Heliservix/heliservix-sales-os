@@ -948,6 +948,44 @@ function answerHighestRisk(risks: HelicopterRisk[]): AuraAnswer {
 // bodega/compras compartidas del sistema, no por aeronave, así que la
 // cobertura de repuestos (en stock / pedido en curso) debe seguir viendo
 // todo lo disponible.
+// Sept 2026, Adolfo: "habilita la opcion en cada recomendacion del dia para
+// que me lleve directo a la revision de cada caso." Every recommendation id
+// produced by buildExecutiveRecommendationEngine above has a predictable
+// shape (see that function) — this turns that id + its sourceRecords back
+// into the page that actually lets you DO something about it, instead of
+// making the reader go find it manually. Returns null only for the generic
+// "nothing to report" baseline recommendation, which has nothing to link to.
+export function recommendationHref(rec: AuraRecommendation): string | null {
+  const [first, second] = rec.sourceRecords;
+
+  if (rec.id.startsWith("fleet-health-")) return first ? `/helicopters/${first}` : null;
+
+  // calendar-${componentId} / forecast-${componentId}, sourceRecords =
+  // [componentId, helicopterRegistration] — see buildExecutiveRecommendationEngine.
+  if (rec.id.startsWith("calendar-") || rec.id.startsWith("forecast-")) {
+    return first && second ? `/helicopters/${second}/components/${first}/edit` : null;
+  }
+
+  if (rec.id === "compliance-overdue" || rec.id === "compliance-unreviewed") return "/compliance";
+
+  // document-center-red/amber, sourceRecords = registrations with an issue —
+  // link straight to that aircraft's Centro Documental when there's exactly
+  // one (the common case for a scoped técnico); with several, send to Flota
+  // so the reader picks which one.
+  if (rec.id === "document-center-red" || rec.id === "document-center-amber") {
+    return rec.sourceRecords.length === 1 ? `/helicopters/${first}/documents` : "/helicopters";
+  }
+
+  if (rec.id === "grounding-alerts") return "/alerts";
+
+  if (rec.id === "ops-fuel-spec") return "/campaigns/resumen";
+  if (rec.id.startsWith("ops-fuel-")) return `/campaigns/${rec.id.slice("ops-fuel-".length)}`;
+  if (rec.id.startsWith("ops-underperforming-")) return `/campaigns/${rec.id.slice("ops-underperforming-".length)}`;
+  if (rec.id === "ops-missing-data") return "/campaigns/resumen";
+
+  return null;
+}
+
 export async function buildAuraAnalysis(scopeToHelicopterRegistration?: string | null): Promise<AuraAnalysis> {
   const [
     { data: helicopters },

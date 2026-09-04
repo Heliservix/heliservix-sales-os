@@ -8,6 +8,7 @@ import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
 import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
 import { supabase } from "@/lib/supabase";
 import { SyncRobinsonButton } from "@/app/compliance/sync-robinson-button";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,8 @@ function worseTone(a: Tone, b: Tone): Tone {
 }
 
 export default async function CompliancePage() {
+  const { scopedRegistration } = await getTechnicianScope();
+
   const [{ data, error }, { data: helicopters }] = await Promise.all([
     supabase
       .from("compliance_items")
@@ -89,7 +92,13 @@ export default async function CompliancePage() {
 
   const hourmeterByRegistration = new Map((helicopters ?? []).map((h) => [h.registration, Number(h.current_hourmeter)]));
 
-  const items = (data ?? []) as ComplianceItemRow[];
+  // related_helicopter == null significa "toda la flota" (ej. una AD
+  // genérica de tipo de aeronave) — sigue aplicando al helicóptero del
+  // técnico, así que no se descarta al acotar.
+  const allItems = (data ?? []) as ComplianceItemRow[];
+  const items = scopedRegistration
+    ? allItems.filter((item) => item.related_helicopter === scopedRegistration || item.related_helicopter == null)
+    : allItems;
   const openItems = items.filter((item) => item.status !== "Complied" && item.status !== "Not applicable");
 
   function hoursRemainingFor(item: ComplianceItemRow): number | null {
@@ -128,7 +137,11 @@ export default async function CompliancePage() {
         <SectionHeader
           eyebrow="Mantenimiento"
           title="Cumplimiento"
-          description="Directivas de Aeronavegabilidad (AD), boletines de servicio (SB), revisiones de manual y requisitos operacionales — por autoridad y fecha límite."
+          description={
+            scopedRegistration
+              ? `Directivas de Aeronavegabilidad (AD), boletines de servicio (SB) y requisitos operacionales de ${scopedRegistration} y de toda la flota.`
+              : "Directivas de Aeronavegabilidad (AD), boletines de servicio (SB), revisiones de manual y requisitos operacionales — por autoridad y fecha límite."
+          }
           icon={ShieldCheck}
         />
 

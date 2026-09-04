@@ -8,6 +8,7 @@ import { DonutChart, type DonutSlice } from "@/components/charts/donut-chart";
 import { HelicopterBadge } from "@/components/aircraft/helicopter-badge";
 import { supabase } from "@/lib/supabase";
 import { fetchDocumentCenterData, computeSections, overallTone } from "@/lib/document-center";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -45,17 +46,30 @@ const COMPONENT_STATUS_TONE: Record<string, DonutSlice["tone"]> = {
 const COMPONENT_STATUS_ORDER = ["OK", "Monitor", "Critical", "Expired"];
 
 export default async function HelicoptersPage() {
+  const { scopedRegistration } = await getTechnicianScope();
+
   const [{ data, error }, { data: componentStatusRows }, { data: componentRemainingRows }] = await Promise.all([
-    supabase
-      .from("helicopters")
-      .select("registration, model, current_hourmeter, status, assigned_vessel_id, photo_url, vessels(name)")
-      .eq("archived", false)
-      .order("registration"),
-    supabase.from("components").select("status").neq("status", "Removed"),
-    supabase
-      .from("components")
-      .select("helicopter_registration, component_name, remaining_hours, remaining_calendar_days, status")
-      .neq("status", "Removed")
+    (() => {
+      let query = supabase
+        .from("helicopters")
+        .select("registration, model, current_hourmeter, status, assigned_vessel_id, photo_url, vessels(name)")
+        .eq("archived", false);
+      if (scopedRegistration) query = query.eq("registration", scopedRegistration);
+      return query.order("registration");
+    })(),
+    (() => {
+      let query = supabase.from("components").select("status").neq("status", "Removed");
+      if (scopedRegistration) query = query.eq("helicopter_registration", scopedRegistration);
+      return query;
+    })(),
+    (() => {
+      let query = supabase
+        .from("components")
+        .select("helicopter_registration, component_name, remaining_hours, remaining_calendar_days, status")
+        .neq("status", "Removed");
+      if (scopedRegistration) query = query.eq("helicopter_registration", scopedRegistration);
+      return query;
+    })()
   ]);
 
   const helicopters = (data ?? []) as unknown as HelicopterRow[];
@@ -111,14 +125,20 @@ export default async function HelicoptersPage() {
       <div className="mx-auto max-w-[1500px]">
         <SectionHeader
           eyebrow="Flota"
-          title="Helicópteros"
-          description="Matrícula, modelo, horómetro y estado — datos reales de Supabase, no de un archivo en tu navegador."
+          title={scopedRegistration ? `Helicóptero — ${scopedRegistration}` : "Helicópteros"}
+          description={
+            scopedRegistration
+              ? "Solo ves tu helicóptero asignado. Si no es el correcto, pídele a Adolfo que lo corrija en Personal."
+              : "Matrícula, modelo, horómetro y estado — datos reales de Supabase, no de un archivo en tu navegador."
+          }
           icon={Plane}
         />
 
         {componentStatusSlices.length ? (
           <Panel className="mb-5">
-            <p className="text-xs font-semibold uppercase text-ink-subtle">Estado de componentes — toda la flota</p>
+            <p className="text-xs font-semibold uppercase text-ink-subtle">
+              Estado de componentes — {scopedRegistration ? scopedRegistration : "toda la flota"}
+            </p>
             <div className="mt-3">
               <DonutChart slices={componentStatusSlices} size={112} centerLabel="componentes" />
             </div>
@@ -131,16 +151,18 @@ export default async function HelicoptersPage() {
               <h2 className="text-lg font-semibold text-ink">Helicópteros</h2>
               <p className="mt-1 text-sm text-ink-subtle">{helicopters.length} registro{helicopters.length === 1 ? "" : "s"}</p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Link className="hsv-secondary-button" href="/helicopters/import">
-                <UploadCloud className="h-4 w-4" aria-hidden="true" />
-                Importar componentes
-              </Link>
-              <Link className="hsv-primary-button" href="/helicopters/new">
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Crear helicóptero
-              </Link>
-            </div>
+            {!scopedRegistration ? (
+              <div className="flex flex-wrap gap-3">
+                <Link className="hsv-secondary-button" href="/helicopters/import">
+                  <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                  Importar componentes
+                </Link>
+                <Link className="hsv-primary-button" href="/helicopters/new">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Crear helicóptero
+                </Link>
+              </div>
+            ) : null}
           </div>
 
           {error ? (

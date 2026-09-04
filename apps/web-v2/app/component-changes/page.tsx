@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ type ComponentChangeRow = {
 
 export default async function ComponentChangesPage({ searchParams }: ComponentChangesPageProps) {
   const { registration: selectedRegistration, type: selectedType } = await searchParams;
+  const { scopedRegistration } = await getTechnicianScope();
+  const effectiveRegistration = scopedRegistration ?? selectedRegistration;
 
   let query = supabase
     .from("component_changes")
@@ -41,8 +44,8 @@ export default async function ComponentChangesPage({ searchParams }: ComponentCh
     )
     .order("created_at", { ascending: false });
 
-  if (selectedRegistration) {
-    query = query.or(`helicopter_registration.eq.${selectedRegistration},to_helicopter_registration.eq.${selectedRegistration}`);
+  if (effectiveRegistration) {
+    query = query.or(`helicopter_registration.eq.${effectiveRegistration},to_helicopter_registration.eq.${effectiveRegistration}`);
   }
   if (selectedType) query = query.eq("swap_type", selectedType);
 
@@ -52,7 +55,9 @@ export default async function ComponentChangesPage({ searchParams }: ComponentCh
   ]);
 
   const changes = (data ?? []) as ComponentChangeRow[];
-  const helicopters = (helicopterData ?? []) as { registration: string }[];
+  const helicopters = scopedRegistration
+    ? ((helicopterData ?? []) as { registration: string }[]).filter((h) => h.registration === scopedRegistration)
+    : ((helicopterData ?? []) as { registration: string }[]);
   const hasFilters = Boolean(selectedRegistration || selectedType);
 
   return (
@@ -87,8 +92,8 @@ export default async function ComponentChangesPage({ searchParams }: ComponentCh
           <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-canvas-muted p-3">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-ink-subtle">Helicóptero</label>
-              <select name="registration" defaultValue={selectedRegistration ?? ""} className="hsv-control !py-1.5 text-sm">
-                <option value="">Todos</option>
+              <select name="registration" defaultValue={scopedRegistration ?? selectedRegistration ?? ""} className="hsv-control !py-1.5 text-sm">
+                {!scopedRegistration ? <option value="">Todos</option> : null}
                 {helicopters.map((h) => (
                   <option key={h.registration} value={h.registration}>
                     {h.registration}

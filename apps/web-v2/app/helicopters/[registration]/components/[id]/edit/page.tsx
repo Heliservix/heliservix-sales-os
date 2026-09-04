@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateComponent, markComponentRemoved, deleteComponent } from "@/app/helicopters/[registration]/components/actions";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type EditComponentPageProps = {
   params: Promise<{ registration: string; id: string }>;
@@ -13,6 +14,9 @@ type EditComponentPageProps = {
 
 export default async function EditComponentPage({ params }: EditComponentPageProps) {
   const { registration, id } = await params;
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && registration !== scopedRegistration) notFound();
+
   const { data: component } = await supabase.from("components").select("*").eq("id", id).maybeSingle();
   if (!component || component.helicopter_registration !== registration) notFound();
 

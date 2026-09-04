@@ -11,6 +11,7 @@ import { buildMaintenanceSchedule, type ScheduledInspection } from "@/lib/mainte
 import { buildAuraAnalysis, type AuraForecastBucket } from "@/lib/aura";
 import { getPersonnelDocumentStatuses, daysUntil as daysUntilDoc, documentTone, type PersonnelDocumentRow } from "@/lib/personnel-compliance";
 import { getSessionUser } from "@/lib/auth";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 const SCHEDULE_TONE: Record<ScheduledInspection["status"], "red" | "amber" | "green"> = {
   Overdue: "red",
@@ -84,6 +85,13 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   // pólizas, montos de cuotas). Los admins siguen viendo todo.
   const isMechanicViewer = Boolean(session && !session.isAdmin && session.personnelRole === "Mecánico");
 
+  // Sept 2026, Adolfo: un técnico con helicóptero asignado (Personal) solo
+  // ve alertas/pronóstico/inspecciones de SU aeronave — el filtro deja de
+  // ser una opción (?registration=) y se vuelve obligatorio, ignorando
+  // cualquier otro valor que venga en la URL.
+  const { scopedRegistration } = await getTechnicianScope();
+  const effectiveRegistration = scopedRegistration ?? selectedRegistration;
+
   const [{ data, error }, schedule, { data: helicopters }, auraAnalysis, { data: policyData }, { data: paymentData }, { data: personnelData }] =
     await Promise.all([
       supabase
@@ -95,7 +103,7 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
         .order("created_at", { ascending: true }),
       buildMaintenanceSchedule(),
       supabase.from("helicopters").select("registration").eq("archived", false).order("registration"),
-      buildAuraAnalysis(),
+      buildAuraAnalysis(scopedRegistration),
       supabase.from("insurance_policies").select("id, helicopter_registration, end_date, status").eq("archived", false),
       supabase.from("insurance_payments").select("id, policy_id, due_date, amount, currency, status").neq("status", "Paid"),
       supabase
@@ -173,7 +181,7 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   const forecastBuckets: AuraForecastBucket[] = [30, 60, 90];
   const nearForecastAll = forecastBuckets.flatMap((bucket) => auraAnalysis.maintenanceForecast[bucket]);
   const nearForecast = (
-    selectedRegistration ? nearForecastAll.filter((item) => item.helicopterRegistration === selectedRegistration) : nearForecastAll
+    effectiveRegistration ? nearForecastAll.filter((item) => item.helicopterRegistration === effectiveRegistration) : nearForecastAll
   ).slice(0, 12);
   const BUCKET_LABEL: Record<number, string> = { 30: "30 días", 60: "60 días", 90: "90 días" };
   const FORECAST_BASIS_LABEL: Record<string, string> = {
@@ -184,17 +192,23 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
   };
 
   const allAlerts = ((data ?? []) as unknown as AlertRow[]).sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
-  const alerts = selectedRegistration ? allAlerts.filter((a) => a.helicopter_registration === selectedRegistration) : allAlerts;
-  const filteredSchedule = selectedRegistration
-    ? schedule.filter((item) => item.helicopterRegistration === selectedRegistration)
+  const alerts = effectiveRegistration ? allAlerts.filter((a) => a.helicopter_registration === effectiveRegistration) : allAlerts;
+  const filteredSchedule = effectiveRegistration
+    ? schedule.filter((item) => item.helicopterRegistration === effectiveRegistration)
     : schedule;
 
   const groundingCount = alerts.filter((a) => a.severity === "Grounding").length;
   const criticalCount = alerts.filter((a) => a.severity === "Critical").length;
   const monitorCount = alerts.filter((a) => a.severity === "Monitor").length;
 
+  // Comparación entre TODA la flota, salvo para un técnico acotado — a él no
+  // le sirve (ni le corresponde) ver cuántas alertas tiene un helicóptero
+  // que no es el suyo, así que aquí sí respeta el scope aunque un admin
+  // filtrando manualmente por ?registration= siga viendo la comparación
+  // completa.
+  const alertsByHelicopterSource = scopedRegistration ? alerts : allAlerts;
   const alertsByHelicopter = new Map<string, number>();
-  for (const alert of allAlerts) {
+  for (const alert of alertsByHelicopterSource) {
     alertsByHelicopter.set(alert.helicopter_registration, (alertsByHelicopter.get(alert.helicopter_registration) ?? 0) + 1);
   }
   const alertsByHelicopterBars: BarChartDatum[] = Array.from(alertsByHelicopter.entries())
@@ -223,31 +237,37 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
           </Link>
         </div>
 
-        <div className="mb-5 flex flex-wrap items-center gap-2">
-          <Link
-            href="/alerts"
-            className={
-              !selectedRegistration
-                ? "rounded-full bg-ink px-3.5 py-1.5 text-xs font-semibold text-white"
-                : "rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:border-aviation-teal hover:text-ink"
-            }
-          >
-            Todos
-          </Link>
-          {(helicopters ?? []).map((h) => (
+        {scopedRegistration ? (
+          <p className="mb-5 text-sm text-ink-subtle">
+            Mostrando solo tu helicóptero asignado: <strong className="text-ink">{scopedRegistration}</strong>.
+          </p>
+        ) : (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
             <Link
-              key={h.registration}
-              href={`/alerts?registration=${h.registration}`}
+              href="/alerts"
               className={
-                selectedRegistration === h.registration
+                !selectedRegistration
                   ? "rounded-full bg-ink px-3.5 py-1.5 text-xs font-semibold text-white"
                   : "rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:border-aviation-teal hover:text-ink"
               }
             >
-              {h.registration}
+              Todos
             </Link>
-          ))}
-        </div>
+            {(helicopters ?? []).map((h) => (
+              <Link
+                key={h.registration}
+                href={`/alerts?registration=${h.registration}`}
+                className={
+                  selectedRegistration === h.registration
+                    ? "rounded-full bg-ink px-3.5 py-1.5 text-xs font-semibold text-white"
+                    : "rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:border-aviation-teal hover:text-ink"
+                }
+              >
+                {h.registration}
+              </Link>
+            ))}
+          </div>
+        )}
 
         <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

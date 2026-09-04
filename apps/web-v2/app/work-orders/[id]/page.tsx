@@ -22,6 +22,7 @@ import {
 import { workOrderStatuses } from "@/app/work-orders/constants";
 import { PrintButton } from "@/app/reports/faena/[id]/print-button";
 import { WorkOrderPrintSheet } from "@/app/work-orders/print-sheet";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
 export default async function WorkOrderDetailPage({ params }: WorkOrderDetailProps) {
   const { id } = await params;
 
+  const { scopedRegistration } = await getTechnicianScope();
+
   const [{ data: order }, { data: itemData }, { data: personnelData }] = await Promise.all([
     supabase.from("work_orders").select("*").eq("id", id).maybeSingle(),
     supabase.from("work_order_items").select("*").eq("work_order_id", id).eq("archived", false).order("position", { ascending: true }),
@@ -44,6 +47,7 @@ export default async function WorkOrderDetailPage({ params }: WorkOrderDetailPro
   ]);
 
   if (!order) notFound();
+  if (scopedRegistration && order.helicopter_registration !== scopedRegistration) notFound();
 
   const items = itemData ?? [];
   const personnel = personnelData ?? [];

@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { importVesselInventory } from "@/app/vessels/[id]/inventory/import/actions";
 import { InventoryImportForm } from "@/app/vessels/[id]/inventory/import/import-form";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type ImportInventoryPageProps = {
   params: Promise<{ id: string }>;
@@ -13,6 +14,9 @@ type ImportInventoryPageProps = {
 
 export default async function ImportInventoryPage({ params }: ImportInventoryPageProps) {
   const { id } = await params;
+  const { scopedRegistration, scopedVesselId } = await getTechnicianScope();
+  if (scopedRegistration != null && id !== scopedVesselId) notFound();
+
   const { data: vessel } = await supabase.from("vessels").select("id, name").eq("id", id).maybeSingle();
   if (!vessel) notFound();
 

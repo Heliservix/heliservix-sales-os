@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { recordStockMovement, clearVesselInventory } from "@/app/vessels/[id]/inventory/actions";
 import { stockMovementTypes } from "@/app/vessels/[id]/inventory/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type VesselInventoryPageProps = {
   params: Promise<{ id: string }>;
@@ -14,6 +15,12 @@ type VesselInventoryPageProps = {
 
 export default async function VesselInventoryPage({ params }: VesselInventoryPageProps) {
   const { id } = await params;
+  const { scopedRegistration, scopedVesselId } = await getTechnicianScope();
+  // Distinto de "sin restricción" — un técnico acotado sin bodega resuelta
+  // (helicóptero todavía sin barco asignado en Flota) no debe poder entrar
+  // a NINGUNA bodega, no solo a las que no son la suya.
+  if (scopedRegistration != null && id !== scopedVesselId) notFound();
+
   const { data: vessel } = await supabase.from("vessels").select("id, name").eq("id", id).maybeSingle();
   if (!vessel) notFound();
 

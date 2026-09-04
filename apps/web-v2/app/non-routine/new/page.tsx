@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createNonRoutineReport } from "@/app/non-routine/actions";
 import { NonRoutineAircraftFields, type NonRoutineHelicopterOption } from "@/app/non-routine/aircraft-fields";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type NewNonRoutineReportPageProps = {
   searchParams: Promise<{ workOrderId?: string; helicopterRegistration?: string; aircraftModel?: string }>;
@@ -12,13 +13,15 @@ type NewNonRoutineReportPageProps = {
 
 export default async function NewNonRoutineReportPage({ searchParams }: NewNonRoutineReportPageProps) {
   const params = await searchParams;
+  const { scopedRegistration } = await getTechnicianScope();
 
-  const [{ data: helicopters }, { data: personnel }, { data: openWorkOrders }] = await Promise.all([
+  const [{ data: helicopterData }, { data: personnel }, { data: openWorkOrders }] = await Promise.all([
     supabase.from("helicopters").select("registration, model, current_hourmeter").eq("archived", false).order("registration"),
     supabase.from("personnel").select("id, full_name").eq("archived", false).order("full_name"),
     supabase.from("work_orders").select("id, sequence_number").eq("archived", false).order("created_at", { ascending: false })
   ]);
 
+  const helicopters = scopedRegistration ? (helicopterData ?? []).filter((h) => h.registration === scopedRegistration) : (helicopterData ?? []);
   const helicopterOptions: NonRoutineHelicopterOption[] = (helicopters ?? []).map((h) => ({
     registration: h.registration,
     model: h.model,

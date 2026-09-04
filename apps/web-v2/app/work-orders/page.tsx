@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { openWorkOrderStatuses } from "@/app/work-orders/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -30,18 +31,29 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
 };
 
 export default async function WorkOrdersPage() {
+  const { scopedRegistration } = await getTechnicianScope();
+
   const [{ data, error }, { data: itemData }, { data: personnelData }] = await Promise.all([
-    supabase
-      .from("work_orders")
-      .select("id, sequence_number, client_name, helicopter_registration, aircraft_registration, status, opened_at, lead_technician_id")
-      .eq("archived", false)
-      .order("created_at", { ascending: false }),
+    (() => {
+      let query = supabase
+        .from("work_orders")
+        .select("id, sequence_number, client_name, helicopter_registration, aircraft_registration, status, opened_at, lead_technician_id")
+        .eq("archived", false);
+      if (scopedRegistration) query = query.eq("helicopter_registration", scopedRegistration);
+      return query.order("created_at", { ascending: false });
+    })(),
     supabase.from("work_order_items").select("work_order_id, is_complete").eq("archived", false),
     supabase.from("personnel").select("id, full_name")
   ]);
 
   const orders = (data ?? []) as WorkOrderRow[];
-  const items = (itemData ?? []) as ItemRow[];
+  const orderIds = new Set(orders.map((o) => o.id));
+  // Cuando está acotado, "orders" ya salió filtrado por aeronave desde la
+  // consulta — se filtran también los ítems para que "tareas pendientes" no
+  // cuente trabajo de otras órdenes que el técnico ni puede ver.
+  const items = scopedRegistration
+    ? ((itemData ?? []) as ItemRow[]).filter((i) => orderIds.has(i.work_order_id))
+    : ((itemData ?? []) as ItemRow[]);
   const personnelById = new Map((personnelData ?? []).map((p) => [p.id, p.full_name]));
 
   const progressByOrder = new Map<string, { done: number; total: number }>();

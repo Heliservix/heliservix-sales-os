@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -22,10 +23,19 @@ export async function createTechnicalRecord(formData: FormData) {
   if (!title) throw new Error("El título del registro es obligatorio.");
 
   const relatedHelicopterRaw = text(formData, "relatedHelicopter");
+  const relatedHelicopter = relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null;
+
+  // No solo ocultar el resto de la flota en el formulario — un técnico
+  // acotado a una aeronave no puede crear un registro para otra aunque
+  // manipule el request a mano.
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && relatedHelicopter !== scopedRegistration) {
+    throw new Error("Solo puedes crear registros técnicos para tu helicóptero asignado.");
+  }
 
   const { error } = await supabase.from("technical_records").insert({
     record_type: text(formData, "recordType") || "Other",
-    related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
+    related_helicopter: relatedHelicopter,
     title,
     record_date: optionalText(formData, "recordDate"),
     document_number: optionalText(formData, "documentNumber"),

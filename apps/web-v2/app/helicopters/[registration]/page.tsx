@@ -10,6 +10,7 @@ import { PhotoUploadForm } from "@/app/helicopters/photo-upload-form";
 import { supabase } from "@/lib/supabase";
 import { deleteHelicopter } from "@/app/helicopters/actions";
 import { fetchDocumentCenterData, computeSections, overallTone } from "@/lib/document-center";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 // A component is "calendar-driven" when its calendar expiry is the tighter
 // constraint than its hours remaining — i.e. exactly the case where a part
@@ -30,6 +31,9 @@ type HelicopterDetailPageProps = {
 
 export default async function HelicopterDetailPage({ params }: HelicopterDetailPageProps) {
   const { registration } = await params;
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && registration !== scopedRegistration) notFound();
+
   const { data: helicopter } = await supabase
     .from("helicopters")
     .select("*, vessels(name)")

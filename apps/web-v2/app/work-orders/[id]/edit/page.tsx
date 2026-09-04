@@ -6,19 +6,23 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateWorkOrder } from "@/app/work-orders/actions";
 import { WorkOrderAircraftFields, type WorkOrderHelicopterOption } from "@/app/work-orders/aircraft-fields";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type EditWorkOrderPageProps = { params: Promise<{ id: string }> };
 
 export default async function EditWorkOrderPage({ params }: EditWorkOrderPageProps) {
   const { id } = await params;
-  const [{ data: order }, { data: helicopters }, { data: mechanics }, { data: engines }] = await Promise.all([
+  const { scopedRegistration } = await getTechnicianScope();
+  const [{ data: order }, { data: helicopterData }, { data: mechanics }, { data: engines }] = await Promise.all([
     supabase.from("work_orders").select("*").eq("id", id).maybeSingle(),
     supabase.from("helicopters").select("registration, model, serial_number, owner_company").eq("archived", false).order("registration"),
     supabase.from("personnel").select("id, full_name").eq("archived", false).eq("role", "Mecánico").order("full_name"),
     supabase.from("components").select("helicopter_registration, part_number, serial_number").ilike("component_name", "ENGINE").eq("archived", false)
   ]);
   if (!order) notFound();
+  if (scopedRegistration && order.helicopter_registration !== scopedRegistration) notFound();
 
+  const helicopters = scopedRegistration ? (helicopterData ?? []).filter((h) => h.registration === scopedRegistration) : (helicopterData ?? []);
   const engineByRegistration = new Map((engines ?? []).map((e) => [e.helicopter_registration, e]));
   const helicopterOptions: WorkOrderHelicopterOption[] = (helicopters ?? []).map((h) => ({
     registration: h.registration,

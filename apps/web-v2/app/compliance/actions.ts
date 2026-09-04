@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -28,6 +29,12 @@ export async function createComplianceItem(formData: FormData) {
   const title = text(formData, "title");
   if (!title) throw new Error("El título es obligatorio.");
   const relatedHelicopterRaw = text(formData, "relatedHelicopter");
+  const relatedHelicopter = relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null;
+
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && relatedHelicopter != null && relatedHelicopter !== scopedRegistration) {
+    throw new Error("Solo puedes crear ítems de cumplimiento para tu helicóptero asignado (o para toda la flota).");
+  }
 
   const { error } = await supabase.from("compliance_items").insert({
     authority: text(formData, "authority") || "Other",
@@ -38,7 +45,7 @@ export async function createComplianceItem(formData: FormData) {
     due_date: optionalText(formData, "dueDate"),
     due_hours: optionalHours(formData, "dueHours"),
     applicability: optionalText(formData, "applicability"),
-    related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
+    related_helicopter: relatedHelicopter,
     status: text(formData, "status") || "Not reviewed",
     notes: optionalText(formData, "notes"),
     attachment_placeholder: optionalText(formData, "attachmentUrl"),
@@ -55,6 +62,12 @@ export async function updateComplianceItem(id: string, formData: FormData) {
   const title = text(formData, "title");
   if (!title) throw new Error("El título es obligatorio.");
   const relatedHelicopterRaw = text(formData, "relatedHelicopter");
+  const relatedHelicopter = relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null;
+
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && relatedHelicopter != null && relatedHelicopter !== scopedRegistration) {
+    throw new Error("Solo puedes editar ítems de cumplimiento de tu helicóptero asignado (o de toda la flota).");
+  }
 
   const { error } = await supabase
     .from("compliance_items")
@@ -67,7 +80,7 @@ export async function updateComplianceItem(id: string, formData: FormData) {
       due_date: optionalText(formData, "dueDate"),
       due_hours: optionalHours(formData, "dueHours"),
       applicability: optionalText(formData, "applicability"),
-      related_helicopter: relatedHelicopterRaw ? normalizeRegistration(relatedHelicopterRaw) : null,
+      related_helicopter: relatedHelicopter,
       status: text(formData, "status") || "Not reviewed",
       notes: optionalText(formData, "notes"),
       attachment_placeholder: optionalText(formData, "attachmentUrl"),

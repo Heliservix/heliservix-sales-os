@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createComponent } from "@/app/helicopters/[registration]/components/actions";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type NewComponentPageProps = {
   params: Promise<{ registration: string }>;
@@ -12,6 +13,9 @@ type NewComponentPageProps = {
 
 export default async function NewComponentPage({ params }: NewComponentPageProps) {
   const { registration } = await params;
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && registration !== scopedRegistration) notFound();
+
   const { data: helicopter } = await supabase.from("helicopters").select("registration").eq("registration", registration).maybeSingle();
   if (!helicopter) notFound();
 

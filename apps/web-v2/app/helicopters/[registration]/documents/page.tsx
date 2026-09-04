@@ -7,6 +7,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/auth";
+import { getTechnicianScope } from "@/lib/technician-scope";
 import { fetchDocumentCenterData, type AircraftDocumentRow } from "@/lib/document-center";
 import { DocumentUploadForm } from "@/app/helicopters/[registration]/documents/document-upload-form";
 import { EltForm } from "@/app/helicopters/[registration]/documents/elt-form";
@@ -77,6 +78,9 @@ function DocumentList({ registration, docs, hideAmounts }: { registration: strin
 
 export default async function AircraftDocumentsPage({ params }: DocumentsPageProps) {
   const { registration } = await params;
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && registration !== scopedRegistration) notFound();
+
   const { data: helicopter } = await supabase.from("helicopters").select("registration, model").eq("registration", registration).maybeSingle();
   if (!helicopter) notFound();
 

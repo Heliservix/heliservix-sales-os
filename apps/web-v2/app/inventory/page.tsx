@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -21,14 +22,27 @@ type InventoryRow = {
 };
 
 export default async function InventoryRollupPage() {
-  const [{ data: items, error }, { data: vessels }] = await Promise.all([
-    supabase
-      .from("inventory_items")
-      .select("id, item_name, item_type, part_number, quantity, minimum_stock, unit_of_measure, related_helicopter, vessel_id, vessels(id, name)")
-      .eq("archived", false)
-      .order("item_name"),
+  const { scopedRegistration, scopedVesselId } = await getTechnicianScope();
+  // Distinto de scopedVesselId: un técnico puede tener helicóptero asignado
+  // (scopedRegistration) pero ese helicóptero todavía sin barco asignado en
+  // Flota (scopedVesselId null) — ese caso debe mostrar "sin bodega
+  // asignada", NO caer de vuelta a ver toda la flota como un admin.
+  const isScopedMechanic = scopedRegistration != null;
+
+  const [{ data: items, error }, { data: vesselData }] = await Promise.all([
+    (() => {
+      let query = supabase
+        .from("inventory_items")
+        .select("id, item_name, item_type, part_number, quantity, minimum_stock, unit_of_measure, related_helicopter, vessel_id, vessels(id, name)")
+        .eq("archived", false);
+      // Sin bodega resuelta para un técnico acotado, no se debe traer nada.
+      if (isScopedMechanic) query = query.eq("vessel_id", scopedVesselId ?? "__none__");
+      return query.order("item_name");
+    })(),
     supabase.from("vessels").select("id, name").eq("archived", false).order("name")
   ]);
+
+  const vessels = isScopedMechanic ? (vesselData ?? []).filter((v) => v.id === scopedVesselId) : (vesselData ?? []);
 
   const list = ((items ?? []) as unknown as InventoryRow[]);
   const lowStock = list.filter((item) => Number(item.quantity) < Number(item.minimum_stock));
@@ -38,10 +52,21 @@ export default async function InventoryRollupPage() {
       <div className="mx-auto max-w-[1500px]">
         <SectionHeader
           eyebrow="Cadena de suministro"
-          title="Inventario — resumen de flota"
-          description="Vista consolidada de todas las bodegas. Cada barco tiene su propia bodega — entra a un barco para registrar movimientos."
+          title={isScopedMechanic ? `Inventario — ${vessels[0]?.name ?? "tu barco"}` : "Inventario — resumen de flota"}
+          description={
+            isScopedMechanic
+              ? "Bodega del barco de tu helicóptero asignado."
+              : "Vista consolidada de todas las bodegas. Cada barco tiene su propia bodega — entra a un barco para registrar movimientos."
+          }
           icon={Boxes}
         />
+
+        {isScopedMechanic && !scopedVesselId ? (
+          <div className="hsv-error-banner mb-5">
+            Tu helicóptero asignado todavía no tiene un barco asignado (se configura en Flota) — pídele a Adolfo que lo complete
+            para ver tu bodega aquí.
+          </div>
+        ) : null}
 
         <div className="mb-5 grid gap-4 sm:grid-cols-3">
           <Panel>

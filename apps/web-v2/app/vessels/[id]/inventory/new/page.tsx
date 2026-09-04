@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createInventoryItem } from "@/app/vessels/[id]/inventory/actions";
 import { inventoryItemTypes } from "@/app/vessels/[id]/inventory/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type NewInventoryItemPageProps = {
   params: Promise<{ id: string }>;
@@ -13,6 +14,9 @@ type NewInventoryItemPageProps = {
 
 export default async function NewInventoryItemPage({ params }: NewInventoryItemPageProps) {
   const { id } = await params;
+  const { scopedRegistration, scopedVesselId } = await getTechnicianScope();
+  if (scopedRegistration != null && id !== scopedVesselId) notFound();
+
   const [{ data: vessel }, { data: helicopters }] = await Promise.all([
     supabase.from("vessels").select("id, name").eq("id", id).maybeSingle(),
     supabase.from("helicopters").select("registration").eq("archived", false).order("registration")

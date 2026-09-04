@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { uploadDataUrlImage, uploadPhotoFile } from "@/lib/media-upload";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -33,13 +34,19 @@ function splitTaskLines(raw: string): string[] {
 }
 
 export async function createWorkOrder(formData: FormData) {
+  const { scopedRegistration } = await getTechnicianScope();
+  const helicopterRegistration = optionalText(formData, "helicopterRegistration");
+  if (scopedRegistration && helicopterRegistration !== scopedRegistration) {
+    throw new Error("Solo puedes crear órdenes de trabajo para tu helicóptero asignado.");
+  }
+
   const { data: order, error } = await supabase
     .from("work_orders")
     .insert({
       client_name: optionalText(formData, "clientName"),
       client_address: optionalText(formData, "clientAddress"),
       client_phone: optionalText(formData, "clientPhone"),
-      helicopter_registration: optionalText(formData, "helicopterRegistration"),
+      helicopter_registration: helicopterRegistration,
       aircraft_type: optionalText(formData, "aircraftType"),
       aircraft_registration: optionalText(formData, "aircraftRegistration"),
       aircraft_serial: optionalText(formData, "aircraftSerial"),
@@ -106,13 +113,19 @@ export async function createWorkOrder(formData: FormData) {
 }
 
 export async function updateWorkOrder(id: string, formData: FormData) {
+  const { scopedRegistration } = await getTechnicianScope();
+  const helicopterRegistration = optionalText(formData, "helicopterRegistration");
+  if (scopedRegistration && helicopterRegistration !== scopedRegistration) {
+    throw new Error("Solo puedes asignar tu helicóptero asignado a esta orden de trabajo.");
+  }
+
   const { error } = await supabase
     .from("work_orders")
     .update({
       client_name: optionalText(formData, "clientName"),
       client_address: optionalText(formData, "clientAddress"),
       client_phone: optionalText(formData, "clientPhone"),
-      helicopter_registration: optionalText(formData, "helicopterRegistration"),
+      helicopter_registration: helicopterRegistration,
       aircraft_type: optionalText(formData, "aircraftType"),
       aircraft_registration: optionalText(formData, "aircraftRegistration"),
       aircraft_serial: optionalText(formData, "aircraftSerial"),

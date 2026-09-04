@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { archiveTechnicalRecord } from "@/app/technical-records/actions";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,8 @@ const TYPE_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | "n
 
 export default async function TechnicalRecordsPage({ searchParams }: TechnicalRecordsPageProps) {
   const { registration: selectedRegistration, campaign: selectedCampaignId } = await searchParams;
+  const { scopedRegistration } = await getTechnicianScope();
+  const effectiveRegistration = scopedRegistration ?? selectedRegistration;
 
   let query = supabase
     .from("technical_records")
@@ -58,7 +61,7 @@ export default async function TechnicalRecordsPage({ searchParams }: TechnicalRe
     .eq("archived", false)
     .order("created_at", { ascending: false });
 
-  if (selectedRegistration) query = query.eq("related_helicopter", selectedRegistration);
+  if (effectiveRegistration) query = query.eq("related_helicopter", effectiveRegistration);
   if (selectedCampaignId) query = query.eq("related_campaign_id", selectedCampaignId);
 
   const [{ data, error }, { data: helicopterData }, { data: campaignData }] = await Promise.all([
@@ -75,6 +78,7 @@ export default async function TechnicalRecordsPage({ searchParams }: TechnicalRe
   const helicopters = (helicopterData ?? []) as { registration: string }[];
   const campaignOptions = (campaignData ?? []) as unknown as { id: string; code: string | null; name: string; vessels: { name: string } | null }[];
   const hasFilters = Boolean(selectedRegistration || selectedCampaignId);
+  const visibleHelicopters = scopedRegistration ? helicopters.filter((h) => h.registration === scopedRegistration) : helicopters;
 
   return (
     <AppShell>
@@ -101,9 +105,13 @@ export default async function TechnicalRecordsPage({ searchParams }: TechnicalRe
           <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-canvas-muted p-3">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-ink-subtle">Helicóptero</label>
-              <select name="registration" defaultValue={selectedRegistration ?? ""} className="hsv-control !py-1.5 text-sm">
-                <option value="">Todos</option>
-                {helicopters.map((h) => (
+              <select
+                name="registration"
+                defaultValue={scopedRegistration ?? selectedRegistration ?? ""}
+                className="hsv-control !py-1.5 text-sm"
+              >
+                {!scopedRegistration ? <option value="">Todos</option> : null}
+                {visibleHelicopters.map((h) => (
                   <option key={h.registration} value={h.registration}>
                     {h.registration}
                   </option>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Anchor, Bot, Search, ShoppingCart, Wrench } from "lucide-react";
+import { Anchor, ArrowRight, Bot, Search, ShoppingCart, Wrench } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -8,6 +8,7 @@ import { ScoreGauge } from "@/components/charts/score-gauge";
 import { HorizontalBarChart, type BarChartDatum } from "@/components/charts/bar-chart";
 import {
   buildAuraAnalysis,
+  recommendationHref,
   ROBINSON_R44_AVGAS_SPEC,
   type AuraPriority,
   type AuraTone,
@@ -15,7 +16,7 @@ import {
   type AuraForecastBucket
 } from "@/lib/aura";
 import { searchAcrossSystem } from "@/lib/aura-search";
-import { getSessionUser } from "@/lib/auth";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -35,10 +36,12 @@ export default async function AuraPage({ searchParams }: AuraPageProps) {
   // Un Mecánico con helicóptero asignado (Personal → Editar) ve AURA
   // filtrado a esa sola aeronave — todo el análisis, no solo la lista visual
   // (ver lib/aura.ts). Un admin, un piloto, o un mecánico sin asignación
-  // todavía siguen viendo la flota completa, igual que antes.
-  const session = await getSessionUser();
-  const isScopedMechanic = Boolean(session && !session.isAdmin && session.personnelRole === "Mecánico" && session.assignedHelicopterRegistration);
-  const scopedRegistration = isScopedMechanic ? session!.assignedHelicopterRegistration : null;
+  // todavía siguen viendo la flota completa, igual que antes. Ver
+  // lib/technician-scope.ts — la misma función que ahora también acota
+  // Flota, Alertas, Registros Técnicos, Cumplimiento, Órdenes de Trabajo, No
+  // Rutina y Cambios de Componentes.
+  const { scopedRegistration } = await getTechnicianScope();
+  const isScopedMechanic = scopedRegistration != null;
 
   const [analysis, searchResults] = await Promise.all([
     buildAuraAnalysis(scopedRegistration),
@@ -154,26 +157,37 @@ export default async function AuraPage({ searchParams }: AuraPageProps) {
         <Panel className="mb-5">
           <h2 className="text-lg font-semibold text-ink">Recomendaciones del día</h2>
           <div className="mt-4 grid gap-3">
-            {analysis.executiveRecommendations.map((rec) => (
-              <div key={rec.id} className="rounded-xl border border-line bg-canvas-muted/40 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusPill tone={PRIORITY_TONE[rec.priority]}>{rec.priority}</StatusPill>
-                  <span className="text-sm font-semibold text-ink">{rec.subject}</span>
-                  <span className="text-xs text-ink-subtle">Confianza {rec.confidence}%</span>
+            {analysis.executiveRecommendations.map((rec) => {
+              const href = recommendationHref(rec);
+              return (
+                <div key={rec.id} className="rounded-xl border border-line bg-canvas-muted/40 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill tone={PRIORITY_TONE[rec.priority]}>{rec.priority}</StatusPill>
+                      <span className="text-sm font-semibold text-ink">{rec.subject}</span>
+                      <span className="text-xs text-ink-subtle">Confianza {rec.confidence}%</span>
+                    </div>
+                    {href ? (
+                      <Link href={href} className="hsv-secondary-button !py-1.5 text-xs">
+                        Revisar caso
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Link>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm text-ink">{rec.recommendation}</p>
+                  <p className="mt-1 text-sm text-ink-subtle">{rec.operationalImpact}</p>
+                  <p className="mt-2 text-xs font-semibold uppercase text-ink-subtle">Acción recomendada</p>
+                  <p className="text-sm text-ink-muted">{rec.recommendedAction}</p>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {rec.evidence.map((item) => (
+                      <li key={item} className="rounded-full border border-line bg-white px-2.5 py-1 text-xs text-ink-subtle">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <p className="mt-2 text-sm text-ink">{rec.recommendation}</p>
-                <p className="mt-1 text-sm text-ink-subtle">{rec.operationalImpact}</p>
-                <p className="mt-2 text-xs font-semibold uppercase text-ink-subtle">Acción recomendada</p>
-                <p className="text-sm text-ink-muted">{rec.recommendedAction}</p>
-                <ul className="mt-2 flex flex-wrap gap-2">
-                  {rec.evidence.map((item) => (
-                    <li key={item} className="rounded-full border border-line bg-white px-2.5 py-1 text-xs text-ink-subtle">
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Panel>
 

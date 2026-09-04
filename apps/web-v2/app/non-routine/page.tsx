@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { openNonRoutineStatuses } from "@/app/non-routine/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,17 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
 };
 
 export default async function NonRoutinePage() {
+  const { scopedRegistration } = await getTechnicianScope();
+
   const [{ data, error }, { data: personnelData }] = await Promise.all([
-    supabase
-      .from("non_routine_reports")
-      .select("id, sequence_number, helicopter_registration, aircraft_model, discrepancy, status, report_date, opened_by_personnel_id")
-      .eq("archived", false)
-      .order("created_at", { ascending: false }),
+    (() => {
+      let query = supabase
+        .from("non_routine_reports")
+        .select("id, sequence_number, helicopter_registration, aircraft_model, discrepancy, status, report_date, opened_by_personnel_id")
+        .eq("archived", false);
+      if (scopedRegistration) query = query.eq("helicopter_registration", scopedRegistration);
+      return query.order("created_at", { ascending: false });
+    })(),
     supabase.from("personnel").select("id, full_name")
   ]);
 

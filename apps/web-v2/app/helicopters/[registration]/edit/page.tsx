@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateHelicopter } from "@/app/helicopters/actions";
 import { helicopterStatuses } from "@/app/helicopters/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type EditHelicopterPageProps = {
   params: Promise<{ registration: string }>;
@@ -13,6 +14,9 @@ type EditHelicopterPageProps = {
 
 export default async function EditHelicopterPage({ params }: EditHelicopterPageProps) {
   const { registration } = await params;
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration && registration !== scopedRegistration) notFound();
+
   const [{ data: helicopter }, { data: vessels }] = await Promise.all([
     supabase.from("helicopters").select("*").eq("registration", registration).maybeSingle(),
     supabase.from("vessels").select("id, name").eq("archived", false).order("name")

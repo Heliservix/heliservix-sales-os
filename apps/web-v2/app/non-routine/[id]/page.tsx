@@ -17,6 +17,7 @@ import {
 import { nonRoutineStatuses } from "@/app/non-routine/constants";
 import { PrintButton } from "@/app/reports/faena/[id]/print-button";
 import { NonRoutinePrintSheet } from "@/app/non-routine/print-sheet";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ const STATUS_TONE: Record<string, "green" | "amber" | "blue" | "teal" | "red" | 
 
 export default async function NonRoutineDetailPage({ params }: NonRoutineDetailProps) {
   const { id } = await params;
+  const { scopedRegistration } = await getTechnicianScope();
 
   const [{ data: report }, { data: componentData }, { data: personnelData }, { data: workOrderData }] = await Promise.all([
     supabase.from("non_routine_reports").select("*").eq("id", id).maybeSingle(),
@@ -39,6 +41,7 @@ export default async function NonRoutineDetailPage({ params }: NonRoutineDetailP
   ]);
 
   if (!report) notFound();
+  if (scopedRegistration && report.helicopter_registration !== scopedRegistration) notFound();
 
   const components = componentData ?? [];
   const personnel = personnelData ?? [];

@@ -5,11 +5,14 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { SignaturePad } from "@/components/ui/signature-pad";
 import { fetchActiveComponentsForPicker, fetchTechniciansForPicker } from "@/lib/component-swap";
 import { replaceComponent } from "@/app/component-changes/actions";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReplaceComponentPage() {
-  const [components, technicians] = await Promise.all([fetchActiveComponentsForPicker(), fetchTechniciansForPicker()]);
+  const { scopedRegistration } = await getTechnicianScope();
+  const [allComponents, technicians] = await Promise.all([fetchActiveComponentsForPicker(), fetchTechniciansForPicker()]);
+  const components = scopedRegistration ? allComponents.filter((c) => c.helicopterRegistration === scopedRegistration) : allComponents;
 
   return (
     <AppShell>

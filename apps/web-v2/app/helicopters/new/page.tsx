@@ -1,11 +1,18 @@
+import { redirect } from "next/navigation";
 import { Plane } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { createHelicopter } from "@/app/helicopters/actions";
 import { helicopterStatuses } from "@/app/helicopters/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
-export default function NewHelicopterPage() {
+export default async function NewHelicopterPage() {
+  // Crear un helicóptero nuevo no es "su" aeronave — un técnico acotado a una
+  // sola matrícula no tiene por qué dar de alta otra.
+  const { scopedRegistration } = await getTechnicianScope();
+  if (scopedRegistration) redirect(`/helicopters/${scopedRegistration}`);
+
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">

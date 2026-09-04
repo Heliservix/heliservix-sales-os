@@ -6,15 +6,21 @@ import { SignaturePad } from "@/components/ui/signature-pad";
 import { supabase } from "@/lib/supabase";
 import { fetchActiveComponentsForPicker, fetchTechniciansForPicker } from "@/lib/component-swap";
 import { transferComponent } from "@/app/component-changes/actions";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export const dynamic = "force-dynamic";
 
 export default async function TransferComponentPage() {
-  const [components, technicians, { data: helicopters }] = await Promise.all([
+  const { scopedRegistration } = await getTechnicianScope();
+  const [allComponents, technicians, { data: helicopters }] = await Promise.all([
     fetchActiveComponentsForPicker(),
     fetchTechniciansForPicker(),
     supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration")
   ]);
+  // La pieza que se mueve debe ser de tu propia aeronave — pero la pieza que
+  // "regresa a cambio" en un intercambio pertenece al helicóptero DESTINO
+  // (cualquiera de la flota), así que esa lista no se acota.
+  const components = scopedRegistration ? allComponents.filter((c) => c.helicopterRegistration === scopedRegistration) : allComponents;
 
   return (
     <AppShell>
@@ -81,7 +87,7 @@ export default async function TransferComponentPage() {
               Componente que regresa a cambio (opcional)
               <select className="hsv-control" name="returnComponentId" defaultValue="">
                 <option value="">No, es solo un movimiento en un sentido</option>
-                {components.map((c) => (
+                {allComponents.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
                   </option>

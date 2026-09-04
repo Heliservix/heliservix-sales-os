@@ -5,9 +5,12 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { createTechnicalRecord } from "@/app/technical-records/actions";
 import { technicalRecordTypes } from "@/app/technical-records/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 export default async function NewTechnicalRecordPage() {
-  const { data: helicopters } = await supabase.from("helicopters").select("registration").eq("archived", false).order("registration");
+  const { scopedRegistration } = await getTechnicianScope();
+  const { data: helicopterData } = await supabase.from("helicopters").select("registration").eq("archived", false).order("registration");
+  const helicopters = scopedRegistration ? (helicopterData ?? []).filter((h) => h.registration === scopedRegistration) : (helicopterData ?? []);
 
   return (
     <AppShell>
@@ -30,9 +33,9 @@ export default async function NewTechnicalRecordPage() {
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink">
               Helicóptero relacionado
-              <select className="hsv-control" name="relatedHelicopter" defaultValue="">
-                <option value="">Sin asignar</option>
-                {(helicopters ?? []).map((h) => (
+              <select className="hsv-control" name="relatedHelicopter" defaultValue={scopedRegistration ?? ""}>
+                {!scopedRegistration ? <option value="">Sin asignar</option> : null}
+                {helicopters.map((h) => (
                   <option key={h.registration} value={h.registration}>{h.registration}</option>
                 ))}
               </select>

@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateInventoryItem, archiveInventoryItem, deleteInventoryItem } from "@/app/vessels/[id]/inventory/actions";
 import { inventoryItemTypes } from "@/app/vessels/[id]/inventory/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type EditInventoryItemPageProps = {
   params: Promise<{ id: string; itemId: string }>;
@@ -13,6 +14,9 @@ type EditInventoryItemPageProps = {
 
 export default async function EditInventoryItemPage({ params }: EditInventoryItemPageProps) {
   const { id, itemId } = await params;
+  const { scopedRegistration, scopedVesselId } = await getTechnicianScope();
+  if (scopedRegistration != null && id !== scopedVesselId) notFound();
+
   const [{ data: vessel }, { data: item }, { data: helicopters }] = await Promise.all([
     supabase.from("vessels").select("id, name").eq("id", id).maybeSingle(),
     supabase.from("inventory_items").select("*").eq("id", itemId).maybeSingle(),

@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { supabase } from "@/lib/supabase";
 import { updateComplianceItem, archiveComplianceItem } from "@/app/compliance/actions";
 import { complianceAuthorities, complianceTypes, complianceStatuses } from "@/app/compliance/constants";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 type EditComplianceItemPageProps = {
   params: Promise<{ id: string }>;
@@ -13,11 +14,16 @@ type EditComplianceItemPageProps = {
 
 export default async function EditComplianceItemPage({ params }: EditComplianceItemPageProps) {
   const { id } = await params;
-  const [{ data: item }, { data: helicopters }] = await Promise.all([
+  const { scopedRegistration } = await getTechnicianScope();
+  const [{ data: item }, { data: helicopterData }] = await Promise.all([
     supabase.from("compliance_items").select("*").eq("id", id).maybeSingle(),
     supabase.from("helicopters").select("registration").eq("archived", false).order("registration")
   ]);
   if (!item) notFound();
+  // Un técnico acotado puede ver/editar sus propios ítems y los de "toda la
+  // flota" (related_helicopter null), pero no los de otra aeronave.
+  if (scopedRegistration && item.related_helicopter != null && item.related_helicopter !== scopedRegistration) notFound();
+  const helicopters = scopedRegistration ? (helicopterData ?? []).filter((h) => h.registration === scopedRegistration) : (helicopterData ?? []);
 
   const boundUpdate = updateComplianceItem.bind(null, id);
   const boundArchive = archiveComplianceItem.bind(null, id);
@@ -56,7 +62,7 @@ export default async function EditComplianceItemPage({ params }: EditComplianceI
               Helicóptero relacionado
               <select className="hsv-control" name="relatedHelicopter" defaultValue={item.related_helicopter ?? ""}>
                 <option value="">Toda la flota</option>
-                {(helicopters ?? []).map((h) => (
+                {helicopters.map((h) => (
                   <option key={h.registration} value={h.registration}>{h.registration}</option>
                 ))}
               </select>

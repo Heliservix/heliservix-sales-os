@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { uploadPhotoFile } from "@/lib/media-upload";
+import { getTechnicianScope } from "@/lib/technician-scope";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -31,10 +32,16 @@ export async function createNonRoutineReport(formData: FormData) {
   const discrepancy = text(formData, "discrepancy");
   if (!discrepancy) throw new Error("Describe la discrepancia encontrada.");
 
+  const { scopedRegistration } = await getTechnicianScope();
+  const helicopterRegistration = optionalText(formData, "helicopterRegistration");
+  if (scopedRegistration && helicopterRegistration !== scopedRegistration) {
+    throw new Error("Solo puedes crear reportes de no rutina para tu helicóptero asignado.");
+  }
+
   const { data: report, error } = await supabase
     .from("non_routine_reports")
     .insert({
-      helicopter_registration: optionalText(formData, "helicopterRegistration"),
+      helicopter_registration: helicopterRegistration,
       work_order_id: optionalText(formData, "workOrderId"),
       aircraft_model: optionalText(formData, "aircraftModel"),
       total_time_hours: optionalNumber(formData, "totalTimeHours"),
@@ -73,10 +80,16 @@ export async function updateNonRoutineReport(id: string, formData: FormData) {
   const discrepancy = text(formData, "discrepancy");
   if (!discrepancy) throw new Error("Describe la discrepancia encontrada.");
 
+  const { scopedRegistration } = await getTechnicianScope();
+  const helicopterRegistration = optionalText(formData, "helicopterRegistration");
+  if (scopedRegistration && helicopterRegistration !== scopedRegistration) {
+    throw new Error("Solo puedes asignar tu helicóptero asignado a este reporte de no rutina.");
+  }
+
   const { error } = await supabase
     .from("non_routine_reports")
     .update({
-      helicopter_registration: optionalText(formData, "helicopterRegistration"),
+      helicopter_registration: helicopterRegistration,
       work_order_id: optionalText(formData, "workOrderId"),
       aircraft_model: optionalText(formData, "aircraftModel"),
       total_time_hours: optionalNumber(formData, "totalTimeHours"),
