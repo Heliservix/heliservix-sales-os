@@ -396,11 +396,11 @@ export async function importWeeklyReport(_prevState: WeeklyImportState, formData
       const materialsNote = event.materials.length
         ? `Materiales: ${event.materials.map((m) => `${m.description}${m.partNumber ? ` (${m.partNumber})` : ""}${m.quantity ? ` x${m.quantity}` : ""}`).join("; ")}`
         : null;
-      // El técnico nombrado en la fila de la hoja NO RUTINAS es quien lo
-      // encontró y, cuando hay acción de gestión ya descrita, también quien
-      // la corrigió — si esa fila no trae nombre, cae al mecánico asignado
-      // a la faena (mismo fallback que technical_records arriba).
-      const personnelId = resolvePersonnelId(event.technician) ?? resolvePersonnelId(campaignMechanic);
+      // A pedido de Adolfo: usar el mecánico asignado a la faena/marea
+      // (campaigns.mechanic) como responsable de estos reportes, ya que es
+      // quien realmente firma por esa marea — el nombre suelto en la fila de
+      // la hoja NO RUTINAS solo se usa si la faena no tiene mecánico asignado.
+      const personnelId = resolvePersonnelId(campaignMechanic) ?? resolvePersonnelId(event.technician);
       const hasCorrectiveAction = Boolean(event.managementAction);
       const status: "Abierta" | "Corregida" = hasCorrectiveAction ? "Corregida" : "Abierta";
       return {
