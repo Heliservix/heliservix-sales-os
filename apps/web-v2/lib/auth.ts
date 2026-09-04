@@ -17,6 +17,11 @@ export type SessionUser = {
   personnelId: string | null;
   personnelName: string | null;
   personnelRole: "Piloto" | "Mecánico" | "Administrativo" | null;
+  // Aeronave fija asignada a este técnico desde Personal (sept 2026) — solo
+  // relevante para un Mecánico, usada por app/aura/page.tsx para mostrarle
+  // recomendaciones de AURA de únicamente su propio helicóptero en vez de
+  // toda la flota. null si no tiene una asignada (o si es admin/piloto).
+  assignedHelicopterRegistration: string | null;
 };
 
 // The single place that answers "who is logged in, and are they an admin
@@ -36,12 +41,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const isAdmin = adminEmails().includes(email);
 
   if (isAdmin) {
-    return { email, isAdmin: true, personnelId: null, personnelName: null, personnelRole: null };
+    return { email, isAdmin: true, personnelId: null, personnelName: null, personnelRole: null, assignedHelicopterRegistration: null };
   }
 
   const { data: person } = await supabase
     .from("personnel")
-    .select("id, full_name, role")
+    .select("id, full_name, role, assigned_helicopter_registration")
     .ilike("email", email)
     .eq("status", "Active")
     .eq("archived", false)
@@ -54,7 +59,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   // in middleware.ts's matching branch.
   const role = (person?.role as "Piloto" | "Mecánico" | "Administrativo" | undefined) ?? null;
   if (role === "Administrativo") {
-    return { email, isAdmin: true, personnelId: person?.id ?? null, personnelName: person?.full_name ?? null, personnelRole: role };
+    return {
+      email,
+      isAdmin: true,
+      personnelId: person?.id ?? null,
+      personnelName: person?.full_name ?? null,
+      personnelRole: role,
+      assignedHelicopterRegistration: null
+    };
   }
 
   return {
@@ -62,6 +74,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     isAdmin: false,
     personnelId: person?.id ?? null,
     personnelName: person?.full_name ?? null,
-    personnelRole: role
+    personnelRole: role,
+    assignedHelicopterRegistration: person?.assigned_helicopter_registration ?? null
   };
 }

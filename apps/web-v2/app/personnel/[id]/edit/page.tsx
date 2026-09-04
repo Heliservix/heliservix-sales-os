@@ -204,6 +204,25 @@ export default async function EditPersonnelPage({ params }: EditPersonnelPagePro
                 ))}
               </select>
             </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Helicóptero asignado (para AURA)
+              <select
+                className="hsv-control"
+                name="assignedHelicopterRegistration"
+                defaultValue={person.assigned_helicopter_registration ?? ""}
+              >
+                <option value="">Sin asignar — ve toda la flota</option>
+                {(helicopterData ?? []).map((h) => (
+                  <option key={h.registration} value={h.registration}>
+                    {h.registration}
+                    {h.model ? ` — ${h.model}` : ""}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-0.5 text-xs font-normal text-ink-subtle">
+                Solo aplica a un Mecánico — en AURA solo verá recomendaciones y análisis de esta aeronave.
+              </span>
+            </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas
               <textarea className="hsv-textarea" name="notes" defaultValue={person.notes ?? ""} />

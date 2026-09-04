@@ -935,7 +935,20 @@ function answerHighestRisk(risks: HelicopterRisk[]): AuraAnswer {
   };
 }
 
-export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
+// Cuando se pasa un registro, TODO el análisis (salud de flota, pronóstico,
+// recomendaciones, compras, operaciones) se filtra a esa sola aeronave antes
+// de correr los motores — no es un filtro visual sobre datos de toda la
+// flota, es la misma matemática corriendo sobre un subconjunto. Se filtran
+// los arreglos crudos (helicópteros, componentes, alertas, vuelos,
+// cumplimiento, faenas) en vez de recalcular cada motor por separado, así
+// ningún motor puede "olvidarse" de aplicar el filtro (sept 2026, a pedido
+// de Adolfo: "cada tecnico asignado a su helicoptero pueda visualizar las
+// recomendaciones solamente de su helicoptero y todo el analisis
+// recomendado"). Inventario y pedidos de compra NO se filtran — son
+// bodega/compras compartidas del sistema, no por aeronave, así que la
+// cobertura de repuestos (en stock / pedido en curso) debe seguir viendo
+// todo lo disponible.
+export async function buildAuraAnalysis(scopeToHelicopterRegistration?: string | null): Promise<AuraAnalysis> {
   const [
     { data: helicopters },
     { data: components },
@@ -964,19 +977,35 @@ export async function buildAuraAnalysis(): Promise<AuraAnalysis> {
     fetchFaenaData()
   ]);
 
-  const helicopterRows = (helicopters ?? []) as HelicopterRow[];
-  const componentRows = (components ?? []) as ComponentRow[];
-  const alertRows = (alerts ?? []) as AlertRow[];
-  const flightLogRows = (flightLogs ?? []) as FlightLogRow[];
+  let helicopterRows = (helicopters ?? []) as HelicopterRow[];
+  let componentRows = (components ?? []) as ComponentRow[];
+  let alertRows = (alerts ?? []) as AlertRow[];
+  let flightLogRows = (flightLogs ?? []) as FlightLogRow[];
   const inventoryItemRows = (inventoryItems ?? []) as InventoryItemRow[];
   const purchaseRequestRows = (purchaseRequests ?? []) as PurchaseRequestRow[];
-  const complianceItemRows = (complianceItems ?? []) as ComplianceItemRow[];
+  let complianceItemRows = (complianceItems ?? []) as ComplianceItemRow[];
+  let campaignRows = faenaData.campaigns;
+  let faenaFlightLogRows = faenaData.flightLogs;
+
+  if (scopeToHelicopterRegistration) {
+    const reg = scopeToHelicopterRegistration;
+    helicopterRows = helicopterRows.filter((h) => h.registration === reg);
+    componentRows = componentRows.filter((c) => c.helicopter_registration === reg);
+    alertRows = alertRows.filter((a) => a.helicopter_registration === reg);
+    flightLogRows = flightLogRows.filter((f) => f.helicopter_registration === reg);
+    // related_helicopter == null significa "toda la flota" (ej. una AD
+    // genérica) — esas siguen aplicando a esta aeronave también, así que no
+    // se descartan.
+    complianceItemRows = complianceItemRows.filter((item) => item.related_helicopter === reg || item.related_helicopter == null);
+    campaignRows = campaignRows.filter((c) => c.helicopter_registration === reg);
+    faenaFlightLogRows = faenaFlightLogRows.filter((f) => f.helicopter_registration === reg);
+  }
 
   const fleetHealth = buildFleetHealthEngine(helicopterRows, componentRows, alertRows);
   const maintenanceForecast = buildMaintenanceForecastEngine(componentRows, flightLogRows);
-  const faenaRows = computeFaenaMetrics(faenaData.campaigns, faenaData.flightLogs);
+  const faenaRows = computeFaenaMetrics(campaignRows, faenaFlightLogRows);
   const vesselSummaries = computeVesselSummaries(faenaRows);
-  const fuelSpecAnomalies = buildFuelSpecAnomalies(faenaData.flightLogs, helicopterRows, faenaData.campaigns);
+  const fuelSpecAnomalies = buildFuelSpecAnomalies(faenaFlightLogRows, helicopterRows, campaignRows);
   const operationsInsights = { ...buildOperationsInsights(faenaRows, vesselSummaries), fuelSpecAnomalies };
 
   const registrations = helicopterRows.map((h) => h.registration);

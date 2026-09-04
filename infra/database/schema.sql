@@ -600,6 +600,14 @@ create table personnel (
   seaman_book_issue_date date,
   seaman_book_expiry date,
   seaman_book_photo_url text,
+  -- Asignación estable de técnico -> helicóptero (sept 2026, Adolfo: quiere
+  -- que cada técnico vea en AURA solo las recomendaciones de SU helicóptero).
+  -- Distinto de campaigns.mechanic_id/helicopter_registration, que es la
+  -- asignación transitoria de UNA faena — esto es la aeronave que ese
+  -- técnico atiende de forma permanente, llenada una vez desde Personal.
+  -- Usado por lib/auth.ts (SessionUser) y lib/aura.ts para filtrar todo el
+  -- análisis a un solo registro cuando quien mira es un Mecánico.
+  assigned_helicopter_registration text references helicopters(registration),
   archived boolean not null default false,
   source text not null default 'User' check (source in ('Demo','User')),
   created_at timestamptz not null default now(),

@@ -2,10 +2,16 @@ import { UserRoundCog } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
+import { supabase } from "@/lib/supabase";
 import { createPersonnel } from "@/app/personnel/actions";
 import { personnelRoles, personnelStatuses } from "@/app/personnel/constants";
 
-export default function NewPersonnelPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NewPersonnelPage() {
+  const { data: helicopterData } = await supabase.from("helicopters").select("registration, model").eq("archived", false).order("registration");
+  const helicopters = helicopterData ?? [];
+
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl">
@@ -52,6 +58,21 @@ export default function NewPersonnelPage() {
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-ink">
+              Helicóptero asignado (para AURA)
+              <select className="hsv-control" name="assignedHelicopterRegistration" defaultValue="">
+                <option value="">Sin asignar — ve toda la flota</option>
+                {helicopters.map((h) => (
+                  <option key={h.registration} value={h.registration}>
+                    {h.registration}
+                    {h.model ? ` — ${h.model}` : ""}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-0.5 text-xs font-normal text-ink-subtle">
+                Solo aplica a un Mecánico — en AURA solo verá recomendaciones y análisis de esta aeronave.
+              </span>
             </label>
             <label className="grid gap-1.5 text-sm font-semibold text-ink sm:col-span-2">
               Notas

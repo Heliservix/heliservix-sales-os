@@ -32,6 +32,7 @@ export async function createPersonnel(formData: FormData) {
     role: text(formData, "role") || "Piloto",
     monthly_salary: optionalNumber(formData, "monthlySalary"),
     rate_per_ton: optionalNumber(formData, "ratePerTon"),
+    assigned_helicopter_registration: optionalText(formData, "assignedHelicopterRegistration"),
     phone: optionalText(formData, "phone"),
     email: optionalText(formData, "email"),
     notes: optionalText(formData, "notes"),
@@ -58,6 +59,7 @@ export async function createPersonnel(formData: FormData) {
 
   revalidatePath("/personnel");
   revalidatePath("/alerts");
+  revalidatePath("/aura");
   redirect("/personnel");
 }
 
@@ -72,6 +74,7 @@ export async function updatePersonnel(id: string, formData: FormData) {
       role: text(formData, "role") || "Piloto",
       monthly_salary: optionalNumber(formData, "monthlySalary"),
       rate_per_ton: optionalNumber(formData, "ratePerTon"),
+      assigned_helicopter_registration: optionalText(formData, "assignedHelicopterRegistration"),
       phone: optionalText(formData, "phone"),
       email: optionalText(formData, "email"),
       notes: optionalText(formData, "notes"),
@@ -99,6 +102,7 @@ export async function updatePersonnel(id: string, formData: FormData) {
 
   revalidatePath("/personnel");
   revalidatePath("/alerts");
+  revalidatePath("/aura");
   redirect("/personnel");
 }
 
@@ -107,6 +111,7 @@ export async function archivePersonnel(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/personnel");
   revalidatePath("/alerts");
+  revalidatePath("/aura");
   redirect("/personnel");
 }
 

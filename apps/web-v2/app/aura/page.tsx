@@ -15,6 +15,7 @@ import {
   type AuraForecastBucket
 } from "@/lib/aura";
 import { searchAcrossSystem } from "@/lib/aura-search";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,19 @@ type AuraPageProps = {
 export default async function AuraPage({ searchParams }: AuraPageProps) {
   const { q } = await searchParams;
   const query = q?.trim() ?? "";
-  const [analysis, searchResults] = await Promise.all([buildAuraAnalysis(), query ? searchAcrossSystem(query) : Promise.resolve([])]);
+
+  // Un Mecánico con helicóptero asignado (Personal → Editar) ve AURA
+  // filtrado a esa sola aeronave — todo el análisis, no solo la lista visual
+  // (ver lib/aura.ts). Un admin, un piloto, o un mecánico sin asignación
+  // todavía siguen viendo la flota completa, igual que antes.
+  const session = await getSessionUser();
+  const isScopedMechanic = Boolean(session && !session.isAdmin && session.personnelRole === "Mecánico" && session.assignedHelicopterRegistration);
+  const scopedRegistration = isScopedMechanic ? session!.assignedHelicopterRegistration : null;
+
+  const [analysis, searchResults] = await Promise.all([
+    buildAuraAnalysis(scopedRegistration),
+    query ? searchAcrossSystem(query) : Promise.resolve([])
+  ]);
   const nearForecast = [
     ...analysis.maintenanceForecast[30],
     ...analysis.maintenanceForecast[60],
@@ -49,10 +62,20 @@ export default async function AuraPage({ searchParams }: AuraPageProps) {
       <div className="mx-auto max-w-[1500px]">
         <SectionHeader
           eyebrow="AURA"
-          title="Recomendaciones de AURA"
+          title={isScopedMechanic ? `Recomendaciones de AURA — ${scopedRegistration}` : "Recomendaciones de AURA"}
           description="Motor de reglas determinístico sobre tus datos reales — sin IA externa, sin costo por uso. Cada número aquí viene de una fórmula auditable, no de un modelo de lenguaje."
           icon={Bot}
         />
+
+        {isScopedMechanic ? (
+          <Panel className="mb-5 border-aviation-teal/25 bg-aviation-teal/5">
+            <p className="text-sm text-ink">
+              Estás viendo AURA filtrado solo a tu helicóptero asignado, <strong>{scopedRegistration}</strong> — salud, pronóstico
+              de mantenimiento, recomendaciones, compras y operaciones. Si el helicóptero asignado no es correcto, pídele a Adolfo
+              que lo corrija en Personal.
+            </p>
+          </Panel>
+        ) : null}
 
         <Panel className="mb-5">
           <div className="flex items-center gap-2">
